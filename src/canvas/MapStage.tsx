@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Layer, Line, Rect as KonvaRect, Stage } from "react-konva";
+import { Line, Stage } from "react-konva";
 import { selectLandmasses, useEditorStore } from "../state/editorStore";
 import { LAYER_ORDER, type LayerId, type Point } from "../scene/types";
+import { BackgroundLayer } from "./BackgroundLayer";
 import { RingsLayer } from "./RingsLayer";
+import { VignetteLayer } from "./VignetteLayer";
 import { SemanticLayer } from "./SemanticLayer";
 import { useCoastalRings } from "./useCoastalRings";
+import { PALETTE } from "./palette";
 import { useTerrainBrush } from "./useTerrainBrush";
 import {
   clampPan,
@@ -192,9 +195,7 @@ export function MapStage() {
     >
       {view && vp && cache && (
         <Stage width={view.w} height={view.h} scaleX={vp.scale} scaleY={vp.scale} x={vp.x} y={vp.y}>
-          <Layer listening={false}>
-            <KonvaRect x={0} y={0} width={map.w} height={map.h} fill="#3E6E75" />
-          </Layer>
+          <BackgroundLayer map={map} parchment={scene.settings.parchment} />
           <RingsLayer
             bands={rings.bands}
             cacheRect={cache.rect}
@@ -214,7 +215,7 @@ export function MapStage() {
                   <Line
                     points={brush.previewPoints}
                     // the sea brush previews as water, so erasing reads as erasing
-                    stroke={terrainTool === "sea" ? "#3E6E75" : "#E7DAC0"}
+                    stroke={terrainTool === "sea" ? PALETTE.seaDeep : PALETTE.paper}
                     strokeWidth={brushSize}
                     lineCap="round"
                     lineJoin="round"
@@ -224,6 +225,7 @@ export function MapStage() {
               }
             />
           ))}
+          {scene.settings.parchment && <VignetteLayer map={map} />}
         </Stage>
       )}
       <p className="hud">

@@ -1,15 +1,7 @@
 import type Konva from "konva";
 import { Shape } from "react-konva";
-import type { Biome, Landmass, Ring } from "../../scene/types";
-
-/** Placeholder palette — WP-5 replaces this with the real parchment/biome styling. */
-const BIOME_FILL: Record<Biome, string> = {
-  grassland: "#E7DAC0",
-  forest: "#D8D2AE",
-  desert: "#EFE0B4",
-  snow: "#F2F3EF",
-  swamp: "#CFCBA6",
-};
+import type { Landmass, Ring } from "../../scene/types";
+import { BIOME_FILL, LAND_OPACITY, PALETTE } from "../palette";
 
 const trace = (context: Konva.Context, ring: Ring) => {
   context.moveTo(ring[0][0], ring[0][1]);
@@ -25,8 +17,10 @@ export function LandmassShape({ landmass }: { landmass: Landmass }) {
   return (
     <Shape
       fill={BIOME_FILL[landmass.biome]}
-      stroke="#2C3A34"
-      strokeWidth={2}
+      opacity={LAND_OPACITY}
+      stroke={PALETTE.coast}
+      strokeWidth={3}
+      lineJoin="round"
       sceneFunc={(context, shape) => {
         context.beginPath();
         trace(context, landmass.path);

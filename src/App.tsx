@@ -90,6 +90,16 @@ export default function App() {
           />
         </label>
 
+        <h2>Paper</h2>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={scene.settings.parchment}
+            onChange={(e) => setSettings({ parchment: e.target.checked })}
+          />
+          Parchment texture
+        </label>
+
         <h2>Coastal rings</h2>
         <label className="toggle">
           <input
