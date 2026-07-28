@@ -1,71 +1,60 @@
 import type Konva from "konva";
-import { memo, useEffect, useRef } from "react";
-import { Layer, Rect as KonvaRect } from "react-konva";
-import type { LayerId } from "../scene/types";
-import { PLACEHOLDER_STYLE, placeholderRects } from "./placeholders";
-import { cacheBytes, type Rect, type Size } from "./viewport";
+import { memo, useEffect, useRef, type ReactNode } from "react";
+import { Layer } from "react-konva";
+import type { Layer as SceneLayer, LayerId } from "../scene/types";
+import { LandmassShape } from "./shapes/LandmassShape";
+import { cacheBytes, type Rect } from "./viewport";
 
 interface Props {
-  id: LayerId;
-  map: Size;
-  visible: boolean;
+  layer: SceneLayer;
   /** The active layer keeps live nodes; every other layer renders from a bitmap cache. */
   active: boolean;
   cacheRect: Rect;
   /** pixelRatio for the cache = the current zoom, so the bitmap is viewport-sized. */
   cacheScale: number;
   onCacheBytes: (id: LayerId, bytes: number) => void;
+  /** in-progress stroke preview, drawn live on the active layer */
+  overlay?: ReactNode;
 }
 
 export const SemanticLayer = memo(function SemanticLayer({
-  id,
-  map,
-  visible,
+  layer,
   active,
   cacheRect,
   cacheScale,
   onCacheBytes,
+  overlay,
 }: Props) {
   const ref = useRef<Konva.Layer>(null);
-  const style = PLACEHOLDER_STYLE[id];
-  const rects = placeholderRects(id, map);
 
   useEffect(() => {
-    const layer = ref.current;
-    if (!layer) return;
+    const node = ref.current;
+    if (!node) return;
 
     if (active) {
-      if (layer.isCached()) layer.clearCache();
-      onCacheBytes(id, 0);
+      if (node.isCached()) node.clearCache();
+      onCacheBytes(layer.id, 0);
     } else {
       // ponytail: pixelRatio = scale (CSS pixels), not scale * devicePixelRatio. Retina
       // sharpness for inactive layers costs 4x memory; raise it if the softness shows.
-      layer.cache({
+      node.cache({
         x: cacheRect.x,
         y: cacheRect.y,
         width: cacheRect.w,
         height: cacheRect.h,
         pixelRatio: cacheScale,
       });
-      onCacheBytes(id, cacheBytes(cacheRect, cacheScale));
+      onCacheBytes(layer.id, cacheBytes(cacheRect, cacheScale));
     }
-    layer.batchDraw();
-  }, [active, cacheRect, cacheScale, id, onCacheBytes]);
+    node.batchDraw();
+  }, [active, cacheRect, cacheScale, layer.id, layer.objects, onCacheBytes]);
 
   return (
-    <Layer ref={ref} visible={visible} listening={false}>
-      {rects.map((r, i) => (
-        <KonvaRect
-          key={i}
-          x={r.x}
-          y={r.y}
-          width={r.w}
-          height={r.h}
-          fill={style.fill}
-          opacity={active ? 1 : 0.85}
-          cornerRadius={4}
-        />
-      ))}
+    <Layer ref={ref} visible={layer.visible} listening={false}>
+      {layer.objects.map((object) =>
+        object.type === "landmass" ? <LandmassShape key={object.id} landmass={object} /> : null,
+      )}
+      {overlay}
     </Layer>
   );
 });

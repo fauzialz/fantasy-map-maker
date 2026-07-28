@@ -1,0 +1,23 @@
+{
+  "stage": "S9",
+  "case": "sea-cut-splits-keeps-larger-id",
+  "description": "The sea/eraser brush (S8 difference) cuts one landmass into two unequal pieces; connected-components (S9) yields two objects, and per ADR-10 the LARGER-area piece keeps the source id/name while the smaller gets a fresh id and empty name.",
+  "input": {
+    "existing": [
+      { "type": "landmass", "id": "A", "name": "Continent",
+        "shape": { "type": "polygon", "path": [[100,100],[500,100],[500,300],[100,300]] } }
+    ],
+    "eraseRegion": { "type": "polygon", "path": [[380,80],[420,80],[420,320],[380,320]] }
+  },
+  "params": { "SCALE": 100, "tol": 0.01 },
+  "geometry_notes": [
+    "Land is a 400x200 rectangle. The vertical sea strip x=380..420 severs it into a large left piece (width 280) and a small right piece (width 80).",
+    "Left area (280*200) > right area (80*200) -> left keeps id 'A'."
+  ],
+  "assertions": [
+    { "type": "polygonCount", "n": 2, "note": "The cut produces two disjoint landmasses." },
+    { "type": "largestAreaHasId", "id": "A", "note": "The larger (left) piece retains the original id 'A' and its name." },
+    { "type": "smallerPieceHasFreshId", "notEqualTo": "A", "nameEmpty": true,
+      "note": "The smaller (right) piece gets a new id and empty name." }
+  ]
+}

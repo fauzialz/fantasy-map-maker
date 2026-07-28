@@ -38,6 +38,12 @@ export interface Landmass {
   /** inner boundaries = lakes, CW */
   holes: Ring[];
   biome: Biome;
+  /**
+   * Data-model §4 omits this, but ADR-10, system-design §7 and the S9 fixture all rely on
+   * a landmass name ("the larger piece keeps the id/name"). Optional, so scenes written
+   * before it existed still load unchanged — no migration needed.
+   */
+  name?: string;
 }
 
 export interface Tree extends PlacedBase {

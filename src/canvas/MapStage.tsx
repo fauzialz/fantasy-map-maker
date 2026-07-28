@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Layer, Rect as KonvaRect, Stage } from "react-konva";
-import { useEditorStore } from "../state/editorStore";
-import { LAYER_ORDER, type LayerId } from "../scene/types";
+import { Layer, Line, Rect as KonvaRect, Stage } from "react-konva";
+import { selectLandmasses, useEditorStore } from "../state/editorStore";
+import { LAYER_ORDER, type LayerId, type Point } from "../scene/types";
 import { SemanticLayer } from "./SemanticLayer";
+import { useTerrainBrush } from "./useTerrainBrush";
 import {
   clampPan,
   clampViewport,
@@ -34,6 +35,10 @@ export function MapStage() {
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
   const [bytes, setBytes] = useState<Partial<Record<LayerId, number>>>({});
+
+  // Mirror of the viewport, so screen→map conversion stays a stable callback.
+  const vpRef = useRef<Viewport | null>(null);
+  vpRef.current = vp;
 
   // Measure the container; the stage is viewport-sized, never map-sized.
   useEffect(() => {
@@ -85,13 +90,34 @@ export function MapStage() {
     return () => el.removeEventListener("wheel", onWheel);
   }, [map, view]);
 
-  // Pan: middle-drag, or space + left-drag.
+  const toMapPoint = useCallback((clientX: number, clientY: number): Point => {
+    const box = containerRef.current?.getBoundingClientRect();
+    const current = vpRef.current;
+    if (!box || !current) return [0, 0];
+    return [
+      (clientX - box.left - current.x) / current.scale,
+      (clientY - box.top - current.y) / current.scale,
+    ];
+  }, []);
+
+  const brushSize = useEditorStore((s) => s.brushSize);
+  const brush = useTerrainBrush({
+    enabled: activeLayerId === "terrain" && !spaceHeld,
+    map,
+    toMapPoint,
+  });
+
+  // Pan: middle-drag, or space + left-drag. Plain left-drag paints.
   const dragRef = useRef<{ x: number; y: number; vp: Viewport } | null>(null);
   const onMouseDown = (e: React.MouseEvent) => {
-    if (!vp || (e.button !== 1 && !(e.button === 0 && spaceHeld))) return;
-    e.preventDefault();
-    dragRef.current = { x: e.clientX, y: e.clientY, vp };
-    setPanning(true);
+    if (!vp) return;
+    if (e.button === 1 || (e.button === 0 && spaceHeld)) {
+      e.preventDefault();
+      dragRef.current = { x: e.clientX, y: e.clientY, vp };
+      setPanning(true);
+      return;
+    }
+    if (e.button === 0 && brush.begin(e.clientX, e.clientY)) e.preventDefault();
   };
   useEffect(() => {
     if (!panning || !view) return;
@@ -138,6 +164,7 @@ export function MapStage() {
     setBytes((prev) => (prev[id] === value ? prev : { ...prev, [id]: value }));
   }, []);
 
+  const landCount = useEditorStore(selectLandmasses).length;
   const totalBytes = Object.values(bytes).reduce((a, b) => a + b, 0);
   const fullMapBytes = map.w * map.h * 4 * LAYER_ORDER.length;
   const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -147,7 +174,15 @@ export function MapStage() {
       ref={containerRef}
       className="stage"
       onMouseDown={onMouseDown}
-      style={{ cursor: panning ? "grabbing" : spaceHeld ? "grab" : "default" }}
+      style={{
+        cursor: panning
+          ? "grabbing"
+          : spaceHeld
+            ? "grab"
+            : activeLayerId === "terrain"
+              ? "crosshair"
+              : "default",
+      }}
     >
       {view && vp && cache && (
         <Stage width={view.w} height={view.h} scaleX={vp.scale} scaleY={vp.scale} x={vp.x} y={vp.y}>
@@ -157,21 +192,33 @@ export function MapStage() {
           {scene.layers.map((layer) => (
             <SemanticLayer
               key={layer.id}
-              id={layer.id}
-              map={map}
-              visible={layer.visible}
+              layer={layer}
               active={layer.id === activeLayerId}
               cacheRect={cache.rect}
               cacheScale={cache.scale}
               onCacheBytes={onCacheBytes}
+              overlay={
+                layer.id === "terrain" && brush.previewPoints ? (
+                  <Line
+                    points={brush.previewPoints}
+                    stroke="#E7DAC0"
+                    strokeWidth={brushSize}
+                    lineCap="round"
+                    lineJoin="round"
+                    opacity={0.75}
+                  />
+                ) : undefined
+              }
             />
           ))}
         </Stage>
       )}
       <p className="hud">
         zoom {vp ? Math.round(vp.scale * 100) : 0}% · active <b>{activeLayerId}</b> (live) ·{" "}
-        {LAYER_ORDER.length - 1} cached = {mb(totalBytes)} · full-map caching would be{" "}
-        {mb(fullMapBytes)}
+        {LAYER_ORDER.length - 1} cached = {mb(totalBytes)} · full-map would be {mb(fullMapBytes)} ·{" "}
+        {landCount} landmass{landCount === 1 ? "" : "es"}
+        {brush.committing && " · vectorising…"}
+        {brush.error && ` · ${brush.error}`}
       </p>
     </div>
   );

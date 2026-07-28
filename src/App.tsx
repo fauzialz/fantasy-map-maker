@@ -14,6 +14,9 @@ export default function App() {
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
   const newScene = useEditorStore((s) => s.newScene);
+  const brushSize = useEditorStore((s) => s.brushSize);
+  const setBrushSize = useEditorStore((s) => s.setBrushSize);
+  const setSettings = useEditorStore((s) => s.setSettings);
   const [worker, setWorker] = useState("checking…");
 
   useEffect(() => {
@@ -43,6 +46,30 @@ export default function App() {
           ))}
         </ul>
 
+        <h2>Terrain brush</h2>
+        <label className="slider">
+          Brush size <b>{brushSize}</b>
+          <input
+            type="range"
+            min={40}
+            max={800}
+            step={10}
+            value={brushSize}
+            onChange={(e) => setBrushSize(Number(e.target.value))}
+          />
+        </label>
+        <label className="slider">
+          Coast detail <b>{scene.settings.coastDetail.toFixed(2)}</b>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={scene.settings.coastDetail}
+            onChange={(e) => setSettings({ coastDetail: Number(e.target.value) })}
+          />
+        </label>
+
         <h2>Canvas</h2>
         <div className="presets">
           {PRESETS.map((p) => (
@@ -61,7 +88,9 @@ export default function App() {
         <p className="status">
           {scene.meta.canvas.w}×{scene.meta.canvas.h} · schema v{scene.schemaVersion} · {worker}
         </p>
-        <p className="status">wheel to zoom · middle-drag or space+drag to pan</p>
+        <p className="status">
+          drag to paint land (terrain layer) · wheel to zoom · middle-drag or space+drag to pan
+        </p>
       </aside>
 
       <MapStage />

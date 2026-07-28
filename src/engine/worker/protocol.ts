@@ -1,12 +1,17 @@
+import type { Landmass } from "../../scene/types";
+import type { TerrainCommit } from "../terrain/pipeline";
+
 /**
  * Typed geometry-worker protocol (`04-geometry-pipeline.md` §"Worker message protocol").
  * Ops are coarse — one round-trip per user action; the pipeline stages stay inside the
  * worker. Add an op here and its handler in `geometry.worker.ts`; the client is generic.
  */
 export interface GeometryOps {
-  /** liveness/round-trip check. Real ops land with their packages: terrainCommit (WP-2/3),
-   *  deriveRings (WP-4), generate (WP-10). */
+  /** liveness/round-trip check */
   ping: { payload: { echo: string }; result: { echo: string } };
+  /** Pipeline A: one committed brush stroke → the new set of landmasses */
+  terrainCommit: { payload: TerrainCommit; result: { landmasses: Landmass[] } };
+  // deriveRings (WP-4) and generate (WP-10) land here.
 }
 
 export type Op = keyof GeometryOps;

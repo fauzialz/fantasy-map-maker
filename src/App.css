@@ -113,3 +113,17 @@ main {
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
+
+.slider {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+}
+.slider b {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.slider input {
+  display: block;
+  width: 100%;
+}
