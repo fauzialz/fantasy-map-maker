@@ -27,7 +27,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ## Styling & objects
 - [x] **WP-5 · Parchment & base styling** — parchment bg, sea fill, biome fills,
   vignette; both global toggles (`parchment`, `coastalRings`) work.
-- [ ] **WP-6 · Mountains & forests** — sprite registry + raster cache; scatter-brush /
+- [x] **WP-6 · Mountains & forests** — sprite registry + raster cache; scatter-brush /
   one-by-one / object-eraser; z-order `(manual z, Y, scale)`.
 - [ ] **WP-7 · Selection & editing** — click / shift-click / marquee (rbush); transform
   handles; bring-forward/send-back; delete; smooth at 1–2k objects.
