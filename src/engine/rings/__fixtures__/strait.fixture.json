@@ -1,0 +1,40 @@
+{
+  "stage": "S14",
+  "case": "strait",
+  "description": "Two islands whose outward rings meet in the narrow channel between them. Because rings are derived from the UNION of all land (S10) then clipped to water (S11/S14), the overlapping bands must merge into ONE clean shared band with no pinch and no double coverage — never two colliding ring sets. This is the single test that proves the signature coastal-ring effect is correct.",
+  "input": {
+    "canvas": { "w": 1000, "h": 600 },
+    "land": [
+      { "type": "landmass", "id": "A", "name": "West Isle", "shape": { "type": "disc", "cx": 370, "cy": 300, "r": 80 } },
+      { "type": "landmass", "id": "B", "name": "East Isle", "shape": { "type": "disc", "cx": 630, "cy": 300, "r": 80 } }
+    ]
+  },
+  "params": {
+    "ringGap": 14,
+    "ringCount": 4,
+    "SCALE": 100,
+    "tessellation": 64,
+    "tol": 0.01
+  },
+  "geometry_notes": [
+    "Island edges face each other at x=450 (A) and x=550 (B): a 100px channel.",
+    "4 rings * 14px = 56px reach from each coast; 56+56=112 > 100, so the grown regions OVERLAP across the channel and MUST union into a shared band.",
+    "channel bbox below stays inside the channel (x 455..545) and off both islands."
+  ],
+  "assertions": [
+    { "type": "singleComponentInBBox", "bands": "result", "bbox": { "x": 455, "y": 285, "w": 90, "h": 30 },
+      "note": "The bands in the channel are ONE connected component — no pinch, no two separate ring sets." },
+    { "type": "noOverlapInBBox", "bands": "result", "bbox": { "x": 455, "y": 285, "w": 90, "h": 30 },
+      "note": "Coverage multiplicity <= 1: the merged band never double-stacks where the two islands' offsets overlap." },
+    { "type": "landNeverCovered", "bands": "result", "land": "input.land",
+      "note": "No ring band covers either island's interior." },
+    { "type": "pointInside", "bands": "result", "point": [500, 300], "expected": true,
+      "note": "The channel midpoint IS covered by a ring band (the shared band fills the strait)." },
+    { "type": "pointInside", "bands": "result", "point": [370, 300], "expected": false,
+      "note": "The center of island A is land, not ring." },
+    { "type": "pointInside", "bands": "result", "point": [270, 300], "expected": true,
+      "note": "Just off A's west coast (edge x=290, ~20px out) is covered by rings." },
+    { "type": "pointInside", "bands": "result", "point": [180, 300], "expected": false,
+      "note": "Far open sea >56px west of A's coast (edge x=290, reach to x=234) is NOT covered." }
+  ]
+}

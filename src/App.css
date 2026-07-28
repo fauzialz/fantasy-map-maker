@@ -185,3 +185,10 @@ main {
   color: var(--muted);
   padding: 3px 4px;
 }
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}

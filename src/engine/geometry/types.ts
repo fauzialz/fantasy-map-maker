@@ -43,3 +43,11 @@ export const polygonArea = (polygon: Polygon): number =>
 
 export const multiPolygonArea = (multi: MultiPolygon): number =>
   multi.reduce((total, polygon) => total + polygonArea(polygon), 0);
+
+/** Axis-aligned rectangle in map-space. */
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}

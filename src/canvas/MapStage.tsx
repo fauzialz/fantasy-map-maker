@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layer, Line, Rect as KonvaRect, Stage } from "react-konva";
 import { selectLandmasses, useEditorStore } from "../state/editorStore";
 import { LAYER_ORDER, type LayerId, type Point } from "../scene/types";
+import { RingsLayer } from "./RingsLayer";
 import { SemanticLayer } from "./SemanticLayer";
+import { useCoastalRings } from "./useCoastalRings";
 import { useTerrainBrush } from "./useTerrainBrush";
 import {
   clampPan,
@@ -102,6 +104,7 @@ export function MapStage() {
 
   const brushSize = useEditorStore((s) => s.brushSize);
   const terrainTool = useEditorStore((s) => s.terrainTool);
+  const rings = useCoastalRings(map);
   const brush = useTerrainBrush({
     enabled: activeLayerId === "terrain" && !spaceHeld,
     map,
@@ -164,9 +167,11 @@ export function MapStage() {
   const onCacheBytes = useCallback((id: LayerId, value: number) => {
     setBytes((prev) => (prev[id] === value ? prev : { ...prev, [id]: value }));
   }, []);
+  const [ringBytes, setRingBytes] = useState(0);
+  const onRingBytes = useCallback((value: number) => setRingBytes(value), []);
 
   const landCount = useEditorStore(selectLandmasses).length;
-  const totalBytes = Object.values(bytes).reduce((a, b) => a + b, 0);
+  const totalBytes = Object.values(bytes).reduce((a, b) => a + b, 0) + ringBytes;
   const fullMapBytes = map.w * map.h * 4 * LAYER_ORDER.length;
   const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
@@ -190,6 +195,12 @@ export function MapStage() {
           <Layer listening={false}>
             <KonvaRect x={0} y={0} width={map.w} height={map.h} fill="#3E6E75" />
           </Layer>
+          <RingsLayer
+            bands={rings.bands}
+            cacheRect={cache.rect}
+            cacheScale={cache.scale}
+            onCacheBytes={onRingBytes}
+          />
           {scene.layers.map((layer) => (
             <SemanticLayer
               key={layer.id}
@@ -219,7 +230,9 @@ export function MapStage() {
         zoom {vp ? Math.round(vp.scale * 100) : 0}% · active <b>{activeLayerId}</b> (live) ·{" "}
         {LAYER_ORDER.length - 1} cached = {mb(totalBytes)} · full-map would be {mb(fullMapBytes)} ·{" "}
         {landCount} landmass{landCount === 1 ? "" : "es"}
+        {rings.bands.length > 0 && ` · ${rings.bands.length} rings`}
         {brush.committing && " · vectorising…"}
+        {rings.deriving && " · deriving rings…"}
         {brush.error && ` · ${brush.error}`}
       </p>
     </div>

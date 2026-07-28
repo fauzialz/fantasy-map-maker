@@ -90,6 +90,40 @@ export default function App() {
           />
         </label>
 
+        <h2>Coastal rings</h2>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={scene.settings.coastalRings}
+            onChange={(e) => setSettings({ coastalRings: e.target.checked })}
+          />
+          Show rings
+        </label>
+        <label className="slider">
+          Ring count <b>{scene.settings.ringCount}</b>
+          <input
+            type="range"
+            min={1}
+            max={8}
+            step={1}
+            value={scene.settings.ringCount}
+            disabled={!scene.settings.coastalRings}
+            onChange={(e) => setSettings({ ringCount: Number(e.target.value) })}
+          />
+        </label>
+        <label className="slider">
+          Ring gap <b>{scene.settings.ringGap}</b>
+          <input
+            type="range"
+            min={4}
+            max={60}
+            step={2}
+            value={scene.settings.ringGap}
+            disabled={!scene.settings.coastalRings}
+            onChange={(e) => setSettings({ ringGap: Number(e.target.value) })}
+          />
+        </label>
+
         <h2>Canvas</h2>
         <div className="presets">
           {PRESETS.map((p) => (

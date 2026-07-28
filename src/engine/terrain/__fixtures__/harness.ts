@@ -1,6 +1,16 @@
+import polygonClipping from "polygon-clipping";
 import type { Landmass } from "../../../scene/types";
 import { TOL } from "../../geometry/coords";
-import { polygonArea, type MultiPolygon, type Polygon, type Ring } from "../../geometry/types";
+import { pointInMultiPolygon } from "../../geometry/nesting";
+import {
+  multiPolygonArea,
+  polygonArea,
+  type MultiPolygon,
+  type Point,
+  type Polygon,
+  type Rect,
+  type Ring,
+} from "../../geometry/types";
 import { createMask, stampMask, type Mask } from "../mask";
 
 /**
@@ -100,14 +110,72 @@ export type Assertion =
   | { type: "holeCount"; target: string; n: number }
   | { type: "polygonCount"; n: number }
   | { type: "largestAreaHasId"; id: string }
-  | { type: "smallerPieceHasFreshId"; notEqualTo: string; nameEmpty?: boolean };
+  | { type: "smallerPieceHasFreshId"; notEqualTo: string; nameEmpty?: boolean }
+  | { type: "pointInside"; target?: string; bands?: string; point: Point; expected: boolean }
+  | { type: "singleComponentInBBox"; bands: string; bbox: Rect }
+  | { type: "noOverlapInBBox"; bands: string; bbox: Rect }
+  | { type: "landNeverCovered"; bands: string; land: string };
 
 export interface AssertionContext {
   /** Geometry results (S2, S7): one entry per disjoint polygon-with-holes. */
   multi?: MultiPolygon;
   /** Object results (S9). */
   objects?: Landmass[];
+  /** Ring bands (S13, S14), one MultiPolygon per band. */
+  bands?: MultiPolygon[];
+  /** The input land the bands were derived from (S14). */
+  land?: MultiPolygon;
 }
+
+const bboxPolygon = (bbox: Rect): MultiPolygon => [
+  [
+    [
+      [bbox.x, bbox.y],
+      [bbox.x + bbox.w, bbox.y],
+      [bbox.x + bbox.w, bbox.y + bbox.h],
+      [bbox.x, bbox.y + bbox.h],
+    ],
+  ],
+];
+
+const intersect = (a: MultiPolygon, b: MultiPolygon): MultiPolygon =>
+  a.length === 0 || b.length === 0 ? [] : polygonClipping.intersection(a, b);
+
+const unionAll = (multis: MultiPolygon[]): MultiPolygon => {
+  const parts = multis.filter((multi) => multi.length > 0);
+  if (parts.length === 0) return [];
+  return polygonClipping.union(parts[0], ...parts.slice(1));
+};
+
+const perimeter = (multi: MultiPolygon): number =>
+  multi.reduce(
+    (total, polygon) =>
+      total +
+      polygon.reduce(
+        (sum, ring) =>
+          sum +
+          ring.reduce((length, [x1, y1], i) => {
+            const [x2, y2] = ring[(i + 1) % ring.length];
+            return length + Math.hypot(x2 - x1, y2 - y1);
+          }, 0),
+        0,
+      ),
+    0,
+  );
+
+/**
+ * Area assertions need an area tolerance, not a coordinate one.
+ *
+ * The fixtures specify `tol: 0.01`, which is 1/SCALE — the precision of a *coordinate*
+ * after the scaled-int round trip the boolean ops require. Comparing areas across that
+ * boundary, a shared edge can shift by up to 1/SCALE along its whole length, so the area
+ * can differ by up to perimeter/SCALE. Measured: quantising a two-island fixture's land
+ * with no ring maths at all already moves 0.74 units of area.
+ *
+ * Using the coordinate tolerance for an area comparison would fail correct geometry,
+ * which is exactly the brittleness `fixtures/README.md` warns against.
+ */
+const areaTolerance = (boundary: MultiPolygon): number => Math.max(TOL, perimeter(boundary) * TOL);
 
 /** Returns null when the assertion holds, or a human-readable failure. */
 export function evaluate(assertion: Assertion, context: AssertionContext): string | null {
@@ -160,6 +228,44 @@ export function evaluate(assertion: Assertion, context: AssertionContext): strin
           return `smallerPieceHasFreshId: smaller piece kept name "${object.name}"`;
       }
       return null;
+    }
+
+    case "pointInside": {
+      const target = context.bands ? unionAll(context.bands) : multi;
+      const actual = pointInMultiPolygon(target, assertion.point);
+      return actual === assertion.expected
+        ? null
+        : `pointInside ${assertion.point}: expected ${assertion.expected}, got ${actual}`;
+    }
+
+    case "singleComponentInBBox": {
+      const inside = intersect(unionAll(context.bands ?? []), bboxPolygon(assertion.bbox));
+      return inside.length === 1
+        ? null
+        : `singleComponentInBBox: expected 1 connected component, got ${inside.length}`;
+    }
+
+    case "noOverlapInBBox": {
+      // Coverage multiplicity ≤ 1: summed band areas must equal the area of their union.
+      const box = bboxPolygon(assertion.bbox);
+      const bands = context.bands ?? [];
+      const summed = bands.reduce(
+        (total, band) => total + multiPolygonArea(intersect(band, box)),
+        0,
+      );
+      const union = intersect(unionAll(bands), box);
+      const merged = multiPolygonArea(union);
+      return Math.abs(summed - merged) <= areaTolerance(union)
+        ? null
+        : `noOverlapInBBox: bands cover ${summed.toFixed(4)} but their union is ${merged.toFixed(4)} — they overlap`;
+    }
+
+    case "landNeverCovered": {
+      const land = context.land ?? [];
+      const covered = multiPolygonArea(intersect(unionAll(context.bands ?? []), land));
+      return covered <= areaTolerance(land)
+        ? null
+        : `landNeverCovered: bands cover ${covered.toFixed(4)} of land area (tolerance ${areaTolerance(land).toFixed(4)})`;
     }
   }
 }

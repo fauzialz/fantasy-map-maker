@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { deriveRings } from "../rings/rings";
 import { terrainCommit } from "../terrain/pipeline";
 import type { GeometryOps, Op, WorkerRequest, WorkerResponse } from "./protocol";
 
@@ -9,6 +10,7 @@ type Handlers = { [O in Op]: (payload: GeometryOps[O]["payload"]) => GeometryOps
 const handlers: Handlers = {
   ping: (payload) => payload,
   terrainCommit: (payload) => ({ landmasses: terrainCommit(payload) }),
+  deriveRings: (payload) => ({ bands: deriveRings(payload) }),
 };
 
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {

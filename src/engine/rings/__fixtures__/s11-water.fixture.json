@@ -1,0 +1,23 @@
+{
+  "stage": "S11",
+  "case": "land-with-lake",
+  "description": "waterRegion = canvasRect - landUnion. A continent with an interior lake (hole) must yield a water region that includes BOTH the lake interior AND the surrounding open sea, and EXCLUDES land. This is what lets rings radiate outward on the coast and inward around the lake from one operation.",
+  "input": {
+    "canvas": { "w": 800, "h": 600 },
+    "land": [
+      { "type": "landmass", "id": "A", "name": "Ringland",
+        "shape": { "type": "polygon",
+          "path": [[200,150],[600,150],[600,450],[200,450]],
+          "holes": [ [[350,250],[450,250],[450,350],[350,350]] ] } }
+    ]
+  },
+  "params": { "SCALE": 100, "tol": 0.01 },
+  "assertions": [
+    { "type": "pointInside", "target": "result", "point": [400, 300], "expected": true,
+      "note": "Inside the lake (the hole) IS water." },
+    { "type": "pointInside", "target": "result", "point": [50, 50], "expected": true,
+      "note": "Open sea outside the continent IS water." },
+    { "type": "pointInside", "target": "result", "point": [250, 200], "expected": false,
+      "note": "On the continent's land ring is NOT water." }
+  ]
+}

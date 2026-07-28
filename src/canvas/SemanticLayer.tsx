@@ -1,9 +1,10 @@
 import type Konva from "konva";
-import { memo, useEffect, useRef, type ReactNode } from "react";
+import { memo, useCallback, useRef, type ReactNode } from "react";
 import { Layer } from "react-konva";
 import type { Layer as SceneLayer, LayerId } from "../scene/types";
 import { LandmassShape } from "./shapes/LandmassShape";
-import { cacheBytes, type Rect } from "./viewport";
+import { useLayerCache } from "./useLayerCache";
+import type { Rect } from "./viewport";
 
 interface Props {
   layer: SceneLayer;
@@ -26,28 +27,18 @@ export const SemanticLayer = memo(function SemanticLayer({
   overlay,
 }: Props) {
   const ref = useRef<Konva.Layer>(null);
+  const report = useCallback(
+    (bytes: number) => onCacheBytes(layer.id, bytes),
+    [onCacheBytes, layer.id],
+  );
 
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-
-    if (active) {
-      if (node.isCached()) node.clearCache();
-      onCacheBytes(layer.id, 0);
-    } else {
-      // ponytail: pixelRatio = scale (CSS pixels), not scale * devicePixelRatio. Retina
-      // sharpness for inactive layers costs 4x memory; raise it if the softness shows.
-      node.cache({
-        x: cacheRect.x,
-        y: cacheRect.y,
-        width: cacheRect.w,
-        height: cacheRect.h,
-        pixelRatio: cacheScale,
-      });
-      onCacheBytes(layer.id, cacheBytes(cacheRect, cacheScale));
-    }
-    node.batchDraw();
-  }, [active, cacheRect, cacheScale, layer.id, layer.objects, onCacheBytes]);
+  useLayerCache(ref, {
+    active,
+    cacheRect,
+    cacheScale,
+    content: layer.objects,
+    onCacheBytes: report,
+  });
 
   return (
     <Layer ref={ref} visible={layer.visible} listening={false}>

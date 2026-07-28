@@ -1,4 +1,6 @@
 import type { Landmass } from "../../scene/types";
+import type { MultiPolygon } from "../geometry/types";
+import type { DeriveRings } from "../rings/rings";
 import type { TerrainCommit } from "../terrain/pipeline";
 
 /**
@@ -11,7 +13,9 @@ export interface GeometryOps {
   ping: { payload: { echo: string }; result: { echo: string } };
   /** Pipeline A: one committed brush stroke → the new set of landmasses */
   terrainCommit: { payload: TerrainCommit; result: { landmasses: Landmass[] } };
-  // deriveRings (WP-4) and generate (WP-10) land here.
+  /** Pipeline C: land union -> water -> bands -> clip. One MultiPolygon per ring. */
+  deriveRings: { payload: DeriveRings; result: { bands: MultiPolygon[] } };
+  // generate (WP-10) lands here.
 }
 
 export type Op = keyof GeometryOps;
