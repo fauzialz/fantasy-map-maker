@@ -141,7 +141,11 @@ export function MapStage() {
       return;
     }
     if (e.button !== 0) return;
-    if (brush.begin(e.clientX, e.clientY) || objects.begin(e.clientX, e.clientY))
+    if (
+      brush.begin(e.clientX, e.clientY) ||
+      objects.begin(e.clientX, e.clientY) ||
+      selection.begin(e.clientX, e.clientY, e.shiftKey)
+    )
       e.preventDefault();
   };
   useEffect(() => {

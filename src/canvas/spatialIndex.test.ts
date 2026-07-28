@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { objectBounds } from "../scene/bounds";
 import type { Tree } from "../scene/types";
-import { handleAt } from "./useSelection";
+import { handleAt } from "./handles";
 import { SpatialIndex } from "./spatialIndex";
 
 const tree = (id: string, x: number, y: number, scale = 1): Tree => ({

@@ -1,31 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { boundsCenter, boundsContainPoint, boundsOf, type Bounds } from "../scene/bounds";
+import { boundsCenter, boundsOf, type Bounds } from "../scene/bounds";
 import { restack, rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
 import type { LayerId, Point, SceneObject } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
+import { resolveGesture } from "./gesture";
 import { SpatialIndex } from "./spatialIndex";
-
-/** Handle size in *screen* pixels, so handles stay grabbable at any zoom. */
-const HANDLE_PX = 9;
-const ROTATE_OFFSET_PX = 26;
-
-export type HandleKind = "scale" | "rotate";
-
-/** Which handle, if any, is under the point. Corners scale; the stalk above rotates. */
-export function handleAt(bounds: Bounds, [px, py]: Point, scale: number): HandleKind | undefined {
-  const reach = HANDLE_PX / scale;
-  const center = boundsCenter(bounds);
-  const rotateY = bounds.minY - ROTATE_OFFSET_PX / scale;
-  if (Math.hypot(px - center.x, py - rotateY) <= reach) return "rotate";
-
-  const corners: Point[] = [
-    [bounds.minX, bounds.minY],
-    [bounds.maxX, bounds.minY],
-    [bounds.minX, bounds.maxY],
-    [bounds.maxX, bounds.maxY],
-  ];
-  return corners.some(([cx, cy]) => Math.hypot(px - cx, py - cy) <= reach) ? "scale" : undefined;
-}
 
 type Drag =
   | { kind: "move"; start: Point; snapshot: SceneObject[] }
@@ -84,41 +63,44 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
       const point = toMapPoint(clientX, clientY);
       const store = useEditorStore.getState();
 
-      if (bounds && selected.length > 0) {
-        const handle = handleAt(bounds, point, scale);
-        if (handle) {
-          drag.current = {
-            kind: handle,
-            start: point,
-            origin: [boundsCenter(bounds).x, boundsCenter(bounds).y],
-            snapshot: selected,
-          };
-          setDragging(true);
-          return true;
-        }
-        if (boundsContainPoint(bounds, point[0], point[1])) {
-          drag.current = { kind: "move", start: point, snapshot: selected };
-          setDragging(true);
-          return true;
-        }
-      }
-
       const hit = index.hit(point[0], point[1]);
-      if (hit) {
-        const next = shift
+      const gesture = resolveGesture({
+        point,
+        bounds,
+        selectionCount: selected.length,
+        overObject: hit !== undefined,
+        shift,
+        scale,
+      });
+
+      if (gesture.kind === "scale" || gesture.kind === "rotate") {
+        const center = boundsCenter(bounds!);
+        drag.current = {
+          kind: gesture.kind,
+          start: point,
+          origin: [center.x, center.y],
+          snapshot: selected,
+        };
+      } else if (gesture.kind === "move") {
+        drag.current = { kind: "move", start: point, snapshot: selected };
+      } else if (gesture.kind === "pick" && hit) {
+        const next = gesture.additive
           ? selection.includes(hit.id)
             ? selection.filter((id) => id !== hit.id)
             : [...selection, hit.id]
           : [hit.id];
         store.setSelection(next);
-        const snapshot = objects.filter((object) => next.includes(object.id));
-        drag.current = { kind: "move", start: point, snapshot };
-        setDragging(true);
-        return true;
+        // Arm a move from the same press, so click-and-drag is one gesture.
+        drag.current = {
+          kind: "move",
+          start: point,
+          snapshot: objects.filter((object) => next.includes(object.id)),
+        };
+      } else if (gesture.kind === "marquee") {
+        if (!gesture.additive) store.setSelection([]);
+        drag.current = { kind: "marquee", start: point, additive: gesture.additive };
       }
 
-      if (!shift) store.setSelection([]);
-      drag.current = { kind: "marquee", start: point, additive: shift };
       setDragging(true);
       return true;
     },
