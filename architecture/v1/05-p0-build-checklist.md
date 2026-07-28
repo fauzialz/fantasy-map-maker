@@ -25,7 +25,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   clip. **The strait fixture passes.** Cached rings layer; debounced recompute; toggle.
 
 ## Styling & objects
-- [ ] **WP-5 · Parchment & base styling** — parchment bg, sea fill, biome fills,
+- [x] **WP-5 · Parchment & base styling** — parchment bg, sea fill, biome fills,
   vignette; both global toggles (`parchment`, `coastalRings`) work.
 - [ ] **WP-6 · Mountains & forests** — sprite registry + raster cache; scatter-brush /
   one-by-one / object-eraser; z-order `(manual z, Y, scale)`.
