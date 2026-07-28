@@ -25,11 +25,15 @@ interface EditorState {
    */
   terrainTool: "brush" | "sea";
   /** Placement mode on object layers; "erase" is the contextual object eraser (ADR-18). */
-  objectTool: "scatter" | "place" | "erase";
+  objectTool: "select" | "scatter" | "place" | "erase";
+  /** ids of the current multi-selection, within the active layer */
+  selection: string[];
   setActiveLayer: (id: LayerId) => void;
   setBrushSize: (size: number) => void;
   setTerrainTool: (tool: "brush" | "sea") => void;
-  setObjectTool: (tool: "scatter" | "place" | "erase") => void;
+  setObjectTool: (tool: "select" | "scatter" | "place" | "erase") => void;
+  setSelection: (ids: string[]) => void;
+  setLayerObjects: (layerId: LayerId, objects: SceneObject[]) => void;
   addObjects: (layerId: LayerId, objects: SceneObject[]) => void;
   removeObjects: (layerId: LayerId, ids: string[]) => void;
   setSettings: (patch: Partial<SceneSettings>) => void;
@@ -46,11 +50,25 @@ export const useEditorStore = create<EditorState>((set) => ({
   brushSize: 260,
   terrainTool: "brush",
   objectTool: "scatter",
+  selection: [],
 
-  setActiveLayer: (activeLayerId) => set({ activeLayerId }),
+  // Selection is per-layer, so switching layers drops it rather than leaving
+  // invisible objects selected on a layer you are no longer looking at.
+  setActiveLayer: (activeLayerId) => set({ activeLayerId, selection: [] }),
   setBrushSize: (brushSize) => set({ brushSize }),
   setTerrainTool: (terrainTool) => set({ terrainTool }),
   setObjectTool: (objectTool) => set({ objectTool }),
+  setSelection: (selection) => set({ selection }),
+
+  setLayerObjects: (layerId, objects) =>
+    set((state) => ({
+      scene: {
+        ...state.scene,
+        layers: state.scene.layers.map((layer) =>
+          layer.id === layerId ? { ...layer, objects } : layer,
+        ),
+      },
+    })),
 
   addObjects: (layerId, objects) =>
     set((state) => ({
@@ -66,6 +84,7 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((state) => {
       const doomed = new Set(ids);
       return {
+        selection: state.selection.filter((id) => !doomed.has(id)),
         scene: {
           ...state.scene,
           layers: state.scene.layers.map((layer) =>

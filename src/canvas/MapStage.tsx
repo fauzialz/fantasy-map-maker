@@ -8,7 +8,9 @@ import { VignetteLayer } from "./VignetteLayer";
 import { SemanticLayer } from "./SemanticLayer";
 import { useCoastalRings } from "./useCoastalRings";
 import { PALETTE } from "./palette";
+import { SelectionOverlay } from "./SelectionOverlay";
 import { LAYER_OBJECT, useObjectBrush } from "./useObjectBrush";
+import { useSelection } from "./useSelection";
 import { useTerrainBrush } from "./useTerrainBrush";
 import {
   clampPan,
@@ -114,9 +116,17 @@ export function MapStage() {
     map,
     toMapPoint,
   });
+  const objectTool = useEditorStore((s) => s.objectTool);
+  const onObjectLayer = LAYER_OBJECT[activeLayerId] !== undefined;
   const objects = useObjectBrush({
     activeLayerId,
-    enabled: LAYER_OBJECT[activeLayerId] !== undefined && !spaceHeld,
+    enabled: onObjectLayer && objectTool !== "select" && !spaceHeld,
+    toMapPoint,
+  });
+  const selection = useSelection({
+    activeLayerId,
+    enabled: onObjectLayer && objectTool === "select" && !spaceHeld,
+    scale: vp?.scale ?? 1,
     toMapPoint,
   });
 
@@ -223,7 +233,13 @@ export function MapStage() {
               cacheScale={cache.scale}
               onCacheBytes={onCacheBytes}
               overlay={
-                layer.id === "terrain" && brush.previewPoints ? (
+                layer.id === activeLayerId && onObjectLayer && objectTool === "select" ? (
+                  <SelectionOverlay
+                    bounds={selection.bounds}
+                    marquee={selection.marquee}
+                    scale={vp.scale}
+                  />
+                ) : layer.id === "terrain" && brush.previewPoints ? (
                   <Line
                     points={brush.previewPoints}
                     // the sea brush previews as water, so erasing reads as erasing
@@ -246,6 +262,7 @@ export function MapStage() {
         {landCount} landmass{landCount === 1 ? "" : "es"}
         {rings.bands.length > 0 && ` · ${rings.bands.length} rings`}
         {objectCount > 0 && ` · ${objectCount} objects`}
+        {selection.count > 0 && ` · ${selection.count} selected`}
         {brush.committing && " · vectorising…"}
         {rings.deriving && " · deriving rings…"}
         {brush.error && ` · ${brush.error}`}

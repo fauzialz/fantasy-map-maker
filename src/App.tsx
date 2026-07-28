@@ -3,6 +3,7 @@ import { MapStage } from "./canvas/MapStage";
 import { LAYER_OBJECT } from "./canvas/useObjectBrush";
 import { Toasts } from "./ui/Toasts";
 import { callGeometry } from "./engine/worker/client";
+import { restack } from "./scene/transform";
 import type { CanvasPreset } from "./scene/types";
 import { useEditorStore } from "./state/editorStore";
 import "./App.css";
@@ -24,6 +25,18 @@ export default function App() {
   const objectTool = useEditorStore((s) => s.objectTool);
   const setObjectTool = useEditorStore((s) => s.setObjectTool);
   const objectLayer = LAYER_OBJECT[activeLayerId];
+  const selection = useEditorStore((s) => s.selection);
+
+  /** Restacking lives in the store so the rail and the canvas agree on what is selected. */
+  const restackSelection = (direction: 1 | -1) => {
+    const state = useEditorStore.getState();
+    const layer = state.scene.layers.find((l) => l.id === state.activeLayerId);
+    if (!layer) return;
+    state.setLayerObjects(
+      state.activeLayerId,
+      restack(layer.objects, new Set(state.selection), direction),
+    );
+  };
   const [worker, setWorker] = useState("checking…");
 
   useEffect(() => {
@@ -102,7 +115,7 @@ export default function App() {
           <>
             <h2>{activeLayerId}</h2>
             <div className="tools">
-              {(["scatter", "place", "erase"] as const).map((tool) => (
+              {(["select", "scatter", "place", "erase"] as const).map((tool) => (
                 <button
                   key={tool}
                   type="button"
@@ -113,17 +126,43 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <label className="slider">
-              Brush size <b>{brushSize}</b>
-              <input
-                type="range"
-                min={40}
-                max={800}
-                step={10}
-                value={brushSize}
-                onChange={(e) => setBrushSize(Number(e.target.value))}
-              />
-            </label>
+            {objectTool === "select" ? (
+              <>
+                <p className="status">
+                  {selection.length === 0
+                    ? "click, shift-click or drag a marquee to select"
+                    : `${selection.length} selected · drag to move · corners scale · stalk rotates · Delete removes`}
+                </p>
+                <div className="tools">
+                  <button
+                    type="button"
+                    disabled={selection.length === 0}
+                    onClick={() => restackSelection(1)}
+                  >
+                    Bring forward
+                  </button>
+                  <button
+                    type="button"
+                    disabled={selection.length === 0}
+                    onClick={() => restackSelection(-1)}
+                  >
+                    Send back
+                  </button>
+                </div>
+              </>
+            ) : (
+              <label className="slider">
+                Brush size <b>{brushSize}</b>
+                <input
+                  type="range"
+                  min={40}
+                  max={800}
+                  step={10}
+                  value={brushSize}
+                  onChange={(e) => setBrushSize(Number(e.target.value))}
+                />
+              </label>
+            )}
           </>
         )}
 
