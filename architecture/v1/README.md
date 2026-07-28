@@ -17,7 +17,9 @@ prompts** used to drive an AI coding agent through the build.
 2. `03-architecture-decisions.md` — *why* each choice was made (skim if short on time).
 3. `02-scene-data-model.md` — the data contract everything else depends on.
 4. `04-geometry-pipeline.md` — deep spec for the risky terrain/rings/generator geometry.
-5. `prompts/phase-0-core-editor.md` — start building here.
+5. `07-interaction-invariants.md` — hard-won rules for anything pointer-driven, and how
+   to actually verify it. Read before touching the renderer, bounds, or selection.
+6. `prompts/phase-0-core-editor.md` — start building here.
 
 **Files:**
 - `HOW-TO-PROMPT-THE-AGENT.md` — operator's guide: kickoff prompts + build loop.
@@ -29,6 +31,11 @@ prompts** used to drive an AI coding agent through the build.
   highest-risk stages, headlined by the strait test. See `fixtures/README.md`.
 - `05-p0-build-checklist.md` — one-page Phase 0 tracker (prototype-first order) that
   doubles as the dev backlog.
+- `07-interaction-invariants.md` — **debug log + invariants from the WP-6/WP-7 selection
+  work.** Eight rules the sprite renderer, object bounds, hit-testing and cursors have to
+  keep in step, the seven bugs that came from breaking them, and the CDP recipe for
+  driving real pointer input. Written because a screenshot of seeded state proved nothing
+  about interaction.
 - `ux-wireframe.html` — annotated editor-layout mockup (toolbar / rails / canvas /
   generator + settings), each region keyed to an ADR. Open in a browser or view the
   published Artifact.
@@ -47,6 +54,10 @@ prompts** used to drive an AI coding agent through the build.
 - The agent must treat `02-scene-data-model.md` as a **hard contract**: the scene
   JSON is the save file, the export source, and the React-library input all at once.
   Never diverge the shape without bumping `schemaVersion` and updating `migrate()`.
+- For any package whose acceptance says **click, drag or select**, attach
+  `07-interaction-invariants.md` too, and require **driven input** as the evidence. A
+  screenshot of state the agent seeded itself demonstrates the renderer, not the feature —
+  that mistake shipped a selection tool in which nothing could be selected.
 
 ---
 
