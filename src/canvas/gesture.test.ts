@@ -1,14 +1,34 @@
 import { describe, expect, it } from "vitest";
-import type { Bounds } from "../scene/bounds";
+import type { Frame } from "../scene/frame";
 import { resolveGesture } from "./gesture";
 
-const frame: Bounds = { minX: 100, minY: 100, maxX: 300, maxY: 300 };
-const base = { bounds: frame, selectionCount: 2, overObject: false, shift: false, scale: 1 };
+const frame: Frame = { cx: 200, cy: 200, width: 200, height: 200, rotation: 0 };
+const base = { frame, overObject: false, shift: false, scale: 1 };
 
 describe("resolveGesture", () => {
   it("puts handles above everything else", () => {
     expect(resolveGesture({ ...base, point: [100, 100] }).kind).toBe("scale");
     expect(resolveGesture({ ...base, point: [200, 100 - 26] }).kind).toBe("rotate");
+  });
+
+  /**
+   * The drag has to keep showing the cursor of the corner it started on. Collapsing to
+   * "scale" here lost that, and every drag fell back to one diagonal — so ne and sw
+   * flipped to nwse-resize the moment you pressed.
+   */
+  it("carries which handle started the drag", () => {
+    expect(resolveGesture({ ...base, point: [300, 100] })).toEqual({
+      kind: "scale",
+      handle: "ne",
+    });
+    expect(resolveGesture({ ...base, point: [100, 300] })).toEqual({
+      kind: "scale",
+      handle: "sw",
+    });
+    expect(resolveGesture({ ...base, point: [200, 74] })).toEqual({
+      kind: "rotate",
+      handle: "rotate",
+    });
   });
 
   it("treats a press inside the frame as a move of the whole selection", () => {
@@ -49,9 +69,7 @@ describe("resolveGesture", () => {
   });
 
   it("has no frame shortcuts when nothing is selected", () => {
-    expect(
-      resolveGesture({ ...base, bounds: undefined, selectionCount: 0, point: [200, 200] }).kind,
-    ).toBe("marquee");
+    expect(resolveGesture({ ...base, frame: undefined, point: [200, 200] }).kind).toBe("marquee");
   });
 
   it("keeps shift additive for marquees", () => {

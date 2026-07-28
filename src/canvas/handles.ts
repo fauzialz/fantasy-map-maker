@@ -1,4 +1,4 @@
-import { boundsCenter, boundsContainPoint, type Bounds } from "../scene/bounds";
+import { frameContains, toFrameLocal, type Frame } from "../scene/frame";
 import type { Point } from "../scene/types";
 
 /** Handle size in *screen* pixels, so handles stay grabbable at any zoom. */
@@ -12,20 +12,29 @@ export type HandleKind = "scale" | "rotate";
 export const handleKind = (handle: Handle): HandleKind =>
   handle === "rotate" ? "rotate" : "scale";
 
-/** Which handle, if any, is under the point. */
-export function handleAt(bounds: Bounds, [px, py]: Point, scale: number): Handle | undefined {
-  const reach = HANDLE_PX / scale;
-  const center = boundsCenter(bounds);
-  const rotateY = bounds.minY - ROTATE_OFFSET_PX / scale;
-  if (Math.hypot(px - center.x, py - rotateY) <= reach) return "rotate";
+/** Corner offsets in frame space, as fractions of the frame's half-size. */
+const CORNERS: [Handle, number, number][] = [
+  ["nw", -1, -1],
+  ["ne", 1, -1],
+  ["se", 1, 1],
+  ["sw", -1, 1],
+];
 
-  const corners: [Handle, number, number][] = [
-    ["nw", bounds.minX, bounds.minY],
-    ["ne", bounds.maxX, bounds.minY],
-    ["sw", bounds.minX, bounds.maxY],
-    ["se", bounds.maxX, bounds.maxY],
-  ];
-  return corners.find(([, cx, cy]) => Math.hypot(px - cx, py - cy) <= reach)?.[0];
+/**
+ * Which handle is under the point.
+ *
+ * Everything is tested in frame space — the point is un-rotated into the frame first, so
+ * a turned frame's handles are found by the same axis-aligned arithmetic as an upright
+ * one, with no separate rotated-corner maths to drift out of step with the drawing.
+ */
+export function handleAt(frame: Frame, point: Point, scale: number): Handle | undefined {
+  const reach = HANDLE_PX / scale;
+  const [x, y] = toFrameLocal(frame, point);
+  const hw = frame.width / 2;
+  const hh = frame.height / 2;
+
+  if (Math.hypot(x, y + hh + ROTATE_OFFSET_PX / scale) <= reach) return "rotate";
+  return CORNERS.find(([, sx, sy]) => Math.hypot(x - sx * hw, y - sy * hh) <= reach)?.[0];
 }
 
 /**
@@ -42,27 +51,31 @@ const ROTATE_SVG =
 
 export const ROTATE_CURSOR = `url("data:image/svg+xml;utf8,${encodeURIComponent(ROTATE_SVG)}") 12 12, grab`;
 
+/** Resize cursors by direction, bucketed every 45°: →, ↘, ↓, ↙. */
+const RESIZE = ["ew-resize", "nwse-resize", "ns-resize", "nesw-resize"];
+
+/** Which way a corner points, in degrees, on an upright frame (screen y grows downward). */
+const CORNER_ANGLE: Record<Exclude<Handle, "rotate">, number> = {
+  se: 45,
+  sw: 135,
+  nw: 225,
+  ne: 315,
+};
+
 /**
- * The bounding box stays axis-aligned however the objects inside it are rotated, so the
- * diagonal resize cursors always match the corner they sit on.
+ * The cursor has to follow the frame's rotation: on a frame turned 90°, the "nw" corner
+ * points where "ne" used to, and an unchanging nwse-resize would be lying about the axis
+ * you are dragging along.
  */
-export function cursorForHandle(handle: Handle): string {
-  switch (handle) {
-    case "rotate":
-      return ROTATE_CURSOR;
-    case "nw":
-    case "se":
-      return "nwse-resize";
-    case "ne":
-    case "sw":
-      return "nesw-resize";
-  }
+export function cursorForHandle(handle: Handle, frameRotation = 0): string {
+  if (handle === "rotate") return ROTATE_CURSOR;
+  const angle = (((CORNER_ANGLE[handle] + frameRotation) % 180) + 180) % 180;
+  return RESIZE[Math.round(angle / 45) % 4];
 }
 
 interface HoverInput {
   point: Point;
-  bounds?: Bounds;
-  selectionCount: number;
+  frame?: Frame;
   overObject: boolean;
   scale: number;
 }
@@ -73,15 +86,14 @@ interface HoverInput {
  */
 export function cursorForHover({
   point,
-  bounds,
-  selectionCount,
+  frame,
   overObject,
   scale,
 }: HoverInput): string | undefined {
-  if (bounds && selectionCount > 0) {
-    const handle = handleAt(bounds, point, scale);
-    if (handle) return cursorForHandle(handle);
-    if (boundsContainPoint(bounds, point[0], point[1])) return "move";
+  if (frame) {
+    const handle = handleAt(frame, point, scale);
+    if (handle) return cursorForHandle(handle, frame.rotation);
+    if (frameContains(frame, point)) return "move";
   }
   return overObject ? "pointer" : undefined;
 }

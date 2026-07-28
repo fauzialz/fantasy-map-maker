@@ -75,3 +75,61 @@ export const SPRITE_HEIGHT: Record<SpriteKind, number> = {
 };
 
 export const variantCount = (kind: SpriteKind): number => SPRITES[kind].length;
+
+export interface Extent {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/** Half the sprite stroke, so the drawn outline is inside the measured extent. */
+const STROKE_PAD = 1.3;
+
+/**
+ * The sprite's actual drawn extent in grid units.
+ *
+ * The 100x100 grid is a canvas, not the artwork: every sprite leaves 8–22 units empty
+ * above its peak, and some are not horizontally centred (mountain 0 spans x 4..72, so
+ * its centre is 38, not 50). Anchoring and measuring on the grid instead of the content
+ * is what left slack at the top of the selection frame and put the pivot off to one side.
+ *
+ * Measured from the path data rather than the raster: it has to work without a canvas,
+ * and it updates itself when the artwork changes. The paths use only absolute M/L/Q/Z,
+ * so every number is a coordinate; Q control points sit outside the curve, which makes
+ * this a slight over-estimate and never an under-estimate.
+ */
+export const spriteExtent = (kind: SpriteKind, variant: number): Extent => {
+  const sprites = SPRITES[kind];
+  const index = ((variant % sprites.length) + sprites.length) % sprites.length;
+  const key = `${kind}:${index}`;
+  const cached = extentCache.get(key);
+  if (cached) return cached;
+
+  const numbers = sprites[index].body.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i + 1 < numbers.length; i += 2) {
+    minX = Math.min(minX, numbers[i]);
+    maxX = Math.max(maxX, numbers[i]);
+    minY = Math.min(minY, numbers[i + 1]);
+    maxY = Math.max(maxY, numbers[i + 1]);
+  }
+
+  const extent: Extent = {
+    minX: minX - STROKE_PAD,
+    minY: minY - STROKE_PAD,
+    maxX: maxX + STROKE_PAD,
+    maxY: maxY + STROKE_PAD,
+  };
+  extentCache.set(key, extent);
+  return extent;
+};
+
+const extentCache = new Map<string, Extent>();
+
+export const GRID = 100;
+/** Where the sprites' feet sit on the grid. */
+export const BASELINE = 88;

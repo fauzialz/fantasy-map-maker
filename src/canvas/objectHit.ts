@@ -16,6 +16,6 @@ export const isSpriteObject = (
  */
 export function isUnderBrush(object: SceneObject, [px, py]: Point, brushRadius: number): boolean {
   if (!isSpriteObject(object)) return false;
-  const { width } = spriteBounds(object.type, object.scale);
+  const { width } = spriteBounds(object.type, object.variant, object.scale);
   return Math.hypot(object.x - px, object.y - py) <= brushRadius + width * 0.3;
 }

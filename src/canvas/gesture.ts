@@ -1,18 +1,18 @@
-import { boundsContainPoint, type Bounds } from "../scene/bounds";
+import { frameContains, type Frame } from "../scene/frame";
 import type { Point } from "../scene/types";
-import { handleAt, handleKind } from "./handles";
+import { handleAt, handleKind, type Handle } from "./handles";
 
 export type Gesture =
-  | { kind: "scale" | "rotate" }
+  /** carries the specific handle, so the drag can keep showing that corner's cursor */
+  | { kind: "scale" | "rotate"; handle: Handle }
   | { kind: "move" }
   | { kind: "pick"; additive: boolean }
   | { kind: "marquee"; additive: boolean };
 
 interface Input {
   point: Point;
-  /** frame around the current selection, if anything is selected */
-  bounds?: Bounds;
-  selectionCount: number;
+  /** the selection frame, if anything is selected */
+  frame?: Frame;
   /** whether an object lies under the point */
   overObject: boolean;
   shift: boolean;
@@ -28,18 +28,11 @@ interface Input {
  * that, shift-clicking an already-selected object lands inside the selection frame and
  * starts a drag instead of deselecting it.
  */
-export function resolveGesture({
-  point,
-  bounds,
-  selectionCount,
-  overObject,
-  shift,
-  scale,
-}: Input): Gesture {
-  if (!shift && bounds && selectionCount > 0) {
-    const handle = handleAt(bounds, point, scale);
-    if (handle) return { kind: handleKind(handle) };
-    if (boundsContainPoint(bounds, point[0], point[1])) return { kind: "move" };
+export function resolveGesture({ point, frame, overObject, shift, scale }: Input): Gesture {
+  if (!shift && frame) {
+    const handle = handleAt(frame, point, scale);
+    if (handle) return { kind: handleKind(handle), handle };
+    if (frameContains(frame, point)) return { kind: "move" };
   }
   if (overObject) return { kind: "pick", additive: shift };
   return { kind: "marquee", additive: shift };

@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { objectBounds } from "../scene/bounds";
 import type { Tree } from "../scene/types";
-import { handleAt } from "./handles";
 import { SpatialIndex } from "./spatialIndex";
 
 const tree = (id: string, x: number, y: number, scale = 1): Tree => ({
@@ -52,19 +50,5 @@ describe("SpatialIndex", () => {
       { id: "l", type: "landmass", path: [[0, 0]], holes: [], biome: "grassland" },
     ]);
     expect(index.hit(0, 0)).toBeUndefined();
-  });
-});
-
-describe("handleAt against a real object's frame", () => {
-  const bounds = objectBounds(tree("a", 500, 500, 2))!;
-
-  it("finds nothing in the middle of the frame", () => {
-    expect(handleAt(bounds, [(bounds.minX + bounds.maxX) / 2, bounds.maxY - 5], 1)).toBeUndefined();
-  });
-
-  it("stops being grabbable from 20 units away once zoomed in", () => {
-    // At 0.25 zoom a 9px handle covers 36 map units; at 4x it covers barely 2.
-    expect(handleAt(bounds, [bounds.minX + 20, bounds.minY], 0.25)).toBe("nw");
-    expect(handleAt(bounds, [bounds.minX + 20, bounds.minY], 4)).toBeUndefined();
   });
 });

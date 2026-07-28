@@ -8,22 +8,55 @@ export interface Bounds {
   maxY: number;
 }
 
-/**
- * Map-space box a sprite object occupies. Objects anchor at the foot of the sprite, so
- * the box runs upward from `y` — the same convention the renderer and the Y sort use.
- */
-export function objectBounds(object: SceneObject): Bounds | undefined {
-  if (object.type !== "mountain" && object.type !== "tree") return undefined;
-  const { width, height } = spriteBounds(object.type, object.scale);
-  return {
-    minX: object.x - width / 2,
-    minY: object.y - height,
-    maxX: object.x + width / 2,
-    maxY: object.y,
-  };
+export type SpriteObject = Extract<SceneObject, { type: "mountain" | "tree" }>;
+
+export const isSprite = (object: SceneObject): object is SpriteObject =>
+  object.type === "mountain" || object.type === "tree";
+
+/** The four corners of a sprite's artwork, relative to its anchor, before rotation. */
+export function objectCorners(object: SpriteObject): [number, number][] {
+  const { left, right, top, bottom } = spriteBounds(object.type, object.variant, object.scale);
+  return [
+    [left, top],
+    [right, top],
+    [right, bottom],
+    [left, bottom],
+  ];
 }
 
-/** Union of every selectable object's box — the selection frame. */
+export const rotatePoint = ([x, y]: [number, number], degrees: number): [number, number] => {
+  if (!degrees) return [x, y];
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return [x * cos - y * sin, x * sin + y * cos];
+};
+
+/**
+ * Axis-aligned box a sprite occupies in map space, rotation included.
+ *
+ * This is the box the spatial index and the eraser use: rbush is axis-aligned, so a
+ * turned sprite is indexed by the AABB around it. The *selection frame* is a different
+ * thing — see `frameOf`, which stays oriented with the object.
+ */
+export function objectBounds(object: SceneObject): Bounds | undefined {
+  if (!isSprite(object)) return undefined;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const corner of objectCorners(object)) {
+    const [dx, dy] = rotatePoint(corner, object.rotation);
+    minX = Math.min(minX, object.x + dx);
+    minY = Math.min(minY, object.y + dy);
+    maxX = Math.max(maxX, object.x + dx);
+    maxY = Math.max(maxY, object.y + dy);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+/** Union of every selectable object's box. */
 export function boundsOf(objects: SceneObject[]): Bounds | undefined {
   let result: Bounds | undefined;
   for (const object of objects) {

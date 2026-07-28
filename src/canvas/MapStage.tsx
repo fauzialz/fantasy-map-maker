@@ -241,7 +241,7 @@ export function MapStage() {
               overlay={
                 layer.id === activeLayerId && onObjectLayer && objectTool === "select" ? (
                   <SelectionOverlay
-                    bounds={selection.bounds}
+                    frame={selection.frame}
                     marquee={selection.marquee}
                     scale={vp.scale}
                   />

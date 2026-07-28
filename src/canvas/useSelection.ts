@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { boundsCenter, boundsOf, type Bounds } from "../scene/bounds";
+import type { Bounds } from "../scene/bounds";
+import { frameOf } from "../scene/frame";
 import { restack, rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
 import type { LayerId, Point, SceneObject } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 import { resolveGesture } from "./gesture";
-import { cursorForHandle, cursorForHover } from "./handles";
+import { cursorForHandle, cursorForHover, type Handle } from "./handles";
 import { SpatialIndex } from "./spatialIndex";
 
 type Drag =
   | { kind: "move"; start: Point; snapshot: SceneObject[] }
-  | { kind: "scale" | "rotate"; start: Point; origin: Point; snapshot: SceneObject[] }
+  | {
+      kind: "scale" | "rotate";
+      /** the handle the drag started on, so its cursor survives the whole drag */
+      handle: Handle;
+      /** the frame's angle when the drag began, so the delta applies absolutely */
+      baseRotation: number;
+      start: Point;
+      origin: Point;
+      snapshot: SceneObject[];
+    }
   | { kind: "marquee"; start: Point; additive: boolean };
 
 interface Options {
@@ -37,13 +47,22 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
   const drag = useRef<Drag | null>(null);
   const [dragging, setDragging] = useState(false);
   const [hoverCursor, setHoverCursor] = useState<string | undefined>(undefined);
+  /**
+   * A group has no inherent angle, so the frame carries one for as long as the selection
+   * lasts. Deliberately not persisted: every new selection starts upright, with the
+   * rotate knob back on top.
+   */
+  const [groupRotation, setGroupRotation] = useState(0);
 
   const index = useMemo(() => new SpatialIndex(objects), [objects]);
   const selected = useMemo(
     () => objects.filter((object) => selection.includes(object.id)),
     [objects, selection],
   );
-  const bounds = useMemo(() => boundsOf(selected), [selected]);
+  const selectionKey = useMemo(() => [...selection].sort().join(","), [selection]);
+  useEffect(() => setGroupRotation(0), [selectionKey]);
+
+  const frame = useMemo(() => frameOf(selected, groupRotation), [selected, groupRotation]);
 
   const apply = useCallback(
     (transformed: SceneObject[]) => {
@@ -68,19 +87,21 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
       const hit = index.hit(point[0], point[1]);
       const gesture = resolveGesture({
         point,
-        bounds,
-        selectionCount: selected.length,
+        frame,
         overObject: hit !== undefined,
         shift,
         scale,
       });
 
       if (gesture.kind === "scale" || gesture.kind === "rotate") {
-        const center = boundsCenter(bounds!);
         drag.current = {
           kind: gesture.kind,
+          handle: gesture.handle,
+          baseRotation: groupRotation,
           start: point,
-          origin: [center.x, center.y],
+          // Transforms pivot on the frame's centre, which for one object is the centre
+          // of its artwork — so a lone sprite spins in place.
+          origin: [frame!.cx, frame!.cy],
           snapshot: selected,
         };
       } else if (gesture.kind === "move") {
@@ -106,7 +127,7 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
       setDragging(true);
       return true;
     },
-    [bounds, enabled, index, objects, scale, selected, selection, toMapPoint],
+    [frame, enabled, groupRotation, index, objects, scale, selected, selection, toMapPoint],
   );
 
   /**
@@ -123,14 +144,13 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
       setHoverCursor(
         cursorForHover({
           point,
-          bounds,
-          selectionCount: selected.length,
+          frame,
           overObject: index.hit(point[0], point[1]) !== undefined,
           scale,
         }),
       );
     },
-    [bounds, enabled, index, scale, selected.length, toMapPoint],
+    [frame, enabled, index, scale, toMapPoint],
   );
 
   useEffect(() => {
@@ -166,7 +186,11 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
 
       const before = Math.atan2(current.start[1] - oy, current.start[0] - ox);
       const after = Math.atan2(y - oy, x - ox);
-      apply(rotateObjects(current.snapshot, { x: ox, y: oy }, ((after - before) * 180) / Math.PI));
+      const degrees = ((after - before) * 180) / Math.PI;
+      apply(rotateObjects(current.snapshot, { x: ox, y: oy }, degrees));
+      // The frame turns with the group. A single object's frame reads its own rotation,
+      // so this only matters for a multi-selection.
+      setGroupRotation(current.baseRotation + degrees);
     };
 
     const stop = () => {
@@ -222,19 +246,20 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
     [activeLayerId],
   );
 
+  // Whatever handle the drag started on keeps its own cursor for the whole drag —
+  // reading the handle rather than assuming a diagonal, which flipped ne/sw to nwse.
+  const active = drag.current;
   const dragCursor =
-    drag.current?.kind === "move"
+    active?.kind === "move"
       ? "move"
-      : drag.current?.kind === "rotate"
-        ? cursorForHandle("rotate")
-        : drag.current?.kind === "scale"
-          ? "nwse-resize"
-          : undefined;
+      : active?.kind === "scale" || active?.kind === "rotate"
+        ? cursorForHandle(active.handle, frame?.rotation ?? 0)
+        : undefined;
 
   return {
     begin,
     hover,
-    bounds,
+    frame,
     marquee,
     selection,
     count: selected.length,

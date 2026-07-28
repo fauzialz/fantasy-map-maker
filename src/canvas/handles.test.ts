@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { Bounds } from "../scene/bounds";
+import type { Frame } from "../scene/frame";
 import { cursorForHandle, cursorForHover, handleAt, handleKind } from "./handles";
 
-const frame: Bounds = { minX: 100, minY: 100, maxX: 300, maxY: 300 };
+/** 200x200, centred on (200,200) — the same box the old Bounds described. */
+const frame: Frame = { cx: 200, cy: 200, width: 200, height: 200, rotation: 0 };
 
 describe("handleAt", () => {
   it("names the corner it found", () => {
@@ -43,7 +44,7 @@ describe("cursors", () => {
 
   it("advertises what a press would do", () => {
     const hover = (point: [number, number], overObject = false) =>
-      cursorForHover({ point, bounds: frame, selectionCount: 2, overObject, scale: 1 });
+      cursorForHover({ point, frame, overObject, scale: 1 });
 
     expect(hover([100, 100])).toBe("nwse-resize");
     expect(hover([300, 100])).toBe("nesw-resize");
@@ -55,25 +56,13 @@ describe("cursors", () => {
 
   it("has no frame cursors when nothing is selected", () => {
     expect(
-      cursorForHover({
-        point: [200, 200],
-        bounds: undefined,
-        selectionCount: 0,
-        overObject: false,
-        scale: 1,
-      }),
+      cursorForHover({ point: [200, 200], frame: undefined, overObject: false, scale: 1 }),
     ).toBeUndefined();
   });
 
   it("keeps handles reachable when zoomed out", () => {
-    expect(
-      cursorForHover({
-        point: [120, 100],
-        bounds: frame,
-        selectionCount: 1,
-        overObject: false,
-        scale: 0.25,
-      }),
-    ).toBe("nwse-resize");
+    expect(cursorForHover({ point: [120, 100], frame, overObject: false, scale: 0.25 })).toBe(
+      "nwse-resize",
+    );
   });
 });

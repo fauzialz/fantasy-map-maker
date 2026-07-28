@@ -1,5 +1,5 @@
 import { PALETTE } from "../canvas/palette";
-import { SPRITE_HEIGHT, SPRITES, type SpriteKind } from "./registry";
+import { BASELINE, GRID, SPRITE_HEIGHT, SPRITES, spriteExtent, type SpriteKind } from "./registry";
 
 /**
  * Sprites are rasterised **once per variant** into an in-memory canvas and drawn as
@@ -9,8 +9,6 @@ import { SPRITE_HEIGHT, SPRITES, type SpriteKind } from "./registry";
 
 /** Rasterise above map scale so sprites stay crisp when zoomed in. */
 const OVERSAMPLE = 2;
-const GRID = 100; // the sprite path coordinate space
-const BASELINE = 88; // where the sprite's feet sit on that grid
 
 const FILL: Record<SpriteKind, string> = {
   mountain: "#B9AE93",
@@ -92,19 +90,51 @@ export function drawSprite(
   const raster = rasterSprite(kind, variant);
   if (!raster) return;
 
-  const width = raster.width * scale;
-  const height = raster.height * scale;
-  const footFromBottom = (1 - BASELINE / GRID) * height;
+  const size = raster.width * scale;
+  const content = spriteExtent(kind, variant);
 
   context.save();
-  context.translate(x, y + footFromBottom);
+  // Pivot on the anchor itself, and place the artwork so its own centre-line and its feet
+  // meet there. Anchoring on the grid instead of the content put the pivot off to one
+  // side for sprites that are not centred in their 100x100 box, and a tenth of a sprite
+  // underground. rotateObjects spins each object about its anchor — this has to match,
+  // or group rotation stops being rigid.
+  context.translate(x, y);
   if (rotation) context.rotate((rotation * Math.PI) / 180);
-  context.drawImage(raster.canvas, -width / 2, -height, width, height);
+  context.drawImage(
+    raster.canvas,
+    -((content.minX + content.maxX) / 2 / GRID) * size,
+    -(BASELINE / GRID) * size,
+    size,
+    size,
+  );
   context.restore();
 }
 
-/** Bounding box in map space — used for hit-testing the object eraser. */
-export function spriteBounds(kind: SpriteKind, scale: number) {
+/**
+ * The sprite's drawn extent in map units, measured from its anchor and before rotation:
+ * `left`/`right` either side of the anchor, `top` above it (negative), `bottom` at 0.
+ *
+ * This is the artwork's own box, not the 100x100 grid it was drawn on — the grid has
+ * empty margins that differ per variant, and counting them left visible slack above the
+ * sprite in the selection frame.
+ */
+export function spriteBounds(kind: SpriteKind, variant: number, scale: number) {
   const size = SPRITE_HEIGHT[kind] * (GRID / BASELINE) * scale;
-  return { width: size, height: size };
+  const content = spriteExtent(kind, variant);
+  const centerX = (content.minX + content.maxX) / 2;
+  const unit = size / GRID;
+
+  return {
+    left: (content.minX - centerX) * unit,
+    right: (content.maxX - centerX) * unit,
+    top: (content.minY - BASELINE) * unit,
+    bottom: (content.maxY - BASELINE) * unit,
+    get width() {
+      return (content.maxX - content.minX) * unit;
+    },
+    get height() {
+      return (content.maxY - content.minY) * unit;
+    },
+  };
 }
