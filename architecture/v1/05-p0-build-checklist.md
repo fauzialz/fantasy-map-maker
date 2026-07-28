@@ -21,7 +21,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   Chaikin → simplify(coastDetail) → assemble → union → split. **All S-fixtures pass.**
 - [x] **WP-3 · Sea/eraser brush** (S8 + S9) — difference + connected-components split;
   **larger piece keeps id/name**; lake = interior hole.
-- [ ] **WP-4 · Coastal rings** (Pipeline C / S10–S14) — land-union → water → bands →
+- [x] **WP-4 · Coastal rings** (Pipeline C / S10–S14) — land-union → water → bands →
   clip. **The strait fixture passes.** Cached rings layer; debounced recompute; toggle.
 
 ## Styling & objects
