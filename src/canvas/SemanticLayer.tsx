@@ -3,6 +3,7 @@ import { memo, useCallback, useRef, type ReactNode } from "react";
 import { Layer } from "react-konva";
 import type { Layer as SceneLayer, LayerId } from "../scene/types";
 import { LandmassShape } from "./shapes/LandmassShape";
+import { ObjectBatch } from "./shapes/ObjectBatch";
 import { useLayerCache } from "./useLayerCache";
 import type { Rect } from "./viewport";
 
@@ -45,6 +46,7 @@ export const SemanticLayer = memo(function SemanticLayer({
       {layer.objects.map((object) =>
         object.type === "landmass" ? <LandmassShape key={object.id} landmass={object} /> : null,
       )}
+      <ObjectBatch objects={layer.objects} />
       {overlay}
     </Layer>
   );

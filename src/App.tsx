@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { MapStage } from "./canvas/MapStage";
+import { LAYER_OBJECT } from "./canvas/useObjectBrush";
 import { Toasts } from "./ui/Toasts";
 import { callGeometry } from "./engine/worker/client";
 import type { CanvasPreset } from "./scene/types";
@@ -20,6 +21,9 @@ export default function App() {
   const setSettings = useEditorStore((s) => s.setSettings);
   const terrainTool = useEditorStore((s) => s.terrainTool);
   const setTerrainTool = useEditorStore((s) => s.setTerrainTool);
+  const objectTool = useEditorStore((s) => s.objectTool);
+  const setObjectTool = useEditorStore((s) => s.setObjectTool);
+  const objectLayer = LAYER_OBJECT[activeLayerId];
   const [worker, setWorker] = useState("checking…");
 
   useEffect(() => {
@@ -49,46 +53,79 @@ export default function App() {
           ))}
         </ul>
 
-        <h2>Terrain</h2>
-        <div className="tools">
-          <button
-            type="button"
-            className={terrainTool === "brush" ? "active" : undefined}
-            onClick={() => setTerrainTool("brush")}
-          >
-            Land brush
-          </button>
-          <button
-            type="button"
-            className={terrainTool === "sea" ? "active" : undefined}
-            onClick={() => setTerrainTool("sea")}
-          >
-            Sea brush
-          </button>
-        </div>
+        {activeLayerId === "terrain" && (
+          <>
+            <h2>Terrain</h2>
+            <div className="tools">
+              <button
+                type="button"
+                className={terrainTool === "brush" ? "active" : undefined}
+                onClick={() => setTerrainTool("brush")}
+              >
+                Land brush
+              </button>
+              <button
+                type="button"
+                className={terrainTool === "sea" ? "active" : undefined}
+                onClick={() => setTerrainTool("sea")}
+              >
+                Sea brush
+              </button>
+            </div>
 
-        <label className="slider">
-          Brush size <b>{brushSize}</b>
-          <input
-            type="range"
-            min={40}
-            max={800}
-            step={10}
-            value={brushSize}
-            onChange={(e) => setBrushSize(Number(e.target.value))}
-          />
-        </label>
-        <label className="slider">
-          Coast detail <b>{scene.settings.coastDetail.toFixed(2)}</b>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={scene.settings.coastDetail}
-            onChange={(e) => setSettings({ coastDetail: Number(e.target.value) })}
-          />
-        </label>
+            <label className="slider">
+              Brush size <b>{brushSize}</b>
+              <input
+                type="range"
+                min={40}
+                max={800}
+                step={10}
+                value={brushSize}
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+              />
+            </label>
+            <label className="slider">
+              Coast detail <b>{scene.settings.coastDetail.toFixed(2)}</b>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={scene.settings.coastDetail}
+                onChange={(e) => setSettings({ coastDetail: Number(e.target.value) })}
+              />
+            </label>
+          </>
+        )}
+
+        {objectLayer && (
+          <>
+            <h2>{activeLayerId}</h2>
+            <div className="tools">
+              {(["scatter", "place", "erase"] as const).map((tool) => (
+                <button
+                  key={tool}
+                  type="button"
+                  className={objectTool === tool ? "active" : undefined}
+                  onClick={() => setObjectTool(tool)}
+                >
+                  {tool}
+                </button>
+              ))}
+            </div>
+            <label className="slider">
+              Brush size <b>{brushSize}</b>
+              <input
+                type="range"
+                min={40}
+                max={800}
+                step={10}
+                value={brushSize}
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+              />
+            </label>
+          </>
+        )}
 
         <h2>Paper</h2>
         <label className="toggle">

@@ -8,6 +8,7 @@ import { VignetteLayer } from "./VignetteLayer";
 import { SemanticLayer } from "./SemanticLayer";
 import { useCoastalRings } from "./useCoastalRings";
 import { PALETTE } from "./palette";
+import { LAYER_OBJECT, useObjectBrush } from "./useObjectBrush";
 import { useTerrainBrush } from "./useTerrainBrush";
 import {
   clampPan,
@@ -113,6 +114,11 @@ export function MapStage() {
     map,
     toMapPoint,
   });
+  const objects = useObjectBrush({
+    activeLayerId,
+    enabled: LAYER_OBJECT[activeLayerId] !== undefined && !spaceHeld,
+    toMapPoint,
+  });
 
   // Pan: middle-drag, or space + left-drag. Plain left-drag paints.
   const dragRef = useRef<{ x: number; y: number; vp: Viewport } | null>(null);
@@ -124,7 +130,9 @@ export function MapStage() {
       setPanning(true);
       return;
     }
-    if (e.button === 0 && brush.begin(e.clientX, e.clientY)) e.preventDefault();
+    if (e.button !== 0) return;
+    if (brush.begin(e.clientX, e.clientY) || objects.begin(e.clientX, e.clientY))
+      e.preventDefault();
   };
   useEffect(() => {
     if (!panning || !view) return;
@@ -174,6 +182,10 @@ export function MapStage() {
   const onRingBytes = useCallback((value: number) => setRingBytes(value), []);
 
   const landCount = useEditorStore(selectLandmasses).length;
+  const objectCount = scene.layers.reduce(
+    (total, layer) => total + (layer.id === "terrain" ? 0 : layer.objects.length),
+    0,
+  );
   const totalBytes = Object.values(bytes).reduce((a, b) => a + b, 0) + ringBytes;
   const fullMapBytes = map.w * map.h * 4 * LAYER_ORDER.length;
   const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
@@ -188,7 +200,7 @@ export function MapStage() {
           ? "grabbing"
           : spaceHeld
             ? "grab"
-            : activeLayerId === "terrain"
+            : activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId]
               ? "crosshair"
               : "default",
       }}
@@ -233,6 +245,7 @@ export function MapStage() {
         {LAYER_ORDER.length - 1} cached = {mb(totalBytes)} · full-map would be {mb(fullMapBytes)} ·{" "}
         {landCount} landmass{landCount === 1 ? "" : "es"}
         {rings.bands.length > 0 && ` · ${rings.bands.length} rings`}
+        {objectCount > 0 && ` · ${objectCount} objects`}
         {brush.committing && " · vectorising…"}
         {rings.deriving && " · deriving rings…"}
         {brush.error && ` · ${brush.error}`}
