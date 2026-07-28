@@ -10,7 +10,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ---
 
 ## Foundation
-- [ ] **WP-0 · Scaffold** — Vite + React + TS; geometry libs; Web Worker protocol;
+- [x] **WP-0 · Scaffold** — Vite + React + TS; geometry libs; Web Worker protocol;
   `scene/` types + `createEmptyScene` + `migrate()` (wired everywhere) + (de)serialize.
 - [ ] **WP-1 · Canvas & layers** — Konva stage; clamped pan/zoom; one layer per
   semantic layer; **active-layer-live / others-cached-at-viewport-resolution** proven
