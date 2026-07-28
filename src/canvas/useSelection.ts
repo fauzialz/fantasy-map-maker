@@ -4,6 +4,7 @@ import { restack, rotateObjects, scaleObjects, translateObjects } from "../scene
 import type { LayerId, Point, SceneObject } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 import { resolveGesture } from "./gesture";
+import { cursorForHandle, cursorForHover } from "./handles";
 import { SpatialIndex } from "./spatialIndex";
 
 type Drag =
@@ -35,6 +36,7 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
   const [marquee, setMarquee] = useState<Bounds | null>(null);
   const drag = useRef<Drag | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [hoverCursor, setHoverCursor] = useState<string | undefined>(undefined);
 
   const index = useMemo(() => new SpatialIndex(objects), [objects]);
   const selected = useMemo(
@@ -105,6 +107,30 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
       return true;
     },
     [bounds, enabled, index, objects, scale, selected, selection, toMapPoint],
+  );
+
+  /**
+   * Cursor feedback on hover. React bails out when the state is unchanged, so setting it
+   * on every mouse move costs nothing while the pointer stays over the same region.
+   */
+  const hover = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!enabled) {
+        setHoverCursor(undefined);
+        return;
+      }
+      const point = toMapPoint(clientX, clientY);
+      setHoverCursor(
+        cursorForHover({
+          point,
+          bounds,
+          selectionCount: selected.length,
+          overObject: index.hit(point[0], point[1]) !== undefined,
+          scale,
+        }),
+      );
+    },
+    [bounds, enabled, index, scale, selected.length, toMapPoint],
   );
 
   useEffect(() => {
@@ -196,5 +222,24 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
     [activeLayerId],
   );
 
-  return { begin, bounds, marquee, selection, count: selected.length, bringForward };
+  const dragCursor =
+    drag.current?.kind === "move"
+      ? "move"
+      : drag.current?.kind === "rotate"
+        ? cursorForHandle("rotate")
+        : drag.current?.kind === "scale"
+          ? "nwse-resize"
+          : undefined;
+
+  return {
+    begin,
+    hover,
+    bounds,
+    marquee,
+    selection,
+    count: selected.length,
+    bringForward,
+    /** what the pointer should look like right now, or undefined to fall back */
+    cursor: dragging ? dragCursor : hoverCursor,
+  };
 }

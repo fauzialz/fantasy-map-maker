@@ -204,20 +204,22 @@ export function MapStage() {
   const fullMapBytes = map.w * map.h * 4 * LAYER_ORDER.length;
   const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
+  // Panning and the space-drag override everything; otherwise the selection's own
+  // handle-aware cursor wins, and a painting tool falls back to a crosshair.
+  const cursor = panning
+    ? "grabbing"
+    : spaceHeld
+      ? "grab"
+      : (selection.cursor ??
+        (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId] ? "crosshair" : "default"));
+
   return (
     <div
       ref={containerRef}
       className="stage"
       onMouseDown={onMouseDown}
-      style={{
-        cursor: panning
-          ? "grabbing"
-          : spaceHeld
-            ? "grab"
-            : activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId]
-              ? "crosshair"
-              : "default",
-      }}
+      onMouseMove={(e) => selection.hover(e.clientX, e.clientY)}
+      style={{ cursor }}
     >
       {view && vp && cache && (
         <Stage width={view.w} height={view.h} scaleX={vp.scale} scaleY={vp.scale} x={vp.x} y={vp.y}>

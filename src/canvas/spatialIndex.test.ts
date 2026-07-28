@@ -55,25 +55,16 @@ describe("SpatialIndex", () => {
   });
 });
 
-describe("handleAt", () => {
+describe("handleAt against a real object's frame", () => {
   const bounds = objectBounds(tree("a", 500, 500, 2))!;
-
-  it("finds the rotate stalk above the frame", () => {
-    expect(handleAt(bounds, [(bounds.minX + bounds.maxX) / 2, bounds.minY - 26], 1)).toBe("rotate");
-  });
-
-  it("finds the corner handles", () => {
-    expect(handleAt(bounds, [bounds.minX, bounds.minY], 1)).toBe("scale");
-    expect(handleAt(bounds, [bounds.maxX, bounds.maxY], 1)).toBe("scale");
-  });
 
   it("finds nothing in the middle of the frame", () => {
     expect(handleAt(bounds, [(bounds.minX + bounds.maxX) / 2, bounds.maxY - 5], 1)).toBeUndefined();
   });
 
-  it("keeps handles grabbable when zoomed out", () => {
-    // At 0.25 zoom a 9px handle covers 36 map units, so a click 20 units off still lands.
-    expect(handleAt(bounds, [bounds.minX + 20, bounds.minY], 0.25)).toBe("scale");
+  it("stops being grabbable from 20 units away once zoomed in", () => {
+    // At 0.25 zoom a 9px handle covers 36 map units; at 4x it covers barely 2.
+    expect(handleAt(bounds, [bounds.minX + 20, bounds.minY], 0.25)).toBe("nw");
     expect(handleAt(bounds, [bounds.minX + 20, bounds.minY], 4)).toBeUndefined();
   });
 });

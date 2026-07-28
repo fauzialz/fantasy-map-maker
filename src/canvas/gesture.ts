@@ -1,6 +1,6 @@
 import { boundsContainPoint, type Bounds } from "../scene/bounds";
 import type { Point } from "../scene/types";
-import { handleAt, type HandleKind } from "./handles";
+import { handleAt, handleKind } from "./handles";
 
 export type Gesture =
   | { kind: "scale" | "rotate" }
@@ -37,8 +37,8 @@ export function resolveGesture({
   scale,
 }: Input): Gesture {
   if (!shift && bounds && selectionCount > 0) {
-    const handle: HandleKind | undefined = handleAt(bounds, point, scale);
-    if (handle) return { kind: handle };
+    const handle = handleAt(bounds, point, scale);
+    if (handle) return { kind: handleKind(handle) };
     if (boundsContainPoint(bounds, point[0], point[1])) return { kind: "move" };
   }
   if (overObject) return { kind: "pick", additive: shift };
