@@ -1,0 +1,368 @@
+<title>map.byfauzi.com — Editor UX Wireframe</title>
+<style>
+  :root{
+    --ground:#EEF1EC; --panel:#FBFCFA; --panel-2:#F2F5F0; --sink:#E7ECE5;
+    --ink:#1C2A27; --muted:#5E6D68; --line:#D6DDD6; --line-strong:#C3CCC3;
+    --accent:#22685B; --accent-weak:rgba(34,104,91,.12); --accent-ink:#164439;
+    --note:#9C6414; --note-weak:rgba(156,100,20,.13);
+    --sea:#3E6E75; --land:#E7DAC0; --ring:#245E52; --peak:#8B7B58; --peak-lit:#C9BC96;
+    --shadow:0 1px 2px rgba(20,40,35,.06),0 12px 34px rgba(20,40,35,.10);
+    --font-display:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+    --font-ui:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --font-mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#0F1618; --panel:#18201F; --panel-2:#1D2624; --sink:#131A19;
+      --ink:#E6ECE9; --muted:#94A29D; --line:#2A3533; --line-strong:#37433F;
+      --accent:#54B49C; --accent-weak:rgba(84,180,156,.16); --accent-ink:#9FE3D0;
+      --note:#D2A24E; --note-weak:rgba(210,162,78,.16);
+      --sea:#1F4249; --land:#C6B78E; --ring:#5AC0A8; --peak:#6E6244; --peak-lit:#B7A87F;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 40px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#EEF1EC; --panel:#FBFCFA; --panel-2:#F2F5F0; --sink:#E7ECE5;
+    --ink:#1C2A27; --muted:#5E6D68; --line:#D6DDD6; --line-strong:#C3CCC3;
+    --accent:#22685B; --accent-weak:rgba(34,104,91,.12); --accent-ink:#164439;
+    --note:#9C6414; --note-weak:rgba(156,100,20,.13);
+    --sea:#3E6E75; --land:#E7DAC0; --ring:#245E52; --peak:#8B7B58; --peak-lit:#C9BC96;
+    --shadow:0 1px 2px rgba(20,40,35,.06),0 12px 34px rgba(20,40,35,.10);
+  }
+  :root[data-theme="dark"]{
+    --ground:#0F1618; --panel:#18201F; --panel-2:#1D2624; --sink:#131A19;
+    --ink:#E6ECE9; --muted:#94A29D; --line:#2A3533; --line-strong:#37433F;
+    --accent:#54B49C; --accent-weak:rgba(84,180,156,.16); --accent-ink:#9FE3D0;
+    --note:#D2A24E; --note-weak:rgba(210,162,78,.16);
+    --sea:#1F4249; --land:#C6B78E; --ring:#5AC0A8; --peak:#6E6244; --peak-lit:#B7A87F;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 40px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font-ui);
+    line-height:1.55;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1120px;margin:0 auto;padding:48px 24px 72px;}
+
+  /* ---- masthead ---- */
+  .eyebrow{font-family:var(--font-mono);font-size:12px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--accent);margin-bottom:14px;}
+  h1{font-family:var(--font-display);font-weight:600;font-size:clamp(30px,5vw,46px);
+    line-height:1.08;letter-spacing:-.01em;margin:0 0 14px;text-wrap:balance;max-width:16ch;}
+  .lede{font-size:17px;color:var(--muted);max-width:60ch;margin:0;}
+  .lede code{font-family:var(--font-mono);font-size:13px;color:var(--ink);
+    background:var(--panel-2);padding:1px 6px;border-radius:5px;border:1px solid var(--line);}
+
+  .rule{height:1px;background:var(--line);border:0;margin:40px 0;}
+
+  /* ---- app mockup ---- */
+  .mockscroll{overflow-x:auto;}
+  figure{margin:0;}
+  .appframe{min-width:760px;background:var(--panel);border:1px solid var(--line-strong);
+    border-radius:14px;box-shadow:var(--shadow);overflow:hidden;}
+  .toolbar{display:flex;align-items:center;gap:10px;padding:10px 12px;
+    background:var(--panel-2);border-bottom:1px solid var(--line);}
+  .brand{display:flex;align-items:center;gap:9px;padding-right:6px;}
+  .brand .glyph{width:22px;height:22px;border-radius:6px;background:var(--accent);
+    color:#fff;display:grid;place-items:center;font-family:var(--font-display);
+    font-size:14px;font-weight:700;}
+  .brand .name{font-weight:600;font-size:13.5px;}
+  .brand .name small{display:block;font-family:var(--font-mono);font-size:10px;
+    color:var(--muted);letter-spacing:.04em;font-weight:400;}
+  .sep{width:1px;align-self:stretch;background:var(--line);margin:2px 2px;}
+  .tools{display:flex;gap:4px;flex-wrap:wrap;}
+  .tool{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink);
+    background:transparent;border:1px solid transparent;border-radius:8px;
+    padding:6px 9px;cursor:default;white-space:nowrap;}
+  .tool i{width:15px;height:15px;display:inline-block;color:var(--muted);}
+  .tool.active{background:var(--accent-weak);border-color:color-mix(in srgb,var(--accent) 40%,transparent);
+    color:var(--accent-ink);}
+  .tool.active i{color:var(--accent);}
+  .grow{flex:1;}
+  .sizepill{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);
+    font-size:11.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:5px 9px;}
+  .sizepill .track{width:56px;height:4px;border-radius:2px;background:var(--line-strong);position:relative;}
+  .sizepill .track::after{content:"";position:absolute;left:0;top:0;height:4px;width:60%;
+    border-radius:2px;background:var(--accent);}
+  .sizepill .knob{width:11px;height:11px;border-radius:50%;background:var(--panel);
+    border:2px solid var(--accent);margin-left:-8px;}
+  .btn{font-size:12.5px;font-weight:600;border-radius:8px;padding:7px 13px;cursor:default;
+    border:1px solid var(--line-strong);background:var(--panel);color:var(--ink);white-space:nowrap;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.ghost{background:transparent;color:var(--muted);border-style:dashed;}
+  .iconbtn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);
+    background:var(--panel);color:var(--muted);display:grid;place-items:center;}
+
+  .workarea{display:grid;grid-template-columns:186px 1fr 210px;min-height:430px;}
+  .rail{padding:14px 13px;display:flex;flex-direction:column;gap:16px;}
+  .rail-left{border-right:1px solid var(--line);background:var(--panel);}
+  .rail-right{border-left:1px solid var(--line);background:var(--panel);}
+  .panelttl{font-family:var(--font-mono);font-size:10.5px;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:7px;}
+  .field{display:flex;flex-direction:column;gap:7px;}
+  .field label{font-size:12px;color:var(--ink);display:flex;justify-content:space-between;}
+  .field label span{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+  .slider{height:4px;border-radius:2px;background:var(--line-strong);position:relative;}
+  .slider::after{content:"";position:absolute;left:0;top:0;height:4px;border-radius:2px;background:var(--accent);}
+  .slider.s1::after{width:35%} .slider.s2::after{width:62%} .slider.s3::after{width:48%}
+  .slider .dot{position:absolute;top:-4px;width:12px;height:12px;border-radius:50%;
+    background:var(--panel);border:2px solid var(--accent);}
+  .slider.s1 .dot{left:35%} .slider.s2 .dot{left:62%} .slider.s3 .dot{left:48%}
+  .hint{font-size:11px;color:var(--muted);line-height:1.4;}
+  .toggle{display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:2px 0;}
+  .sw{width:30px;height:17px;border-radius:9px;background:var(--line-strong);position:relative;flex:none;}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--panel);transition:.2s;}
+  .sw.on{background:var(--accent);} .sw.on::after{left:15px;}
+
+  /* layer rows */
+  .layers{display:flex;flex-direction:column;gap:2px;}
+  .layer{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:12px;}
+  .layer.active{background:var(--accent-weak);color:var(--accent-ink);}
+  .layer .eye,.layer .lock{width:14px;height:14px;color:var(--muted);flex:none;}
+  .layer.active .eye{color:var(--accent);}
+  .layer .lname{flex:1;}
+  .layer .count{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+
+  /* stage / canvas */
+  .stage{position:relative;background:
+      repeating-linear-gradient(0deg,transparent 0 23px,color-mix(in srgb,var(--line) 45%,transparent) 23px 24px),
+      repeating-linear-gradient(90deg,transparent 0 23px,color-mix(in srgb,var(--line) 45%,transparent) 23px 24px),
+      var(--sink);
+    display:flex;align-items:center;justify-content:center;padding:18px;overflow:hidden;}
+  .mapcard{position:relative;width:100%;max-width:520px;border-radius:6px;overflow:hidden;
+    box-shadow:0 2px 10px rgba(20,40,35,.18);border:1px solid var(--line-strong);}
+  svg.map{display:block;width:100%;height:auto;}
+  .statusbar{position:absolute;left:12px;right:12px;bottom:10px;display:flex;gap:14px;
+    align-items:center;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);
+    background:color-mix(in srgb,var(--panel) 86%,transparent);backdrop-filter:blur(3px);
+    border:1px solid var(--line);border-radius:8px;padding:5px 10px;}
+  .statusbar .grow{border-left:1px solid var(--line);height:12px;flex:none;width:1px;padding:0;}
+
+  /* confirm modal overlay (a captured state) */
+  .modal{position:absolute;inset:0;display:grid;place-items:center;
+    background:color-mix(in srgb,var(--sink) 62%,transparent);}
+  .modalcard{width:270px;background:var(--panel);border:1px solid var(--line-strong);
+    border-radius:12px;box-shadow:var(--shadow);padding:16px;}
+  .modalcard h4{margin:0 0 6px;font-family:var(--font-display);font-size:16px;font-weight:600;}
+  .modalcard p{margin:0 0 14px;font-size:12.5px;color:var(--muted);}
+  .modalcard .row{display:flex;gap:8px;justify-content:flex-end;}
+
+  /* callout badges */
+  .cx{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;
+    background:var(--note);color:#fff;font-family:var(--font-mono);font-size:11px;font-weight:700;
+    flex:none;box-shadow:0 0 0 3px var(--note-weak);}
+  .cx.float{position:absolute;z-index:3;}
+
+  /* annotations legend */
+  .notes{list-style:none;padding:0;margin:22px 0 0;display:grid;
+    grid-template-columns:repeat(2,1fr);gap:2px 34px;}
+  .notes li{display:flex;gap:12px;padding:13px 0;border-top:1px solid var(--line);align-items:flex-start;}
+  .notes .body{display:flex;flex-direction:column;gap:3px;}
+  .notes h3{margin:0;font-size:13.5px;font-weight:600;}
+  .notes p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.5;}
+  .adr{font-family:var(--font-mono);font-size:10px;letter-spacing:.03em;color:var(--accent);
+    text-transform:uppercase;}
+
+  h2{font-family:var(--font-display);font-weight:600;font-size:22px;margin:0;letter-spacing:-.01em;}
+  .sectlead{font-size:13px;color:var(--muted);margin:6px 0 0;max-width:60ch;}
+
+  figcaption{font-size:12px;color:var(--muted);margin-top:12px;text-align:center;
+    font-style:italic;font-family:var(--font-display);}
+
+  footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
+    font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 18px;}
+  footer code{font-family:var(--font-mono);color:var(--ink);}
+
+  @media (max-width:720px){
+    .notes{grid-template-columns:1fr;}
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="eyebrow">map.byfauzi.com · v1 · editor ux wireframe</div>
+    <h1>Where every tool lives before we build it</h1>
+    <p class="lede">A layout &amp; interaction blueprint for the fantasy map editor. The numbered pins key each region to a locked design decision — references point at <code>03-architecture-decisions.md</code>. This is structure, not final art.</p>
+  </header>
+
+  <hr class="rule">
+
+  <figure>
+    <div class="mockscroll">
+    <div class="appframe" role="img" aria-label="Mockup of the map editor: a top toolbar with drawing tools, a left tool-options rail, a central canvas showing an island with concentric coastal rings, and a right rail with the layer list and map settings.">
+
+      <!-- toolbar -->
+      <div class="toolbar">
+        <div class="brand">
+          <div class="glyph">M</div>
+          <div class="name">Untitled Map<small>fantasy · 4000×3000</small></div>
+        </div>
+        <div class="sep"></div>
+        <div class="tools">
+          <div class="tool"><i>▹</i>Select</div>
+          <div class="tool active"><i>❦</i>Terrain</div>
+          <div class="tool"><i>≈</i>Erase<span class="cx" style="margin-left:6px">2</span></div>
+          <div class="tool"><i>▲</i>Mountains</div>
+          <div class="tool"><i>♣</i>Forests</div>
+          <div class="tool"><i>∿</i>Rivers</div>
+          <div class="tool"><i>⚑</i>Icons</div>
+          <div class="tool"><i>T</i>Labels</div>
+        </div>
+        <div class="sizepill">Brush<div class="track"></div><div class="knob"></div>34px</div>
+        <div class="sep"></div>
+        <div class="iconbtn">↶</div><div class="iconbtn">↷</div>
+        <div class="grow"></div>
+        <button class="btn"><span class="cx" style="vertical-align:middle;margin-right:6px">5</span>Generate</button>
+        <button class="btn primary">Export</button>
+        <button class="btn ghost">Sign in to save<span class="cx" style="margin-left:6px">6</span></button>
+      </div>
+
+      <!-- work area -->
+      <div class="workarea">
+
+        <!-- left: contextual tool options -->
+        <aside class="rail rail-left">
+          <div class="panelttl">Tool options · Terrain</div>
+          <div class="field">
+            <label>Brush size <span>34 px</span></label>
+            <div class="slider s1"><div class="dot"></div></div>
+          </div>
+          <div class="field">
+            <label>Coast detail <span>0.5</span><span class="cx" style="margin-left:auto">7</span></label>
+            <div class="slider s3"><div class="dot"></div></div>
+            <div class="hint">Smooth &amp; stylized ↔ rough &amp; natural. Sets smoothing + simplify strength.</div>
+          </div>
+          <div class="field">
+            <label>Mode</label>
+            <div class="toggle"><span>Paint land</span><span class="sw on"></span></div>
+            <div class="hint">Erase on this tool removes <em>land</em> (sea brush) — it splits a landmass in two.</div>
+          </div>
+        </aside>
+
+        <!-- center: canvas -->
+        <div class="stage">
+          <span class="cx float" style="top:14px;left:14px">8</span>
+          <span class="cx float" style="top:14px;right:14px">4</span>
+          <div class="mapcard">
+            <svg class="map" viewBox="0 0 520 380" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <defs>
+                <path id="coast" d="M148 150 C170 100 262 92 310 124 C356 150 384 128 408 168 C432 208 410 250 368 268 C332 284 316 318 250 310 C192 302 142 286 128 244 C114 202 128 176 148 150 Z"/>
+                <path id="lake" d="M214 214 C230 202 258 206 262 224 C266 242 250 258 230 254 C210 250 198 226 214 214 Z"/>
+              </defs>
+              <!-- sea -->
+              <rect x="0" y="0" width="520" height="380" fill="var(--sea)"/>
+              <!-- outward coastal rings (derived from land union, clipped to water) -->
+              <g fill="none" stroke="var(--ring)" stroke-width="1.6">
+                <use href="#coast" transform="translate(268,205) scale(1.055) translate(-268,-205)" opacity=".55"/>
+                <use href="#coast" transform="translate(268,205) scale(1.11) translate(-268,-205)" opacity=".38"/>
+                <use href="#coast" transform="translate(268,205) scale(1.17) translate(-268,-205)" opacity=".25"/>
+                <use href="#coast" transform="translate(268,205) scale(1.235) translate(-268,-205)" opacity=".15"/>
+              </g>
+              <!-- land -->
+              <use href="#coast" fill="var(--land)"/>
+              <use href="#coast" fill="none" stroke="var(--ring)" stroke-width="1.7" opacity=".85"/>
+              <!-- lake + inward rings -->
+              <use href="#lake" fill="var(--sea)"/>
+              <g fill="none" stroke="var(--ring)" stroke-width="1.2">
+                <use href="#lake" transform="translate(238,230) scale(.74) translate(-238,-230)" opacity=".5"/>
+                <use href="#lake" transform="translate(238,230) scale(.5) translate(-238,-230)" opacity=".3"/>
+              </g>
+              <!-- river -->
+              <path d="M356 172 C330 196 320 214 296 236 C276 254 262 286 250 306" fill="none"
+                    stroke="var(--ring)" stroke-width="2.4" stroke-linecap="round" opacity=".8"/>
+              <!-- mountains -->
+              <g stroke-linejoin="round">
+                <g transform="translate(300,150)"><path d="M0 26 L14 -8 L28 26 Z" fill="var(--peak)"/><path d="M14 -8 L20 6 L14 6 Z" fill="var(--peak-lit)"/></g>
+                <g transform="translate(326,158)"><path d="M0 24 L12 -6 L24 24 Z" fill="var(--peak)"/><path d="M12 -6 L17 5 L12 5 Z" fill="var(--peak-lit)"/></g>
+                <g transform="translate(346,150)"><path d="M0 30 L16 -10 L32 30 Z" fill="var(--peak)"/><path d="M16 -10 L23 8 L16 8 Z" fill="var(--peak-lit)"/></g>
+                <g transform="translate(282,164)"><path d="M0 22 L11 -5 L22 22 Z" fill="var(--peak)"/><path d="M11 -5 L15 4 L11 4 Z" fill="var(--peak-lit)"/></g>
+              </g>
+              <!-- selection marquee (a captured state, keyed to note 4) -->
+              <g>
+                <rect x="276" y="140" width="98" height="58" fill="var(--accent)" opacity=".08"/>
+                <rect x="276" y="140" width="98" height="58" fill="none" stroke="var(--accent)"
+                      stroke-width="1.2" stroke-dasharray="4 3"/>
+                <g fill="var(--accent)">
+                  <rect x="273" y="137" width="6" height="6"/><rect x="371" y="137" width="6" height="6"/>
+                  <rect x="273" y="195" width="6" height="6"/><rect x="371" y="195" width="6" height="6"/>
+                </g>
+              </g>
+              <!-- labels + compass -->
+              <text x="196" y="330" font-family="var(--font-display)" font-style="italic"
+                    font-size="17" fill="var(--ink)" opacity=".92">Ardh Vale</text>
+              <text x="196" y="228" font-family="var(--font-display)" font-style="italic"
+                    font-size="10.5" fill="var(--ink)" opacity=".7">Mere of Stars</text>
+              <g transform="translate(470,58)" stroke="var(--ink)" opacity=".55" fill="var(--ink)">
+                <path d="M0 -16 L4 0 L0 16 L-4 0 Z" fill="var(--ink)"/>
+                <path d="M-16 0 L0 -4 L16 0 L0 4 Z" fill="none" stroke-width="1"/>
+                <text x="-3.5" y="-20" font-size="9" font-family="var(--font-mono)">N</text>
+              </g>
+            </svg>
+
+            <!-- confirm modal state -->
+            <div class="modal">
+              <div class="modalcard">
+                <h4>Generate a new map?</h4>
+                <p>This replaces everything on the canvas. You can undo it in one step.</p>
+                <div class="row">
+                  <button class="btn">Cancel</button>
+                  <button class="btn primary">Replace map</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="statusbar">
+              <span>zoom 68%</span><span class="grow"></span>
+              <span>x 1204 · y 883</span><span class="grow"></span>
+              <span>objects 412 / ~2000</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- right: layers + settings -->
+        <aside class="rail rail-right">
+          <div class="panelttl">Layers<span class="cx" style="margin-left:auto">1</span></div>
+          <div class="layers">
+            <div class="layer"><i class="eye">◉</i><span class="lname">Labels</span><span class="count">7</span><i class="lock">⌁</i></div>
+            <div class="layer"><i class="eye">◉</i><span class="lname">Icons</span><span class="count">11</span><i class="lock">⌁</i></div>
+            <div class="layer"><i class="eye">◉</i><span class="lname">Rivers</span><span class="count">3</span><i class="lock">⌁</i></div>
+            <div class="layer active"><i class="eye">◉</i><span class="lname">Mountains</span><span class="count">168</span><i class="lock">⌁</i></div>
+            <div class="layer"><i class="eye">◉</i><span class="lname">Forests</span><span class="count">223</span><i class="lock">⌁</i></div>
+            <div class="layer"><i class="eye">◉</i><span class="lname">Terrain</span><span class="count">4</span><i class="lock">⌁</i></div>
+          </div>
+          <div class="hint">Fixed order — the stack is what makes the map read correctly. Reorder <em>within</em> a layer (bring forward / send back).</div>
+
+          <div class="panelttl">Map settings</div>
+          <div class="toggle"><span>Parchment texture</span><span class="sw on"></span></div>
+          <div class="toggle"><span>Coastal rings</span><span class="sw on"></span><span class="cx" style="margin-left:6px">3</span></div>
+          <div class="field" style="margin-top:4px">
+            <label>Ring count <span>4</span></label><div class="slider s2"><div class="dot"></div></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+    </div>
+    <figcaption>Annotated editor mockup — the canvas shows the signature coastal-ring effect (ocean rings out, lake rings in) plus a marquee selection and the generate-confirm state.</figcaption>
+  </figure>
+
+  <hr class="rule">
+
+  <section>
+    <h2>Annotations</h2>
+    <p class="sectlead">Each pin marks where a locked interaction decision shows up in the UI.</p>
+    <ul class="notes">
+      <li><span class="cx">1</span><div class="body"><h3>Fixed semantic layers</h3><p>Six known layers in a fixed render order — no freeform Photoshop layers. Each toggles visibility &amp; lock; you reorder objects <em>within</em> a layer.</p><span class="adr">ADR-15</span></div></li>
+      <li><span class="cx">2</span><div class="body"><h3>Contextual eraser</h3><p>“Erase” removes whatever the active tool makes — land geometry on Terrain (sea brush), discrete objects on Mountains/Forests/Icons.</p><span class="adr">ADR-18</span></div></li>
+      <li><span class="cx">3</span><div class="body"><h3>Rings are derived + toggleable</h3><p>Coastal rings are never stored — recomputed from the union of all land, clipped to water. Toggling is instant; count/gap are settings.</p><span class="adr">ADR-13</span></div></li>
+      <li><span class="cx">4</span><div class="body"><h3>Marquee multi-select</h3><p>Drag or shift-click to grab a whole range at once; transform or delete as one. Backed by a spatial index to stay fast at 1–2k objects.</p><span class="adr">ADR-16</span></div></li>
+      <li><span class="cx">5</span><div class="body"><h3>Generate replaces the canvas</h3><p>Noise generator fills terrain + mountains + forests. When the canvas isn’t empty it asks first, and the whole replace is one undo step.</p><span class="adr">ADR-21 · 22</span></div></li>
+      <li><span class="cx">6</span><div class="body"><h3>No login wall</h3><p>Sign-in is optional and only adds cloud save. The full editor, local autosave, and image export all work logged-out.</p><span class="adr">ADR-07</span></div></li>
+      <li><span class="cx">7</span><div class="body"><h3>Coast-detail slider</h3><p>Lives in the contextual Tool Options rail; drives coastline smoothing + simplification from stylized to natural.</p><span class="adr">ADR-12</span></div></li>
+      <li><span class="cx">8</span><div class="body"><h3>Bounded canvas + live status</h3><p>Preset size, clamped zoom (no infinite pan). The status bar shows zoom, cursor coords, and object count against the perf budget.</p><span class="adr">ADR-20</span></div></li>
+    </ul>
+  </section>
+
+  <footer>
+    <span>Wireframe for <code>map.byfauzi.com</code> v1 · interaction model per <code>03-architecture-decisions.md</code></span>
+    <span>Layout only — palette &amp; sprites are placeholders.</span>
+  </footer>
+</div>

@@ -1,0 +1,23 @@
+/* Placeholder chrome. WP-13 replaces this with Tailwind v4 + tokens (06-frontend-styling.md). */
+main {
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+}
+.presets {
+  display: flex;
+  gap: 16px;
+}
+.canvas {
+  background: #3e6e75;
+  border: 1px solid #c3ccc3;
+}
+.status {
+  color: #5e6d68;
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,36 @@
+{
+  "stage": "S2",
+  "description": "maskToContours: a binary mask must trace into the right number of connected components, each with the right number of holes. Three cases in one file.",
+  "params": { "SCALE": 100, "tol": 0.01 },
+  "cases": [
+    {
+      "case": "circle",
+      "input": { "type": "mask", "canvas": { "w": 400, "h": 400 },
+        "shapes": [ { "type": "disc", "cx": 200, "cy": 200, "r": 120 } ], "holes": [] },
+      "assertions": [
+        { "type": "componentCount", "target": "result", "n": 1 },
+        { "type": "holeCount", "target": "result", "n": 0 }
+      ]
+    },
+    {
+      "case": "donut",
+      "input": { "type": "mask", "canvas": { "w": 400, "h": 400 },
+        "shapes": [ { "type": "disc", "cx": 200, "cy": 200, "r": 120 } ],
+        "holes": [ { "type": "disc", "cx": 200, "cy": 200, "r": 50 } ] },
+      "assertions": [
+        { "type": "componentCount", "target": "result", "n": 1 },
+        { "type": "holeCount", "target": "result", "n": 1 }
+      ]
+    },
+    {
+      "case": "two-blobs",
+      "input": { "type": "mask", "canvas": { "w": 600, "h": 400 },
+        "shapes": [ { "type": "disc", "cx": 150, "cy": 200, "r": 90 },
+                    { "type": "disc", "cx": 450, "cy": 200, "r": 90 } ], "holes": [] },
+      "assertions": [
+        { "type": "componentCount", "target": "result", "n": 2 },
+        { "type": "holeCount", "target": "result", "n": 0 }
+      ]
+    }
+  ]
+}
