@@ -12,8 +12,14 @@ interface EditorState {
   activeLayerId: LayerId;
   /** brush diameter in map units */
   brushSize: number;
+  /**
+   * ADR-18: the eraser is contextual to the active tool. On the terrain layer, erasing
+   * IS the sea brush — one water tool, no mode confusion (ADR-11).
+   */
+  terrainTool: "brush" | "sea";
   setActiveLayer: (id: LayerId) => void;
   setBrushSize: (size: number) => void;
+  setTerrainTool: (tool: "brush" | "sea") => void;
   setSettings: (patch: Partial<SceneSettings>) => void;
   /** ponytail: direct write for now — WP-9 turns this into a PaintLand/EraseSea command. */
   setLandmasses: (landmasses: Landmass[]) => void;
@@ -26,9 +32,11 @@ export const useEditorStore = create<EditorState>((set) => ({
   scene: createEmptyScene("landscape"),
   activeLayerId: "terrain",
   brushSize: 260,
+  terrainTool: "brush",
 
   setActiveLayer: (activeLayerId) => set({ activeLayerId }),
   setBrushSize: (brushSize) => set({ brushSize }),
+  setTerrainTool: (terrainTool) => set({ terrainTool }),
 
   setSettings: (patch) =>
     set((state) => ({

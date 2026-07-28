@@ -101,6 +101,7 @@ export function MapStage() {
   }, []);
 
   const brushSize = useEditorStore((s) => s.brushSize);
+  const terrainTool = useEditorStore((s) => s.terrainTool);
   const brush = useTerrainBrush({
     enabled: activeLayerId === "terrain" && !spaceHeld,
     map,
@@ -201,7 +202,8 @@ export function MapStage() {
                 layer.id === "terrain" && brush.previewPoints ? (
                   <Line
                     points={brush.previewPoints}
-                    stroke="#E7DAC0"
+                    // the sea brush previews as water, so erasing reads as erasing
+                    stroke={terrainTool === "sea" ? "#3E6E75" : "#E7DAC0"}
                     strokeWidth={brushSize}
                     lineCap="round"
                     lineJoin="round"

@@ -15,9 +15,11 @@ import {
   type LandmassInput,
   type MaskInput,
   type PolygonInput,
+  type ShapeInput,
 } from "./__fixtures__/harness";
 import s2Fixture from "./__fixtures__/s2-contours.fixture.json";
 import s7Fixture from "./__fixtures__/s7-union.fixture.json";
+import s8Fixture from "./__fixtures__/s8-difference.fixture.json";
 import s9Fixture from "./__fixtures__/s9-split.fixture.json";
 
 const disc = (cx: number, cy: number, r: number, segments = 64): Ring =>
@@ -243,6 +245,35 @@ describe("S7 unionLand (fixture)", () => {
       ],
     });
     expect(unionLand([square], [])).toHaveLength(1);
+  });
+});
+
+// ------------------------------------------------------------- S8 differenceLand
+
+describe("S8 differenceLand (fixture)", () => {
+  for (const testCase of s8Fixture.cases) {
+    it(testCase.case, () => {
+      const existing = testCase.input.existing.map((s) => materializeShape(s as PolygonInput));
+      const erase = [materializeShape(testCase.input.eraseRegion as ShapeInput)];
+      const result = differenceLand(existing, erase);
+      for (const assertion of testCase.assertions as Assertion[]) {
+        expect(evaluate(assertion, { multi: result })).toBeNull();
+      }
+    });
+  }
+
+  it("no-ops when there is nothing to erase or nothing to erase from", () => {
+    const square = materializeShape({
+      type: "polygon",
+      path: [
+        [0, 0],
+        [10, 0],
+        [10, 10],
+        [0, 10],
+      ],
+    });
+    expect(differenceLand([square], [])).toEqual([square]);
+    expect(differenceLand([], [square])).toEqual([]);
   });
 });
 

@@ -1,0 +1,37 @@
+{
+  "stage": "S8",
+  "description": "differenceLand: the sea/eraser brush subtracts from land. A cut that reaches both coasts severs the landmass into two components; a subtraction entirely inside the landmass leaves one component with a new hole (a lake). Written to complete the minimum fixture set in 04-geometry-pipeline.md, which lists S8 {cut, interior} but shipped no file.",
+  "params": { "SCALE": 100, "tol": 0.01 },
+  "cases": [
+    {
+      "case": "cut",
+      "input": {
+        "existing": [
+          { "type": "polygon", "path": [[100, 100], [500, 100], [500, 300], [100, 300]] }
+        ],
+        "eraseRegion": { "type": "polygon", "path": [[380, 80], [420, 80], [420, 320], [380, 320]] }
+      },
+      "assertions": [
+        { "type": "componentCount", "target": "result", "n": 2,
+          "note": "The strip spans the full height, so the land is severed into two disjoint pieces." },
+        { "type": "holeCount", "target": "result", "n": 0,
+          "note": "A through-cut makes coastline, not a lake." }
+      ]
+    },
+    {
+      "case": "interior",
+      "input": {
+        "existing": [
+          { "type": "polygon", "path": [[100, 100], [500, 100], [500, 300], [100, 300]] }
+        ],
+        "eraseRegion": { "type": "disc", "cx": 300, "cy": 200, "r": 50 }
+      },
+      "assertions": [
+        { "type": "componentCount", "target": "result", "n": 1,
+          "note": "An interior subtraction never disconnects the landmass." },
+        { "type": "holeCount", "target": "result", "n": 1,
+          "note": "Water fully enclosed by land is a lake — a hole in the polygon (ADR-11)." }
+      ]
+    }
+  ]
+}

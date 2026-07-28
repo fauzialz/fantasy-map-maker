@@ -4,6 +4,8 @@ import { createMask, stampMask, type Mask } from "../engine/terrain/mask";
 import { callGeometry } from "../engine/worker/client";
 import type { Point } from "../scene/types";
 import { selectLandmasses, useEditorStore } from "../state/editorStore";
+import { describeTerrainChange } from "../state/terrainChange";
+import { useToastStore } from "../state/toastStore";
 import type { Size } from "./viewport";
 
 interface Options {
@@ -68,17 +70,27 @@ export function useTerrainBrush({ enabled, map, toMapPoint }: Options) {
       if (!current) return;
 
       const state = useEditorStore.getState();
+      const mode = state.terrainTool === "sea" ? "erase" : "paint";
+      const before = selectLandmasses(state);
       setCommitting(true);
       callGeometry("terrainCommit", {
         mask: current.mask,
         maskResolution: MASK_RESOLUTION,
         coastDetail: state.scene.settings.coastDetail,
-        mode: "paint",
-        existingLand: selectLandmasses(state),
+        mode,
+        existingLand: before,
       })
         .then(({ landmasses }) => {
           useEditorStore.getState().setLandmasses(landmasses);
           setError(null);
+
+          // ponytail: this restore IS the undo for now. WP-9 replaces it with the command
+          // stack; the toast and its Undo button stay as they are.
+          const change = describeTerrainChange(before, landmasses, mode);
+          if (change)
+            useToastStore
+              .getState()
+              .show(change, () => useEditorStore.getState().setLandmasses(before));
         })
         .catch((err: Error) => setError(err.message))
         .finally(() => {

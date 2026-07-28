@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { MapStage } from "./canvas/MapStage";
+import { Toasts } from "./ui/Toasts";
 import { callGeometry } from "./engine/worker/client";
 import type { CanvasPreset } from "./scene/types";
 import { useEditorStore } from "./state/editorStore";
@@ -17,6 +18,8 @@ export default function App() {
   const brushSize = useEditorStore((s) => s.brushSize);
   const setBrushSize = useEditorStore((s) => s.setBrushSize);
   const setSettings = useEditorStore((s) => s.setSettings);
+  const terrainTool = useEditorStore((s) => s.terrainTool);
+  const setTerrainTool = useEditorStore((s) => s.setTerrainTool);
   const [worker, setWorker] = useState("checking…");
 
   useEffect(() => {
@@ -46,7 +49,24 @@ export default function App() {
           ))}
         </ul>
 
-        <h2>Terrain brush</h2>
+        <h2>Terrain</h2>
+        <div className="tools">
+          <button
+            type="button"
+            className={terrainTool === "brush" ? "active" : undefined}
+            onClick={() => setTerrainTool("brush")}
+          >
+            Land brush
+          </button>
+          <button
+            type="button"
+            className={terrainTool === "sea" ? "active" : undefined}
+            onClick={() => setTerrainTool("sea")}
+          >
+            Sea brush
+          </button>
+        </div>
+
         <label className="slider">
           Brush size <b>{brushSize}</b>
           <input
@@ -89,11 +109,13 @@ export default function App() {
           {scene.meta.canvas.w}×{scene.meta.canvas.h} · schema v{scene.schemaVersion} · {worker}
         </p>
         <p className="status">
-          drag to paint land (terrain layer) · wheel to zoom · middle-drag or space+drag to pan
+          drag to paint or erase land (terrain layer) · wheel to zoom · middle-drag or space+drag to
+          pan
         </p>
       </aside>
 
       <MapStage />
+      <Toasts />
     </main>
   );
 }
