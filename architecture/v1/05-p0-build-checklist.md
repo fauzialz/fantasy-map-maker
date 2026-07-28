@@ -29,7 +29,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   vignette; both global toggles (`parchment`, `coastalRings`) work.
 - [x] **WP-6 · Mountains & forests** — sprite registry + raster cache; scatter-brush /
   one-by-one / object-eraser; z-order `(manual z, Y, scale)`.
-- [ ] **WP-7 · Selection & editing** — click / shift-click / marquee (rbush); transform
+- [x] **WP-7 · Selection & editing** — click / shift-click / marquee (rbush); transform
   handles; bring-forward/send-back; delete; smooth at 1–2k objects.
 - [ ] **WP-8 · Icons, rivers, labels** — icon palette; river spline (tapering, no
   rings); text labels (fantasy font, straight).
