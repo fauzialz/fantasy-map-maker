@@ -17,7 +17,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   with placeholders.
 
 ## Terrain engine  *(the load-bearing wall — build stage-by-stage vs `04`)*
-- [ ] **WP-2 · Brush → polygon** (Pipeline A / S1–S9) — raster mask → contours →
+- [x] **WP-2 · Brush → polygon** (Pipeline A / S1–S9) — raster mask → contours →
   Chaikin → simplify(coastDetail) → assemble → union → split. **All S-fixtures pass.**
 - [ ] **WP-3 · Sea/eraser brush** (S8 + S9) — difference + connected-components split;
   **larger piece keeps id/name**; lake = interior hole.
