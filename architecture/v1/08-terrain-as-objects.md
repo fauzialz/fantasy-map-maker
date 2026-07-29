@@ -5,7 +5,9 @@ Written after WP-10, in response to "landmasses should be selectable like mounta
 Deliberately sequenced **after WP-13**: every tier needs the real UI that WP-13 builds — a
 biome palette, a rail settings group, toasts carrying actions — and rewriting invariant I9
 on top of a stand-in rail would be rework. Recorded as **ADR-25**; tracked in
-`05-p0-build-checklist.md`. §8 says what is settled and what is still open._
+`05-p0-build-checklist.md`. This document is the **design**; the **work order** an agent
+follows is `prompts/phase-0.5-core-editor-improvement.md` (Batch 1). §8 says what is settled
+and what is still open._
 
 ## 1. The concept
 

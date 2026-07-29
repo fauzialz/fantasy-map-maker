@@ -23,6 +23,10 @@ Always give the agent:
 3. For P0 terrain/rings/generator work: `04-geometry-pipeline.md` **and** `fixtures/`.
 4. `05-p0-build-checklist.md` so it (and you) can track progress.
 
+For a **core-editor improvement** package (WP-14 onward), attach instead:
+`prompts/phase-0.5-core-editor-improvement.md`, the batch's design document (e.g.
+`08-terrain-as-objects.md`), `07-interaction-invariants.md`, and the same scene contract.
+
 Keep `03-architecture-decisions.md` handy — when the agent proposes something that
 contradicts a decision, point it at the relevant ADR.
 
@@ -104,6 +108,20 @@ land never covered) must pass. Show me the strait fixture green.
   coarse in the prompt — let the agent implement them idiomatically; don't invite it to
   gold-plate.
 
+## Core-editor improvements (WP-14 onward)
+
+`prompts/phase-0.5-core-editor-improvement.md` is **not a phase** — it stays open, and it is
+where editor work goes once P0's file is frozen. It does not block P1, and P1 does not block
+it; pick up a batch whenever it is worth more than the next phase.
+
+```
+Build WP-14 per prompts/phase-0.5-core-editor-improvement.md (Batch 1, terrain as
+objects). Read 08-terrain-as-objects.md in full first, and 07-interaction-invariants.md.
+Settle decisions D1, D4 and D6 with me before writing code. Landmasses are path-based:
+hit-test by path, never by bounding box, and do NOT give them a footprint. No transform
+handles in WP-14. Acceptance is driven pointer input, not a screenshot.
+```
+
 ## Later phases (short kickoffs)
 
 - **P1:** "Build Phase 1 per prompts/phase-1-distribution.md. Reuse the Phase 0 render
@@ -121,3 +139,7 @@ land never covered) must pass. Show me the strait fixture green.
 Every work package's acceptance criteria met, every box in the relevant checklist
 ticked, and — for P0 — the "Phase 0 done when…" bar in `05-p0-build-checklist.md`
 satisfied. Then move to the next phase.
+
+**Core-editor improvements are done per package, not per phase.** There is no "0.5 done"
+bar: a package passes its own acceptance criteria, gets its box ticked, and the file stays
+open for the next batch.

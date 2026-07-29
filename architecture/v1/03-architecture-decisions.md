@@ -234,4 +234,4 @@ happened and offers the other two outcomes as one-click alternatives.
 **Rejected:** widening `hasFootprint` to cover landmasses (see I9 — it hangs handles off
 geometry the transforms refuse to move); allowing landmasses to overlap at rest (brings back
 `z`, draw order and a topmost-hit rule, all of which the no-overlap rule makes unnecessary).
-**Detail:** `08-terrain-as-objects.md`.
+**Detail:** `08-terrain-as-objects.md` (design) · `prompts/phase-0.5-core-editor-improvement.md` (work order, Batch 1).

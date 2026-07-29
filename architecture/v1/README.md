@@ -20,6 +20,8 @@ prompts** used to drive an AI coding agent through the build.
 5. `07-interaction-invariants.md` — hard-won rules for anything pointer-driven, and how
    to actually verify it. Read before touching the renderer, bounds, or selection.
 6. `prompts/phase-0-core-editor.md` — start building here.
+7. `prompts/phase-0.5-core-editor-improvement.md` — where editor work goes *after* P0.
+   Open-ended, one batch per design doc; `08-terrain-as-objects.md` is the first.
 
 **Files:**
 - `HOW-TO-PROMPT-THE-AGENT.md` — operator's guide: kickoff prompts + build loop.
@@ -27,6 +29,9 @@ prompts** used to drive an AI coding agent through the build.
   `04-geometry-pipeline.md`, `06-frontend-styling.md` — design source of truth.
 - `prompts/phase-0..3` — per-phase agent work orders. Phase 0's WP-2/WP-3/WP-4 and the
   terrain half of WP-10 are specified stage-by-stage in `04-geometry-pipeline.md`.
+- `prompts/phase-0.5-core-editor-improvement.md` — **the standing work order for editor
+  enhancements after P0.** Not a phase: it never closes, packages continue P0's numbering
+  from WP-14, and nothing in it blocks P1–P3. Each batch names its own design document.
 - `fixtures/` — ready-to-port geometry fixtures (input + property assertions) for the
   highest-risk stages, headlined by the strait test. See `fixtures/README.md`.
 - `05-p0-build-checklist.md` — one-page Phase 0 tracker (prototype-first order) that
@@ -70,7 +75,7 @@ prompts** used to drive an AI coding agent through the build.
 | Phase | Goal | Backend? | Headline deliverables |
 |---|---|---|---|
 | **P0 — Core editor** | A complete, deployable editor | No | Terrain brush, coastal rings, mountains/forests/icons/rivers, multi-select, undo/redo, noise generator, image export, local-first autosave |
-| **Follow-up — terrain as objects** | Landmasses become editable objects | No | Select / colour / name / delete land, move + rotate, resize, overlap policy — `08-terrain-as-objects.md` |
+| **0.5 — Core-editor improvement** (ongoing, never closes) | Editor enhancements after P0 | No | Batch 1: terrain as objects — select / colour / name / delete land, move + rotate, resize, overlap policy. Work order `prompts/phase-0.5-core-editor-improvement.md`, design `08-terrain-as-objects.md` |
 | **P1 — Distribution** | Get maps out, no server | No | Self-contained HTML embed export, `.map.json` import/export |
 | **P2 — Accounts & sharing** | Persistence + hosted sharing | Yes (Go + Postgres + Zitadel) | Login, cloud save, "my maps", claim local drafts, share page + hosted iframe, SVG/PDF export |
 | **P3 — React library** | Reusable component | No | `@byfauzi/map-viewer` then `@byfauzi/map-editor` npm packages |

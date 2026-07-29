@@ -242,3 +242,10 @@ build them stage-by-stage with their own fixtures.
 ## Out of scope for Phase 0
 Login, any backend/network, cloud save, share links, iframe, SVG/PDF export, the React
 library, the second (modern) style. (Those are P1–P3.)
+
+**Also out of scope, and deliberately not P1–P3:** further work on the core editor itself.
+WP-13 is the last package in *this* file; WP-14 onward live in
+`phase-0.5-core-editor-improvement.md`, which is the standing home for editor enhancements
+after P0 ships. Do not add packages here — this file's scope and definition of done are
+frozen. The first batch waiting there is terrain-as-objects (WP-14…WP-17, designed in
+`../08-terrain-as-objects.md`, decided in ADR-25).
