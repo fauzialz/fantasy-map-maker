@@ -62,7 +62,27 @@ scatter/place/edit/delete mountains & forests, add icons/rivers/labels, generate
 world, undo/redo everything, export PNG/JPG/WebP, and have work survive a refresh —
 smooth at ~1–2k objects, with no backend.
 
-## After P0 (see the phase prompts)
+## Follow-up — the first enhancement after P0 ships
+Terrain stops being paint-only and becomes selectable, colourable and movable. Full design,
+constraints, acceptance criteria and fixtures in `08-terrain-as-objects.md`; **ADR-25**
+records why it sits here rather than inside P0 (it needs WP-13's real UI, and it rewrites
+interaction invariant I9).
+
+- [ ] **WP-14 · Terrain select & colour** (T1) — point-in-polygon hit-test; click /
+  shift-click / marquee-by-containment; selection draws as a **highlighted coastline with no
+  handles**; properties strip (biome palette, name, delete); the brush paints the chosen
+  biome. Needs none of the open decisions.
+- [ ] **WP-15 · Terrain move & rotate** (T2) — rigid path transforms baked into
+  `path`/`holes`; rings **freeze and fade during the drag**, one derivation on drop;
+  **overlap radio, default "keep apart"** (slide back along the drag path to the last
+  position that fit). Requires the I9 rewrite first.
+- [ ] **WP-16 · Terrain resize** (T3) — scale, then **re-simplify** at the scene's
+  `coastDetail` so a scaled coast keeps the point density of a hand-painted one.
+- [ ] **WP-17 · Carve a strait** — the third overlap outcome: bite a channel, then roughen
+  the machine-straight cut so it reads as coastline. Own package; needs the
+  ≥20%-area-remains guard so a small landmass is never erased.
+
+## Later phases (see the phase prompts)
 - [ ] **P1** — self-contained HTML embed export + `.map.json` import/export.
 - [ ] **P2** — Zitadel auth, Go+Postgres API, cloud save, "my maps", claim local
   drafts, share page + iframe, SVG/PDF export.

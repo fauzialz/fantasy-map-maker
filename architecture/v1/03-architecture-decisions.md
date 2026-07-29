@@ -212,3 +212,26 @@ already gives total isolation for the viewer use case.
 were unreachable): (1) whether `prefix(mbf)` attaches to per-layer imports when Preflight
 is split out; (2) whether v4 supports selector-scoped `important`. Neither is
 load-bearing — prefix + no-Preflight isolates regardless.
+
+## ADR-25 — Terrain becomes selectable objects, after P0, defaulting to "keep apart"
+**Decision:** Landmasses become selectable, colourable and transformable — as a
+**follow-up to P0 (WP-14…WP-17), not inside it**. When a dragged landmass would overlap
+another, the outcome is chosen by a **three-option radio in the terrain panel** — keep
+apart / merge / carve — read at drop time, **defaulting to "keep apart"** (the landmass
+slides back along the drag path to the last position that fit).
+**Why after P0:** every tier needs UI that WP-13 builds — a biome palette, a rail settings
+group, toasts carrying actions — and the tiers rewrite interaction invariant I9. Doing it
+against the stand-in rail would be rework, and P0's definition of done does not depend on
+it.
+**Why "keep apart" as the default:** a default is what happens when nobody chose, so it has
+to be the outcome that cannot lose work. Merging is destructive (two objects become one, an
+id disappears) and carving can split or erase a landmass; sliding back changes only a
+position, and its worst case is a drag that visibly didn't take.
+**Why a setting rather than a prompt:** a modal appears *after* the press, so the cursor
+cannot promise the outcome (invariant I4), and it repeats for every nudge. A setting read
+before the drag lets the pointer advertise the result; the existing toast then reports what
+happened and offers the other two outcomes as one-click alternatives.
+**Rejected:** widening `hasFootprint` to cover landmasses (see I9 — it hangs handles off
+geometry the transforms refuse to move); allowing landmasses to overlap at rest (brings back
+`z`, draw order and a topmost-hit rule, all of which the no-overlap rule makes unnecessary).
+**Detail:** `08-terrain-as-objects.md`.

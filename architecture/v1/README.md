@@ -36,6 +36,10 @@ prompts** used to drive an AI coding agent through the build.
   keep in step, the seven bugs that came from breaking them, and the CDP recipe for
   driving real pointer input. Written because a screenshot of seeded state proved nothing
   about interaction.
+- `08-terrain-as-objects.md` — **scheduled as WP-14 → WP-17, the first work after P0.**
+  Making landmasses selectable, colourable and transformable: the constraints it must
+  satisfy, tiers split by which operations are lossless, the overlap policy (default **keep
+  apart**), and a replacement for invariant I9. See ADR-25.
 - `ux-wireframe.html` — annotated editor-layout mockup (toolbar / rails / canvas /
   generator + settings), each region keyed to an ADR. Open in a browser or view the
   published Artifact.
@@ -66,6 +70,7 @@ prompts** used to drive an AI coding agent through the build.
 | Phase | Goal | Backend? | Headline deliverables |
 |---|---|---|---|
 | **P0 — Core editor** | A complete, deployable editor | No | Terrain brush, coastal rings, mountains/forests/icons/rivers, multi-select, undo/redo, noise generator, image export, local-first autosave |
+| **Follow-up — terrain as objects** | Landmasses become editable objects | No | Select / colour / name / delete land, move + rotate, resize, overlap policy — `08-terrain-as-objects.md` |
 | **P1 — Distribution** | Get maps out, no server | No | Self-contained HTML embed export, `.map.json` import/export |
 | **P2 — Accounts & sharing** | Persistence + hosted sharing | Yes (Go + Postgres + Zitadel) | Login, cloud save, "my maps", claim local drafts, share page + hosted iframe, SVG/PDF export |
 | **P3 — React library** | Reusable component | No | `@byfauzi/map-viewer` then `@byfauzi/map-editor` npm packages |
