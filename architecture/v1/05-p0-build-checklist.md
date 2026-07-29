@@ -36,8 +36,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   control points); text labels with a paper halo. Verified by driven input, 15 checks.
 
 ## Systems
-- [ ] **WP-9 · Undo/redo** — command stack; one stroke / scatter-drag / generate = one
-  step; terrain commands store only affected-landmass before/after.
+- [x] **WP-9 · Undo/redo** — command stack; one stroke / scatter-drag / generate = one
+  step; terrain commands store only affected-landmass before/after. Steps are per-layer
+  object diffs; sliders coalesce; a new canvas is undoable as a whole-scene step (the
+  shape WP-10's Generate reuses).
 - [ ] **WP-10 · Generator** (10a–10h) — noise fields → mask → Pipeline B → speck filter
   → biomes → mountain/forest Poisson scatter → budget cap → assemble; confirm modal;
   one undoable replace; seed = metadata only.
