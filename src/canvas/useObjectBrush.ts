@@ -77,8 +77,10 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint }: Options) 
       const layer = state.scene.layers.find((l) => l.id === activeLayerId);
       if (!layer) return;
 
-      // ponytail: linear scan. rbush arrives in WP-7 for marquee select; at a couple of
-      // thousand objects a distance check per move is nothing.
+      // ponytail: linear scan, and deliberately still one after WP-7. The rbush index serves
+      // the marquee, which tests a box against every object per drag frame; the eraser tests
+      // one small disc, so at the ~1-2k budget a distance check per object costs less than
+      // keeping an index in step with each removal. Revisit if the budget grows.
       const radius = state.brushSize / 2;
       const doomed = layer.objects
         .filter((object) => isUnderBrush(object, point, radius))

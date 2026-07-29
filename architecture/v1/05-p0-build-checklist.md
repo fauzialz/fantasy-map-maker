@@ -52,7 +52,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ## Ship
 - [ ] **WP-13 · UI polish & deploy** — toolbar, layer panel, settings, generator panel,
   export dialog, confirm modal, toasts; deploy static SPA. A newcomer makes + exports a
-  good-looking map in minutes.
+  good-looking map in minutes. **Also retires the P0 stand-ins that name it** — the
+  placeholder left rail, `window.prompt` for label text, `window.confirm` for the generate
+  confirm, `palette.ts`'s hardcoded canvas colours, and the system font stack.
+  `grep -rn "ponytail:" src/` is the list.
 
 ---
 

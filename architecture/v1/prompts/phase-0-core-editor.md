@@ -224,9 +224,24 @@ build them stage-by-stage with their own fixtures.
   Popover), Lucide chrome icons, self-hosted fonts.
 - Toolbar (tools + brush size), layer panel (visibility/lock/reorder-within-rules),
   settings toggles, generator panel, export dialog, confirm modal, toasts.
+- **Retire the P0 stand-ins.** Five shortcuts were taken on the explicit understanding
+  that this package removes them; each is marked `ponytail:` in the code and names WP-13.
+  `grep -rn "ponytail:" src/` finds them:
+  - the placeholder left rail (`App.tsx`) → the real toolbar + layer panel;
+  - `window.prompt` as the label text editor (`canvas/useObjectBrush.ts`) → an inline
+    editor on the canvas;
+  - `window.confirm` as the generate confirm modal (`App.tsx`) → a Radix dialog. Note it
+    cannot express more than two choices, which is why ADR-25's overlap policy is a setting
+    rather than a prompt;
+  - `canvas/palette.ts`'s hardcoded canvas colours → **reads of the CSS custom properties**,
+    so one theme switch recolours the DOM chrome and the map together (ADR-24). The module
+    exists as that seam;
+  - `sprites/text.ts`'s system font stack → the self-hosted fantasy face.
 - Deploy the static SPA (any static host/CDN).
 - **Acceptance:** a first-time visitor can make and export a good-looking fantasy map
-  in a couple of minutes without instructions; light/dark both work via the tokens.
+  in a couple of minutes without instructions; light/dark both work via the tokens; **no
+  `window.prompt` or `window.confirm` remains in `src/`, and no `ponytail:` marker still
+  names WP-13.**
 
 ---
 

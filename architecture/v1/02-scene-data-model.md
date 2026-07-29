@@ -98,13 +98,21 @@ terrain → forests → mountains → rivers → icons → labels.
   "id": "lm1", "type": "landmass",
   "path": [[x,y], ...],       // closed outer boundary (coastline), CCW
   "holes": [ [[x,y], ...], ...],  // inner boundaries = lakes (CW), even-odd fill
-  "biome": "grassland"        // grassland | forest | desert | snow | swamp
+  "biome": "grassland",       // grassland | forest | desert | snow | swamp
+  "name": "Westmarch"         // OPTIONAL — see below
 }
 ```
 - Produced by the terrain engine (brush commit or generator). No `x/y/rotation/scale`
   — geometry is absolute.
 - Multiple disjoint landmasses = multiple objects. Merge/split handled by boolean ops
   + connected-components; **the larger piece keeps the id/name on split or merge.**
+- **`name` is optional.** ADR-10's identity rule needs somewhere to keep a name across a
+  split or merge, so the field exists. It is **optional rather than required** precisely so
+  that scenes written before it existed still load unchanged — which is why it arrived
+  without a `schemaVersion` bump. That is the general rule: a **new optional** field is
+  additive and needs no migration; a new **required** field, a removal, or a change to an
+  existing field's shape or meaning needs the bump *and* its `migrate()` step in the same
+  commit (§6).
 
 ### `tree` (forest layer)
 ```jsonc
