@@ -172,8 +172,12 @@ artifact. Recomputed on commit only, in the Worker, cached as a bitmap.
 - **Cache layers at viewport/display resolution, NOT full-map resolution.** Six
   full-map RGBA bitmaps at 4000×3000 ≈ 290 MB and crash mobile Safari; caching at
   what's on screen keeps memory in the tens of MB. Regenerate cache on zoom change.
-- **Heavy geometry runs in a Web Worker** (boolean, offset, marching-squares),
-  debounced, on stroke-commit — main thread never stalls.
+- **Heavy geometry runs in a Web Worker** (boolean, offset, marching squares),
+  debounced, on stroke-commit — main thread never stalls. **A worker task cannot be
+  interrupted once it starts**: there is no preemption, and a message already in the queue
+  runs in full. Discarding a result on arrival does not save the work. So the only real
+  cancellation is *not queueing superseded work* — keep at most one derivation in flight and
+  let later changes mark the result stale (see `04-geometry-pipeline.md`, worker protocol).
 - **rbush** spatial index for marquee-select + object-eraser hit-testing (O(log n)).
 - **Sprite cache:** hand-drawn mountain/tree/icon SVGs rasterized **once per variant**
   into an in-memory cache and drawn as images. Originals kept for the SVG export path.
@@ -260,17 +264,35 @@ stitch** for poster-size is the noted upgrade path.
 
 ## 13. Undo/redo command model
 
-Command stack (Zustand). **One brush stroke / one scatter-drag / one generate = one
-undo step.**
+Command stack (Zustand). **One brush stroke / one scatter-drag / one transform drag / one
+generate = one undo step.**
 
-| Command | Undo payload |
+**Built as one mechanism, not a class per command.** A step is a **diff**: per layer, only
+the objects that action touched, as they were and as they are. Every gesture captures the
+scene at pointerdown and commits at pointerup, so however many store writes happen in
+between is irrelevant — a scatter drag that adds forty objects and a transform that patches
+on every mousemove each close as a single step. The rows below describe what a step
+*carries*, not separate implementations:
+
+| Action | What the step carries |
 |---|---|
-| PaintLand / EraseSea | before/after polygons of **only the affected landmass(es)** |
-| Place / Scatter | ids of the created objects |
-| Transform / EditProps | per-object before/after deltas |
-| Delete | the removed objects (to restore) |
-| **Generate** | the **entire previous scene** (atomic; reversible even past the confirm) |
-| Toggle setting | previous value |
+| Paint land / erase sea | before/after geometry of **only the affected landmass(es)** |
+| Place / scatter | the created objects (absent on the before side) |
+| Transform / edit props | before/after of the touched objects |
+| Delete | the removed objects, restored whole |
+| Toggle setting / slider | before/after `settings` |
+| **Generate · new canvas** | the **entire previous scene** (atomic; reversible even past the confirm) |
+
+Three rules the mechanism needs, each learned by building it:
+
+- **Compare by value, not by reference.** The geometry worker returns a fresh object for
+  every landmass whether it changed or not, so reference equality alone would drop the whole
+  terrain layer into every stroke's step.
+- **Sliders coalesce.** A range input fires an event per pixel; consecutive steps with the
+  same label *and* the same target fold into one, so a coast-detail drag is one undo instead
+  of forty. Deliberate toggles deliberately do **not** fold.
+- **The stack is capped** (50 steps). Object diffs are small, but a whole-scene step retains
+  an entire previous scene — uncapped, every world the user ever re-rolled stays in memory.
 
 ## 14. Prototype-first order (highest risk → lowest)
 

@@ -167,3 +167,7 @@ Rule of thumb: `effectiveOrder = (z, y, scale)` compared in that priority.
 - **View state** (zoom, pan, active tool, selection) — session-only, never serialized
   into the saved scene.
 - **Undo history** — session-only.
+- **The generator's advanced knobs** (sea-level override, mountain density, forest density) —
+  session-only. §1 lists `seed`, `landAmount`, `roughness`, `worldType` and nothing else;
+  the schema is a hard contract, so persisting more means a `schemaVersion` bump and a
+  migration step. Anything the advanced drawer grows must make that trade explicitly.

@@ -25,6 +25,13 @@ about the code that produces that state.
 > If a work package's acceptance says "click", "drag" or "select", a screenshot is not
 > evidence.
 
+**The same question, asked of pure logic: does the test fail when the code breaks?** Driven
+input is the answer for interaction; for a pure module the sibling check is to break it on
+purpose. The undo stack's suite was verified by seven deliberate mutations — reference
+equality instead of value comparison, a flipped undo/redo direction, a dropped label check, a
+removed history cap, untouched layers rebuilt — each expected to fail one specific test, and
+each did. A suite that has never been observed failing is a suite of unknown value.
+
 **Why headless screenshots aren't enough.** `chrome --headless --screenshot
 --virtual-time-budget=N` fast-forwards timers but never delivers a Web Worker's reply, so
 any capture of worker-derived output (coastal rings) shows a pending state no matter how
@@ -136,6 +143,12 @@ tool; handing it a footprint instead would hang scale handles off geometry that
 silently does nothing. When adding an object type, the first question is which side of
 this predicate it falls on.
 
+> **Rewrite proposed, not accepted.** `08-terrain-as-objects.md` §7 replaces I9 with a
+> two-model version, so landmasses can be selected and transformed by path rather than by
+> footprint. That is decision **D1** there and is still open — until it is taken, the text
+> above stands. WP-14 was deliberately scoped to need no change here (nothing gains a
+> footprint); WP-15 cannot start without it.
+
 ---
 
 ## 3. The bugs
@@ -210,7 +223,13 @@ what sorts.
 The driver scripts used for these passes were scratchpad tooling and were not committed.
 §1 has enough to rebuild one in about twenty lines, and WP-8 did exactly that: 15 checks
 covering place / select / move / delete for icons and labels, and draw / commit / select /
-reshape / delete for rivers, all asserted against the HUD. Two details worth reusing —
+reshape / delete for rivers, all asserted against the HUD.
+
+**Not done, and known: WP-9 and WP-10 have no driven-input evidence.** Undo/redo (keyboard and
+button) and the generator (a click, and a confirm dialog) were verified by hand at a real
+browser and by unit tests, which is not what §1 asks for. By this document's own rule their
+interaction is unverified. One driver covering undo, the generate confirm and WP-13's chrome
+would close all three at once. Two details worth reusing —
 `Page.javascriptDialogOpening` + `Page.handleJavaScriptDialog` drives the label's `prompt`
 without stubbing it out, and the driver must `location.reload()` first or it inherits
 whatever the last run left on the canvas. Still worth doing again for WP-10 (the generate

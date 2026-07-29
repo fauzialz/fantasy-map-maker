@@ -154,9 +154,11 @@ larger-piece-keeps-id rule).**
   and are editable/deletable.
 
 ### WP-9 · Undo/redo (command stack)
-- Implement the command stack from §13: `PaintLand`, `EraseSea`, `Place`, `Scatter`,
-  `Transform`, `EditProps`, `Delete`, `Generate`, `ToggleSetting`. Terrain commands
-  store before/after polygons of only the affected landmass(es).
+- Implement the command stack from §13, covering paint land, erase sea, place, scatter,
+  transform, edit props, delete, generate and toggle setting. Terrain steps store
+  before/after polygons of only the affected landmass(es).
+  *(As built: one diff mechanism rather than a class per name — see §13 and ADR-27. Those
+  names describe what a step carries, not nine implementations.)*
 - **Acceptance:** every action is exactly one undo step; redo restores precisely;
   terrain undo doesn't snapshot the whole scene.
 

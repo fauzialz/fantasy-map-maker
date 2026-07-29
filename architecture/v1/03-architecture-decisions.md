@@ -173,6 +173,9 @@ avoids the ~290 MB six-layer memory trap.
   command**.
 
 ## ADR-22 — Undo: command stack, one action = one step
+_Implementation shape recorded separately in **ADR-27**: one diff mechanism, not a class per
+command name._
+
 **Decision:** Zustand + a command stack. One brush stroke / one scatter-drag / one
 generate = **one undo step**. Terrain commands store before/after polygons of only the
 affected landmass(es); Generate stores the entire previous scene (atomic, reversible
@@ -235,3 +238,41 @@ happened and offers the other two outcomes as one-click alternatives.
 geometry the transforms refuse to move); allowing landmasses to overlap at rest (brings back
 `z`, draw order and a topmost-hit rule, all of which the no-overlap rule makes unnecessary).
 **Detail:** `08-terrain-as-objects.md` (design) · `prompts/phase-0.5-core-editor-improvement.md` (work order, Batch 1).
+
+## ADR-26 — Ring offsets use Clipper, not `polygon-offset`
+**Decision:** S12 `offsetGrow` uses **`clipper-lib`**'s `ClipperOffset`. `polygon-offset` is
+removed from the project.
+**Why:** `polygon-offset` offsets every edge into its own polygon and unions the pile through
+`martinez-polygon-clipping`. Cost grows roughly with the **square** of the coastline's point
+count, and martinez hits an undefined-variable bug (`ReferenceError: event is not defined` in
+`findIterBrute`) on complex input. Painted coastlines are 100–300 points and stay under the
+ceiling; generated ones are 600–2,800 and do not. Measured at 4000×3000, ringCount 4: one
+continent **2,493 ms → 119 ms**, several **10,964 ms → 194 ms**, and an archipelago that
+**threw after 29 s → 488 ms**. All 17 ring fixtures including the strait pass unchanged — the
+algorithm did not move, only the offsetter under it. `04-geometry-pipeline.md` always named
+"Clipper/`polygon-offset`"; this picks the other one.
+**Consequence:** winding is normalised on the way *into* the offsetter rather than trusted,
+because orientation is exactly what makes ADR-13's two-for-one work — an outer ring grows into
+the ocean, a hole wound the other way shrinks into its lake. The worker bundle grows ~80 KB,
+which is off the main thread and does not touch first paint.
+**Rejected:** simplifying the land union before offsetting (measured — ε=10 halves the time
+and still throws); a distance-field ring pipeline (no new dependency, and O(pixels), but it
+replaces S12/S13 and their fixtures — kept as the noted escape hatch if Clipper ever falls
+short).
+
+## ADR-27 — Undo is one diff mechanism, not a command class per action
+**Decision:** ADR-22's command stack is implemented as a **single diff mechanism**: a step is
+the set of objects an action touched, per layer, before and after. There is no `PaintLand`
+class, no `Scatter` class. Gestures capture the scene at pointerdown and commit at pointerup.
+**Why:** the granularity promise ("one stroke = one step") is a property of *when* you commit,
+not of how many command types exist. One mechanism gets it for free for every gesture,
+including ones not yet written, and it satisfies §13's "only the affected landmass(es)"
+requirement by construction rather than by each command remembering to. A whole-scene variant
+covers Generate and new-canvas.
+**Consequences:** comparison must be **by value** (the worker returns fresh objects for
+unchanged landmasses); slider steps must **coalesce** by label and target; and the stack needs
+a **cap**, because whole-scene steps retain entire scenes. Full detail in
+`01-system-design.md` §13.
+**Rejected:** a class per command (more code, and each new gesture must re-derive the
+granularity rule); storing whole-scene snapshots for everything (simple, but a 2k-object scene
+per keystroke).

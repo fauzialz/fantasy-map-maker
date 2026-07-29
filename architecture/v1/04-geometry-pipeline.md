@@ -47,6 +47,14 @@ writing the whole pipeline and debugging a black box.
 ```
 Ops are coarse (one round-trip per user action); stages are internal to the Worker.
 
+**At most one op of a kind in flight.** A worker task cannot be interrupted once it starts —
+there is no preemption, and `terminate()` is the only hard stop. Ignoring a result on arrival
+does not save the work: it already ran to completion. So any caller that can outpace the
+worker — ring derivation during a burst of terrain edits, a generator re-roll held down —
+must keep **one request in flight** and re-fire with whatever is current when it returns.
+Posting one message per change is how a 500 ms op becomes a minute of obsolete work queued
+ahead of the only answer anyone wants.
+
 ---
 
 ## Stage catalog (the pure functions)
@@ -229,3 +237,17 @@ Co-locate fixtures with the engine, e.g. `src/engine/__fixtures__/`:
   point, zero-area ring).
 - **Determinism:** the generator's noise seed lives in `scene.generator` as metadata;
   its geometry output is stored — never regenerate from seed at load (ADR-21, ADR-23).
+  Determinism also means the *tie-breaks* must be ordered: a biome vote that resolves ties by
+  whichever count a `Map` reached first makes one seed produce two worlds.
+- **Sample a region, not a point.** A landmass's biome comes from the fields under it, and the
+  obvious sample point — the centroid of the outer ring — lies **outside** a crescent
+  coastline. Measured across nine generated worlds it fell outside in five, every time on the
+  largest continent, once colouring a 5.3-million-unit continent from open sea. Vote over
+  points verified inside the polygon (`pointInPolygon`, even-odd, so a lake counts as
+  outside).
+- **Thresholds are relative to the terrain that exists,** never to the abstract 0..1 range.
+  The world-type falloff scales the elevation field down, so "high ground" measured against
+  1.0 can sit above every hill on the map and scatter nothing at all. Sea level is a
+  **quantile** of the field — which is also what makes "land amount 0.45" mean 45% of the
+  canvas whatever shape the noise took — and the ridge and tree lines are fractions of
+  `seaLevel -> peak`.
