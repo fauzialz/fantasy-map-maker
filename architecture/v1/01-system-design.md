@@ -36,7 +36,7 @@ P0 alone is a complete, deployable app.
 | Canvas/vector | **react-konva (Konva.js)**; scene-graph of shape objects, cached-bitmap layers |
 | UI styling | **Tailwind v4 + `tailwind-variants` + CSS-variable tokens + Radix + Lucide** (see `06-frontend-styling.md`) |
 | State / history | **Zustand** + **command-stack undo/redo** |
-| Geometry | `polygon-clipping` (boolean), Clipper/`polygon-offset` (rings), `marching-squares`, `simplify-js`, `simplex-noise`; heavy ops in a **Web Worker** |
+| Geometry | `polygon-clipping` (boolean), `clipper-lib` (ring offsets), `d3-contour` (marching squares), `simplify-js`, `simplex-noise`; heavy ops in a **Web Worker** |
 | Spatial index | `rbush` (marquee select / object eraser) |
 | Backend (P2) | **Go** (chi/echo), `pgx` + `sqlc` |
 | DB (P2) | **Postgres**, scenes as `jsonb` |

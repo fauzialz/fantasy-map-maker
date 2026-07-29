@@ -93,7 +93,7 @@ P0 alone is a complete portfolio piece.
 | Canvas / vector | react-konva (Konva.js) |
 | UI styling | Tailwind v4 + tailwind-variants + CSS-variable tokens + Radix + Lucide |
 | State / history | Zustand + a command-stack undo/redo |
-| Geometry | `polygon-clipping`, Clipper/`polygon-offset`, `marching-squares`, `simplify-js`, `simplex-noise`; heavy ops in a Web Worker |
+| Geometry | `polygon-clipping`, `clipper-lib` (ring offsets), `d3-contour`, `simplify-js`, `simplex-noise`; heavy ops in a Web Worker |
 | Spatial index | `rbush` |
 | Backend (P2) | Go (chi or echo), `pgx` + `sqlc` |
 | DB (P2) | Postgres (scenes as `jsonb`) |

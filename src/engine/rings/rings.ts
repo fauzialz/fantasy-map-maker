@@ -1,9 +1,9 @@
-import Offset from "polygon-offset";
+import ClipperLib, { type Path as ClipperPath, type Paths as ClipperPaths } from "clipper-lib";
 import polygonClipping from "polygon-clipping";
 import type { Landmass } from "../../scene/types";
 import { fromIntMulti, toIntMulti, SCALE } from "../geometry/coords";
 import { groupRingsByNesting } from "../geometry/nesting";
-import type { MultiPolygon, Rect, Ring } from "../geometry/types";
+import { signedArea, type MultiPolygon, type Rect, type Ring } from "../geometry/types";
 import { landmassToPolygon } from "../terrain/assemble";
 
 /**
@@ -17,8 +17,12 @@ import { landmassToPolygon } from "../terrain/assemble";
  *    the strait fixture is exactly this.
  */
 
-/** Round-join tessellation for the offset (the spec pins JoinType=Round). */
-const ARC_SEGMENTS = 8;
+/**
+ * How far a round join may deviate from a true arc, in map units. Clipper takes a
+ * tolerance rather than a segment count, so the tessellation gets finer on wide offsets
+ * instead of coarser.
+ */
+const ARC_TOLERANCE = 0.1;
 
 /** S10 — union of every landmass, holes included. */
 export function landUnion(landmasses: Landmass[]): MultiPolygon {
@@ -46,23 +50,44 @@ export function waterRegion(canvas: Rect, land: MultiPolygon): MultiPolygon {
 /**
  * S12 — grow land outward by `distance`, with round joins.
  *
- * polygon-offset returns a flat list of rings with inverted winding, so the result is
- * regrouped by containment and normalised through a union before anyone sees it.
+ * Clipper's offsetter, not `polygon-offset`: that one offsets every edge into its own
+ * polygon and unions the pile through `martinez-polygon-clipping`, which costs roughly the
+ * square of the coastline's point count and throws outright on complex input — a generated
+ * archipelago (~2.8k points) took 29 seconds to fail. Clipper does it in one integer pass.
+ * `04-geometry-pipeline.md` names "Clipper/polygon-offset"; this is the other one.
+ *
+ * Orientation is what makes ADR-13's two-for-one work: an outer ring grows into the ocean
+ * and a hole, wound the other way, shrinks into its lake — one op, both kinds of ring. So
+ * winding is normalised on the way in rather than trusted.
  */
 export function offsetGrow(land: MultiPolygon, distance: number): MultiPolygon {
   if (land.length === 0) return [];
   if (distance <= 0) return land;
 
-  const scaled = toIntMulti(land);
-  const rings = new Offset()
-    .data(scaled as unknown as number[][][])
-    .arcSegments(ARC_SEGMENTS)
-    .margin(distance * SCALE) as unknown as Ring[];
+  const offsetter = new ClipperLib.ClipperOffset(2, ARC_TOLERANCE * SCALE);
+  for (const polygon of toIntMulti(land)) {
+    offsetter.AddPaths(
+      polygon.map((ring, index) => toClipper(ring, index === 0)),
+      ClipperLib.JoinType.jtRound,
+      ClipperLib.EndType.etClosedPolygon,
+    );
+  }
 
-  const grouped = groupRingsByNesting(rings);
+  const solution: ClipperPaths = [];
+  offsetter.Execute(solution, distance * SCALE);
+
+  const grouped = groupRingsByNesting(solution.map(fromClipper));
   if (grouped.length === 0) return land;
   return fromIntMulti(polygonClipping.union(grouped));
 }
+
+/** Ring → Clipper path, wound so outers grow outward and holes shrink inward. */
+const toClipper = (ring: Ring, outer: boolean): ClipperPath => {
+  const wound = signedArea(ring) >= 0 === outer ? ring : [...ring].reverse();
+  return wound.map(([X, Y]) => ({ X, Y }));
+};
+
+const fromClipper = (path: ClipperPath): Ring => path.map(({ X, Y }): Ring[number] => [X, Y]);
 
 /**
  * S13 — concentric bands. band(i) = grow(i·gap) − grow((i−1)·gap); band 1 uses the land

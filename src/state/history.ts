@@ -19,6 +19,19 @@ export interface Step {
   scene?: { before: Scene; after: Scene };
 }
 
+/**
+ * How many steps history keeps. Object diffs are small, but a whole-scene step (a generate,
+ * a new canvas) retains an entire previous scene — twenty generates with no ceiling is
+ * twenty worlds held in memory for an undo nobody is going to reach for.
+ */
+export const HISTORY_LIMIT = 50;
+
+/** Push a step, dropping the oldest once the stack is full. */
+export const pushStep = (past: Step[], step: Step): Step[] =>
+  past.length < HISTORY_LIMIT
+    ? [...past, step]
+    : [...past.slice(past.length - HISTORY_LIMIT + 1), step];
+
 // ponytail: value-compare through JSON because the worker hands back a fresh object for
 // every landmass, changed or not — reference equality alone would drop the entire terrain
 // layer into every stroke's step. One stringify per candidate object per action; if a

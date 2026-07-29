@@ -21,9 +21,9 @@ export const pointInMultiPolygon = (multi: MultiPolygon, point: Point): boolean 
 /**
  * Rebuild polygons-with-holes from a flat list of non-intersecting rings.
  *
- * polygon-offset returns rings with no grouping and with the winding inverted, so
- * neither the order nor the sign can be trusted. Containment can: a ring nested inside
- * an odd number of others is a hole, and it belongs to the smallest ring containing it.
+ * Clipper's offsetter returns a flat list of paths with no grouping, so the order says
+ * nothing about nesting. Containment does: a ring nested inside an odd number of others is
+ * a hole, and it belongs to the smallest ring containing it.
  */
 export function groupRingsByNesting(rings: Ring[]): MultiPolygon {
   const usable = rings.filter((ring) => ring.length >= 3 && ringArea(ring) > 0);

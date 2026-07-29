@@ -294,6 +294,7 @@ export function MapStage() {
         {brush.committing && " · vectorising…"}
         {rings.deriving && " · deriving rings…"}
         {brush.error && ` · ${brush.error}`}
+        {rings.error && ` · rings failed: ${rings.error}`}
       </p>
     </div>
   );

@@ -11,7 +11,7 @@ import type {
   SceneObject,
   SceneSettings,
 } from "../scene/types";
-import { applyStep, coalesce, diffScene, type Step } from "./history";
+import { applyStep, coalesce, diffScene, pushStep, type Step } from "./history";
 
 export type ObjectTool = "select" | "scatter" | "place" | "erase";
 
@@ -259,10 +259,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         scene,
         selection: [],
-        past: [
-          ...state.past,
-          { label: "generate", layers: [], scene: { before: state.scene, after: scene } },
-        ],
+        past: pushStep(state.past, {
+          label: "generate",
+          layers: [],
+          scene: { before: state.scene, after: scene },
+        }),
         future: [],
       };
     }),
@@ -274,7 +275,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const below = state.past[state.past.length - 1];
       const folded = merge && below ? coalesce(below, step) : null;
       return {
-        past: folded ? [...state.past.slice(0, -1), folded] : [...state.past, step],
+        past: folded ? [...state.past.slice(0, -1), folded] : pushStep(state.past, step),
         future: [],
       };
     }),
@@ -305,7 +306,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const scene = applyStep(state.scene, step, "redo");
       return {
         scene,
-        past: [...state.past, step],
+        past: pushStep(state.past, step),
         future: state.future.slice(0, -1),
         selection: survivors(scene, state.activeLayerId, state.selection),
       };
@@ -319,14 +320,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         scene,
         selection: [],
-        past: [
-          ...state.past,
-          {
-            label: `new ${preset} canvas`,
-            layers: [],
-            scene: { before: state.scene, after: scene },
-          },
-        ],
+        past: pushStep(state.past, {
+          label: `new ${preset} canvas`,
+          layers: [],
+          scene: { before: state.scene, after: scene },
+        }),
         future: [],
       };
     }),

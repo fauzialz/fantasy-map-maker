@@ -65,7 +65,9 @@ Paint a filled-circle brush from the previous pointer sample to the current one.
 ### S2 `maskToContours(mask) → { outer:Ring, holes:Ring[] }[]`
 Marching-squares trace of the binary mask into pixel-space rings, grouped by connected
 component.
-- **Pinned:** `marching-squares`; return **one group per component**, each with its
+- **Pinned:** `d3-contour` (same marching-squares algorithm, ISC rather than the
+  `marching-squares` package's AGPL — see `terrain/contours.ts`); return **one group per
+  component**, each with its
   outer ring and any hole rings.
 - **Fixtures:** `circle → 1 group, 0 holes` · `donut → 1 group, 1 hole` ·
   `two-blobs → 2 groups`.
@@ -122,7 +124,11 @@ are both water.**
 
 ### S12 `offsetGrow(landUnion, distance) → MultiPolygon`
 Positive polygon offset (grow land outward by `distance`, in scaled-int).
-- **Pinned:** Clipper/`polygon-offset`, `JoinType=Round`. Growing the union expands the
+- **Pinned:** Clipper (`clipper-lib`), `JoinType=Round`. `polygon-offset` was tried and
+  dropped: it offsets every edge into its own polygon and unions the pile through
+  `martinez-polygon-clipping`, costing ~O(n²) in coastline points and throwing outright
+  past a few thousand — a generated archipelago took 29s to fail where Clipper takes
+  0.5s. Growing the union expands the
   coast into the ocean **and** shrinks lake-holes → both ring directions from one op.
 - **Fixtures:** area increases monotonically with distance; a hole shrinks and
   eventually closes.
