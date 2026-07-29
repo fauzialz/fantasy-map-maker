@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Bounds } from "../scene/bounds";
 import { frameOf } from "../scene/frame";
-import { restack, rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
-import type { LayerId, Point, SceneObject } from "../scene/types";
+import { rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
+import type { LayerId, Point, Scene, SceneObject } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 import { resolveGesture } from "./gesture";
 import { cursorForHandle, cursorForHover, type Handle } from "./handles";
@@ -45,6 +45,8 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
   const selection = useEditorStore((s) => s.selection);
   const [marquee, setMarquee] = useState<Bounds | null>(null);
   const drag = useRef<Drag | null>(null);
+  /** The scene as the press landed, so the whole drag closes as one undo step. */
+  const pending = useRef<Scene | null>(null);
   const [dragging, setDragging] = useState(false);
   const [hoverCursor, setHoverCursor] = useState<string | undefined>(undefined);
   /**
@@ -83,6 +85,7 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
       if (!enabled) return false;
       const point = toMapPoint(clientX, clientY);
       const store = useEditorStore.getState();
+      pending.current = store.scene;
 
       const hit = index.hit(point[0], point[1]);
       const gesture = resolveGesture({
@@ -202,6 +205,15 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
           current.additive ? [...new Set([...store.selection, ...inside])] : inside,
         );
       }
+      // Selection lives outside the scene, so a press that only picked or marqueed leaves
+      // nothing to diff and commits no step.
+      const before = pending.current;
+      pending.current = null;
+      if (before)
+        useEditorStore
+          .getState()
+          .commit(before, current?.kind === "marquee" ? "select" : (current?.kind ?? "move"));
+
       drag.current = null;
       setMarquee(null);
       setDragging(false);
@@ -226,25 +238,12 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
       if (event.key === "Escape") store.setSelection([]);
       if ((event.key === "Delete" || event.key === "Backspace") && store.selection.length > 0) {
         event.preventDefault();
-        store.removeObjects(activeLayerId, store.selection);
+        store.record("delete", () => store.removeObjects(activeLayerId, store.selection));
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [activeLayerId, enabled]);
-
-  const bringForward = useCallback(
-    (direction: 1 | -1) => {
-      const store = useEditorStore.getState();
-      const layer = store.scene.layers.find((l) => l.id === activeLayerId);
-      if (!layer || store.selection.length === 0) return;
-      store.setLayerObjects(
-        activeLayerId,
-        restack(layer.objects, new Set(store.selection), direction),
-      );
-    },
-    [activeLayerId],
-  );
 
   // Whatever handle the drag started on keeps its own cursor for the whole drag —
   // reading the handle rather than assuming a diagonal, which flipped ne/sw to nwse.
@@ -263,7 +262,6 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
     marquee,
     selection,
     count: selected.length,
-    bringForward,
     /** what the pointer should look like right now, or undefined to fall back */
     cursor: dragging ? dragCursor : hoverCursor,
   };

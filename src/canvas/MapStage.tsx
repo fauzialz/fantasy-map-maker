@@ -206,6 +206,7 @@ export function MapStage() {
   const onRingBytes = useCallback((value: number) => setRingBytes(value), []);
 
   const landCount = useEditorStore(selectLandmasses).length;
+  const undoDepth = useEditorStore((s) => s.past.length);
   const objectCount = scene.layers.reduce(
     (total, layer) => total + (layer.id === "terrain" ? 0 : layer.objects.length),
     0,
@@ -289,6 +290,7 @@ export function MapStage() {
         {rings.bands.length > 0 && ` · ${rings.bands.length} rings`}
         {objectCount > 0 && ` · ${objectCount} objects`}
         {selection.count > 0 && ` · ${selection.count} selected`}
+        {undoDepth > 0 && ` · ${undoDepth} undo`}
         {brush.committing && " · vectorising…"}
         {rings.deriving && " · deriving rings…"}
         {brush.error && ` · ${brush.error}`}

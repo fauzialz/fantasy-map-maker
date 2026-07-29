@@ -9,6 +9,7 @@ import type {
   SceneObject,
   SceneSettings,
 } from "../scene/types";
+import { applyStep, coalesce, diffScene, type Step } from "./history";
 
 export type ObjectTool = "select" | "scatter" | "place" | "erase";
 
@@ -60,6 +61,10 @@ interface EditorState {
   riverTaper: boolean;
   /** ids of the current multi-selection, within the active layer */
   selection: string[];
+  /** undo stack, oldest first; the last entry is what `undo()` reverses */
+  past: Step[];
+  /** steps undone and still redoable, cleared by the next edit */
+  future: Step[];
   setActiveLayer: (id: LayerId) => void;
   setBrushSize: (size: number) => void;
   setTerrainTool: (tool: "brush" | "sea") => void;
@@ -75,14 +80,32 @@ interface EditorState {
   /** Replace one object in place — a dragged river point, an edited label. */
   patchObject: <T extends SceneObject>(layerId: LayerId, id: string, patch: Partial<T>) => void;
   setSettings: (patch: Partial<SceneSettings>) => void;
-  /** ponytail: direct write for now — WP-9 turns this into a PaintLand/EraseSea command. */
   setLandmasses: (landmasses: Landmass[]) => void;
+  /**
+   * Close one undo step: everything that changed between `before` and the scene as it
+   * stands now. Gestures capture `before` at pointerdown and commit at pointerup, which is
+   * what makes a whole stroke, scatter-drag or transform exactly one step (ADR-22).
+   *
+   * `merge` folds the step into the one below when it has the same label and target — for
+   * sliders, which fire an event per pixel.
+   */
+  commit: (before: Scene, label: string, merge?: boolean) => void;
+  /** `commit` around a single synchronous change — a click, a keypress, a toggle. */
+  record: (label: string, change: () => void, merge?: boolean) => void;
+  undo: () => void;
+  redo: () => void;
   newScene: (preset: CanvasPreset) => void;
 }
 
 const TERRAIN = "terrain";
 
-export const useEditorStore = create<EditorState>((set) => ({
+/** Undo can delete what is selected; a selection of ghosts would draw a frame on nothing. */
+const survivors = (scene: Scene, layerId: LayerId, selection: string[]): string[] => {
+  const ids = new Set(scene.layers.find((layer) => layer.id === layerId)?.objects.map((o) => o.id));
+  return selection.filter((id) => ids.has(id));
+};
+
+export const useEditorStore = create<EditorState>((set, get) => ({
   scene: createEmptyScene("landscape"),
   activeLayerId: "terrain",
   brushSize: 260,
@@ -93,6 +116,8 @@ export const useEditorStore = create<EditorState>((set) => ({
   riverWidth: 26,
   riverTaper: true,
   selection: [],
+  past: [],
+  future: [],
 
   // Selection is per-layer, so switching layers drops it rather than leaving invisible
   // objects selected on a layer you are no longer looking at. The tool comes along only
@@ -183,7 +208,69 @@ export const useEditorStore = create<EditorState>((set) => ({
       },
     })),
 
-  newScene: (preset) => set({ scene: createEmptyScene(preset) }),
+  commit: (before, label, merge = false) =>
+    set((state) => {
+      const step = diffScene(before, state.scene, label);
+      if (!step) return {};
+      const below = state.past[state.past.length - 1];
+      const folded = merge && below ? coalesce(below, step) : null;
+      return {
+        past: folded ? [...state.past.slice(0, -1), folded] : [...state.past, step],
+        future: [],
+      };
+    }),
+
+  record: (label, change, merge) => {
+    const before = get().scene;
+    change();
+    get().commit(before, label, merge);
+  },
+
+  undo: () =>
+    set((state) => {
+      const step = state.past[state.past.length - 1];
+      if (!step) return {};
+      const scene = applyStep(state.scene, step, "undo");
+      return {
+        scene,
+        past: state.past.slice(0, -1),
+        future: [...state.future, step],
+        selection: survivors(scene, state.activeLayerId, state.selection),
+      };
+    }),
+
+  redo: () =>
+    set((state) => {
+      const step = state.future[state.future.length - 1];
+      if (!step) return {};
+      const scene = applyStep(state.scene, step, "redo");
+      return {
+        scene,
+        past: [...state.past, step],
+        future: state.future.slice(0, -1),
+        selection: survivors(scene, state.activeLayerId, state.selection),
+      };
+    }),
+
+  // A new canvas throws away everything painted so far, so it is undoable — as a whole-scene
+  // step, because the preset changes `meta` too, which per-object diffs don't carry.
+  newScene: (preset) =>
+    set((state) => {
+      const scene = createEmptyScene(preset);
+      return {
+        scene,
+        selection: [],
+        past: [
+          ...state.past,
+          {
+            label: `new ${preset} canvas`,
+            layers: [],
+            scene: { before: state.scene, after: scene },
+          },
+        ],
+        future: [],
+      };
+    }),
 }));
 
 export const selectLandmasses = (state: EditorState): Landmass[] =>

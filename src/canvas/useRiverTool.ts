@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isOnRiver } from "../engine/river";
-import type { LayerId, Point, River } from "../scene/types";
+import type { LayerId, Point, River, Scene } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 import { HANDLE_PX } from "./handles";
 
@@ -45,6 +45,8 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
   const [tip, setTip] = useState<Point | null>(null);
   const [hoverCursor, setHoverCursor] = useState<string | undefined>(undefined);
   const grabbed = useRef<{ id: string; index: number } | null>(null);
+  /** The scene as the control point was grabbed — one reshape drag is one undo step. */
+  const pending = useRef<Scene | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const rivers = useMemo(
@@ -84,16 +86,20 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
   /** Turn the draft into a real river. Fewer than two points is a stray click, not a river. */
   const finish = useCallback(() => {
     if (draft.length >= 2) {
-      useEditorStore.getState().addObjects(LAYER, [
-        {
-          id: crypto.randomUUID(),
-          type: "river",
-          points: draft,
-          width: riverWidth,
-          taper: riverTaper,
-          z: 0,
-        },
-      ]);
+      const store = useEditorStore.getState();
+      // The whole draft — however many clicks laid it — arrives as one object, so one step.
+      store.record("draw river", () =>
+        store.addObjects(LAYER, [
+          {
+            id: crypto.randomUUID(),
+            type: "river",
+            points: draft,
+            width: riverWidth,
+            taper: riverTaper,
+            z: 0,
+          },
+        ]),
+      );
     }
     setDraft([]);
     setTip(null);
@@ -117,6 +123,7 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
       const found = probe(point);
       if (found.kind === "grab" && selected) {
         grabbed.current = { id: selected.id, index: found.index };
+        pending.current = useEditorStore.getState().scene;
         setDragging(true);
       } else {
         useEditorStore.getState().setSelection(found.kind === "pick" ? [found.id] : []);
@@ -163,6 +170,9 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
       });
     };
     const stop = () => {
+      const before = pending.current;
+      pending.current = null;
+      if (before) useEditorStore.getState().commit(before, "reshape river");
       grabbed.current = null;
       setDragging(false);
     };
@@ -196,7 +206,7 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
       if ((event.key === "Delete" || event.key === "Backspace") && editing) {
         if (store.selection.length === 0) return;
         event.preventDefault();
-        store.removeObjects(LAYER, store.selection);
+        store.record("delete river", () => store.removeObjects(LAYER, store.selection));
       }
     };
     window.addEventListener("keydown", onKey);

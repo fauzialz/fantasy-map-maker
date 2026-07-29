@@ -41,6 +41,11 @@ export default function App() {
   const riverTaper = useEditorStore((s) => s.riverTaper);
   const setRiverTaper = useEditorStore((s) => s.setRiverTaper);
   const patchObject = useEditorStore((s) => s.patchObject);
+  const record = useEditorStore((s) => s.record);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
+  const past = useEditorStore((s) => s.past);
+  const future = useEditorStore((s) => s.future);
 
   /**
    * The one selected label, if that is what is selected — the size slider and the text
@@ -58,12 +63,29 @@ export default function App() {
     const state = useEditorStore.getState();
     const layer = state.scene.layers.find((l) => l.id === state.activeLayerId);
     if (!layer) return;
-    state.setLayerObjects(
-      state.activeLayerId,
-      restack(layer.objects, new Set(state.selection), direction),
+    state.record(direction === 1 ? "bring forward" : "send back", () =>
+      state.setLayerObjects(
+        state.activeLayerId,
+        restack(layer.objects, new Set(state.selection), direction),
+      ),
     );
   };
   const [worker, setWorker] = useState("checking…");
+
+  // Undo has to answer wherever the pointer is, so it lives above the per-tool key handlers
+  // rather than in any one of them.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      event.preventDefault();
+      if (event.shiftKey) redo();
+      else undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [redo, undo]);
 
   useEffect(() => {
     callGeometry("ping", { echo: "ok" })
@@ -75,6 +97,15 @@ export default function App() {
     <main>
       <aside className="rail">
         <h1>map.byfauzi.com</h1>
+
+        <div className="tools">
+          <button type="button" disabled={past.length === 0} onClick={undo}>
+            Undo{past.length > 0 && ` · ${past[past.length - 1].label}`}
+          </button>
+          <button type="button" disabled={future.length === 0} onClick={redo}>
+            Redo{future.length > 0 && ` · ${future[future.length - 1].label}`}
+          </button>
+        </div>
 
         <h2>Layers</h2>
         <ul className="layers">
@@ -131,7 +162,13 @@ export default function App() {
                 max={1}
                 step={0.05}
                 value={scene.settings.coastDetail}
-                onChange={(e) => setSettings({ coastDetail: Number(e.target.value) })}
+                onChange={(e) =>
+                  record(
+                    "coast detail",
+                    () => setSettings({ coastDetail: Number(e.target.value) }),
+                    true,
+                  )
+                }
               />
             </label>
           </>
@@ -180,7 +217,12 @@ export default function App() {
                     value={editingLabel?.size ?? labelSize}
                     onChange={(e) => {
                       const size = Number(e.target.value);
-                      if (editingLabel) patchObject<Label>("labels", editingLabel.id, { size });
+                      if (editingLabel)
+                        record(
+                          "resize label",
+                          () => patchObject<Label>("labels", editingLabel.id, { size }),
+                          true,
+                        );
                       else setLabelSize(size);
                     }}
                   />
@@ -192,7 +234,10 @@ export default function App() {
                     onClick={() => {
                       if (!editingLabel) return;
                       const text = window.prompt("Label text", editingLabel.text)?.trim();
-                      if (text) patchObject<Label>("labels", editingLabel.id, { text });
+                      if (text)
+                        record("edit label", () =>
+                          patchObject<Label>("labels", editingLabel.id, { text }),
+                        );
                     }}
                   >
                     Edit text
@@ -277,7 +322,9 @@ export default function App() {
           <input
             type="checkbox"
             checked={scene.settings.parchment}
-            onChange={(e) => setSettings({ parchment: e.target.checked })}
+            onChange={(e) =>
+              record("parchment", () => setSettings({ parchment: e.target.checked }))
+            }
           />
           Parchment texture
         </label>
@@ -287,7 +334,9 @@ export default function App() {
           <input
             type="checkbox"
             checked={scene.settings.coastalRings}
-            onChange={(e) => setSettings({ coastalRings: e.target.checked })}
+            onChange={(e) =>
+              record("show rings", () => setSettings({ coastalRings: e.target.checked }))
+            }
           />
           Show rings
         </label>
@@ -300,7 +349,9 @@ export default function App() {
             step={1}
             value={scene.settings.ringCount}
             disabled={!scene.settings.coastalRings}
-            onChange={(e) => setSettings({ ringCount: Number(e.target.value) })}
+            onChange={(e) =>
+              record("ring count", () => setSettings({ ringCount: Number(e.target.value) }), true)
+            }
           />
         </label>
         <label className="slider">
@@ -312,7 +363,9 @@ export default function App() {
             step={2}
             value={scene.settings.ringGap}
             disabled={!scene.settings.coastalRings}
-            onChange={(e) => setSettings({ ringGap: Number(e.target.value) })}
+            onChange={(e) =>
+              record("ring gap", () => setSettings({ ringGap: Number(e.target.value) }), true)
+            }
           />
         </label>
 

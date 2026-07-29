@@ -72,6 +72,8 @@ export function useTerrainBrush({ enabled, map, toMapPoint }: Options) {
       const state = useEditorStore.getState();
       const mode = state.terrainTool === "sea" ? "erase" : "paint";
       const before = selectLandmasses(state);
+      /** The stroke's undo step spans the worker round-trip, so the scene is captured here. */
+      const sceneBefore = state.scene;
       setCommitting(true);
       callGeometry("terrainCommit", {
         mask: current.mask,
@@ -81,16 +83,19 @@ export function useTerrainBrush({ enabled, map, toMapPoint }: Options) {
         existingLand: before,
       })
         .then(({ landmasses }) => {
-          useEditorStore.getState().setLandmasses(landmasses);
+          const store = useEditorStore.getState();
+          store.setLandmasses(landmasses);
+          store.commit(sceneBefore, mode === "erase" ? "erase sea" : "paint land");
           setError(null);
 
-          // ponytail: this restore IS the undo for now. WP-9 replaces it with the command
-          // stack; the toast and its Undo button stay as they are.
+          // The toast records its own step rather than calling undo(), so it still restores
+          // the land it is talking about even if the user has painted again since.
           const change = describeTerrainChange(before, landmasses, mode);
           if (change)
-            useToastStore
-              .getState()
-              .show(change, () => useEditorStore.getState().setLandmasses(before));
+            useToastStore.getState().show(change, () => {
+              const current = useEditorStore.getState();
+              current.record("restore land", () => current.setLandmasses(before));
+            });
         })
         .catch((err: Error) => setError(err.message))
         .finally(() => {

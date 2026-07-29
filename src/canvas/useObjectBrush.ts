@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LayerId, Point, SceneObject } from "../scene/types";
+import type { LayerId, Point, Scene, SceneObject } from "../scene/types";
 import { variantCount } from "../sprites/registry";
 import { isUnderBrush } from "./objectHit";
 import { LAYER_OBJECT, useEditorStore } from "../state/editorStore";
@@ -56,6 +56,8 @@ function makeObject(
 export function useObjectBrush({ activeLayerId, enabled, toMapPoint }: Options) {
   const [stroking, setStroking] = useState(false);
   const last = useRef<Point | null>(null);
+  /** The scene as the drag began, and what to call the step it becomes on mouse-up. */
+  const pending = useRef<{ scene: Scene; label: string } | null>(null);
   const kind = LAYER_OBJECT[activeLayerId];
 
   const scatterAt = useCallback(
@@ -120,6 +122,8 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint }: Options) 
     (clientX: number, clientY: number) => {
       if (!enabled || !kind) return false;
       last.current = null;
+      const { scene, objectTool } = useEditorStore.getState();
+      pending.current = { scene, label: objectTool === "erase" ? "erase objects" : objectTool };
       step(toMapPoint(clientX, clientY), true);
       setStroking(true);
       return true;
@@ -131,9 +135,12 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint }: Options) 
     if (!stroking) return;
 
     const move = (event: MouseEvent) => step(toMapPoint(event.clientX, event.clientY), false);
+    // One drag is one action: every object dropped or erased between here and the press
+    // closes as a single step, however many store writes it took.
     const stop = () => {
-      // One drag is one action. WP-9 wraps exactly this span in a Scatter command;
-      // until then the objects are already in the store and there is nothing to undo to.
+      const open = pending.current;
+      pending.current = null;
+      if (open) useEditorStore.getState().commit(open.scene, open.label);
       last.current = null;
       setStroking(false);
     };
