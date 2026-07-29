@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Landmass } from "../../scene/types";
+import { pointInRing } from "../geometry/nesting";
 import { polygonArea } from "../geometry/types";
 import { landmassToPolygon } from "../terrain/assemble";
 import { assignBiomes, biomeFor, centroid } from "./biome";
@@ -36,6 +37,31 @@ const fieldsFor = (seed: number, overrides: Partial<Parameters<typeof generateFi
 
 const landArea = (landmasses: Landmass[]): number =>
   landmasses.reduce((total, l) => total + polygonArea(landmassToPolygon(l)), 0);
+
+/**
+ * Fields at one cell per 10 map units: hot and dry where `hot` says so, cold and wet
+ * everywhere else. The resolution is fine enough that bilinear bleed across the boundary
+ * dies out well inside one sample spacing.
+ */
+function fieldsWhere(hot: (x: number, y: number) => boolean): Fields {
+  const w = CANVAS.w / 10;
+  const h = CANVAS.h / 10;
+  const flat = new Float32Array(w * h).fill(0.6);
+  const moisture = new Float32Array(w * h);
+  const temperature = new Float32Array(w * h);
+  for (let row = 0; row < h; row++) {
+    for (let col = 0; col < w; col++) {
+      const inside = hot((col / (w - 1)) * CANVAS.w, (row / (h - 1)) * CANVAS.h);
+      moisture[row * w + col] = inside ? 0.05 : 0.8;
+      temperature[row * w + col] = inside ? 0.9 : 0.05;
+    }
+  }
+  return {
+    elevation: { w, h, data: flat },
+    moisture: { w, h, data: moisture },
+    temperature: { w, h, data: temperature },
+  };
+}
 
 const square = (x: number, y: number, size: number): Landmass => ({
   id: `sq-${x}-${y}-${size}`,
@@ -191,6 +217,63 @@ describe("10d biome assignment", () => {
     const [x, y] = centroid(square(0, 0, 100).path);
     expect(x).toBeCloseTo(50, 6);
     expect(y).toBeCloseTo(50, 6);
+  });
+
+  /**
+   * A crescent's centroid lies out in the water it wraps around. Sampling there reads the
+   * biome from somewhere the landmass isn't — measured across nine generated worlds, it
+   * landed outside in five, every time on the largest continent.
+   */
+  it("labels a crescent from land it actually covers, not from its hollow", () => {
+    // A C opening to the right: a spine down the left, arms reaching right top and bottom.
+    const crescent: Landmass = {
+      id: "crescent",
+      type: "landmass",
+      path: [
+        [100, 100],
+        [600, 100],
+        [600, 200],
+        [250, 200],
+        [250, 400],
+        [600, 400],
+        [600, 500],
+        [100, 500],
+      ],
+      holes: [],
+      biome: "grassland",
+    };
+
+    // Hot and dry inside the hollow only; cold and wet over every part of the land.
+    const hollow = (x: number, y: number) => x > 250 && x < 600 && y > 200 && y < 400;
+    const fields = fieldsWhere(hollow);
+
+    const middle = centroid(crescent.path);
+    expect(pointInRing(crescent.path, middle), "centroid should fall in the hollow").toBe(false);
+    // What the old single-sample implementation would have answered, from open water:
+    expect(biomeFor(0.6, 0.05, 0.9)).toBe("desert");
+
+    expect(assignBiomes([crescent], fields, CANVAS)[0].biome).toBe("snow");
+  });
+
+  it("still labels a sliver too thin to catch a sample point", () => {
+    const sliver: Landmass = {
+      id: "sliver",
+      type: "landmass",
+      path: [
+        [100, 100],
+        [700, 101],
+        [100, 101],
+      ],
+      holes: [],
+      biome: "grassland",
+    };
+    expect(
+      assignBiomes(
+        [sliver],
+        fieldsWhere(() => false),
+        CANVAS,
+      )[0].biome,
+    ).toBe("snow");
   });
 });
 

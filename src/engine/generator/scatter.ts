@@ -1,5 +1,7 @@
 import type { Landmass, Mountain, Point, Tree } from "../../scene/types";
 import { variantCount } from "../../sprites/registry";
+import { pointInPolygon } from "../geometry/nesting";
+import { landmassToPolygon } from "../terrain/assemble";
 import { sampleField, type Fields } from "./fields";
 
 /**
@@ -66,24 +68,15 @@ export function scatterPoints({
 }
 
 /**
- * Which landmass covers this point, if any — ray casting against the outer ring, minus the
- * holes. Scatter asks before placing, so nothing is left standing in the sea after the
- * coastline was smoothed away from where the noise said land was.
+ * Which landmass covers this point, if any. Scatter asks before placing, so nothing is left
+ * standing in the sea after the coastline was smoothed away from where the noise said land
+ * was.
+ *
+ * `pointInPolygon` is even-odd across every ring, so a point in a lake counts as outside its
+ * parent — which is what lets an island inside a lake claim its own trees.
  */
 export function landmassAt(landmasses: Landmass[], x: number, y: number): Landmass | undefined {
-  return landmasses.find(
-    (landmass) => inRing(landmass.path, x, y) && !landmass.holes.some((hole) => inRing(hole, x, y)),
-  );
-}
-
-function inRing(ring: Point[], x: number, y: number): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i];
-    const [xj, yj] = ring[j];
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
+  return landmasses.find((landmass) => pointInPolygon(landmassToPolygon(landmass), [x, y]));
 }
 
 const jitter = (rng: () => number, spread: number) => (rng() - 0.5) * 2 * spread;
