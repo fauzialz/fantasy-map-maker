@@ -45,6 +45,11 @@ prompts** used to drive an AI coding agent through the build.
   Making landmasses selectable, colourable and transformable: the constraints it must
   satisfy, tiers split by which operations are lossless, the overlap policy (default **keep
   apart**), and a replacement for invariant I9. See ADR-25.
+- `../DEBT.md` — **the debt ledger**, one level up because it tracks the codebase rather than
+  this version's design. Deliberately the *last* of three destinations: shortcuts live as
+  `ponytail:` comments in the code, debt with an owner lives in that work package's entry, and
+  only what has neither a line nor an owner gets a row. Live — rows are deleted when paid, not
+  archived. Carries its own maintenance protocol for agents.
 - `ux-wireframe.html` — annotated editor-layout mockup (toolbar / rails / canvas /
   generator + settings), each region keyed to an ADR. Open in a browser or view the
   published Artifact.

@@ -23,6 +23,11 @@ export interface Step {
  * How many steps history keeps. Object diffs are small, but a whole-scene step (a generate,
  * a new canvas) retains an entire previous scene — twenty generates with no ceiling is
  * twenty worlds held in memory for an undo nobody is going to reach for.
+ *
+ * ponytail: a flat count, not a weight budget — a one-mountain nudge and a whole-scene generate
+ * each cost one slot, so the worst case is 50 retained scenes (~300 KB each at the 1–2k object
+ * budget, and consecutive generates share their unchanged objects). Switch to a weight or byte
+ * budget if held memory ever becomes measurable.
  */
 export const HISTORY_LIMIT = 50;
 

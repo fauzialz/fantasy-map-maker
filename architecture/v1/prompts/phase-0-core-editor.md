@@ -237,11 +237,16 @@ build them stage-by-stage with their own fixtures.
     so one theme switch recolours the DOM chrome and the map together (ADR-24). The module
     exists as that seam;
   - `sprites/text.ts`'s system font stack → the self-hosted fantasy face.
+- **Build the driven-input driver.** WP-9 (undo/redo) and WP-10 (the generate confirm) shipped
+  verified by hand, which `../07-interaction-invariants.md` §1 says is not evidence for
+  click/drag/keypress acceptance. One CDP driver — §1 has the ~20-line recipe — asserts undo,
+  redo, the generate confirm and this package's chrome against the HUD, and retires all three
+  gaps at once.
 - Deploy the static SPA (any static host/CDN).
 - **Acceptance:** a first-time visitor can make and export a good-looking fantasy map
   in a couple of minutes without instructions; light/dark both work via the tokens; **no
   `window.prompt` or `window.confirm` remains in `src/`, and no `ponytail:` marker still
-  names WP-13.**
+  names WP-13; the driver asserts undo, redo and the generate confirm by driven input.**
 
 ---
 

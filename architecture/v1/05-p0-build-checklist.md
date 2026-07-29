@@ -55,7 +55,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   good-looking map in minutes. **Also retires the P0 stand-ins that name it** — the
   placeholder left rail, `window.prompt` for label text, `window.confirm` for the generate
   confirm, `palette.ts`'s hardcoded canvas colours, and the system font stack.
-  `grep -rn "ponytail:" src/` is the list.
+  `grep -rn "ponytail:" src/` is the list. **Also builds the one driven-input driver** (`07`
+  §1) covering undo/redo, the generate confirm and this package's chrome — which is what
+  retires WP-9's and WP-10's missing interaction evidence.
 
 ---
 

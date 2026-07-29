@@ -15,7 +15,10 @@ writing the whole pipeline and debugging a black box.
 ## Design principles
 
 1. **Pure functions.** Every stage is `input → output` with no hidden state. Stages
-   compose into pipelines; each is unit-testable in isolation.
+   compose into pipelines; each is unit-testable in isolation. **One deliberate exception:**
+   S1 `stampMask` mutates and returns the same mask, because copying a multi-megabyte buffer
+   on every pointermove is the one unaffordable purity. It is marked in the code and is not
+   expected to change.
 2. **Fixtures first.** Every stage ships with golden fixtures (known input → expected
    output). The agent must make a stage pass its fixtures before wiring it into the
    pipeline.

@@ -92,6 +92,12 @@ const fromClipper = (path: ClipperPath): Ring => path.map(({ X, Y }): Ring[numbe
 /**
  * S13 — concentric bands. band(i) = grow(i·gap) − grow((i−1)·gap); band 1 uses the land
  * union itself as its inner boundary, so the first ring hugs the coast.
+ *
+ * ponytail: cost is linear in `ringCount` — one offset per band, and the offset is the whole
+ * expense. Measured at 4000×3000, ringGap 14, on generated coastlines (600–2,800 points):
+ * 4 bands 119–488 ms, 8 bands 110–1,053 ms, the worst case being an archipelago. The UI
+ * capping `ringCount` at 8 is what makes ~1 s the ceiling; raise the cap and this becomes the
+ * slowest thing a user waits on.
  */
 export function ringBands(land: MultiPolygon, ringCount: number, ringGap: number): MultiPolygon[] {
   if (land.length === 0 || ringCount < 1 || ringGap <= 0) return [];

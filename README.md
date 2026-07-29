@@ -7,7 +7,8 @@ rivers, or generate a whole world from noise — then export it.
 Design source of truth and per-phase build orders live in
 [`architecture/v1/`](architecture/v1/). Start with
 [`architecture/v1/README.md`](architecture/v1/README.md); the Phase 0 tracker is
-[`05-p0-build-checklist.md`](architecture/v1/05-p0-build-checklist.md).
+[`05-p0-build-checklist.md`](architecture/v1/05-p0-build-checklist.md), and outstanding
+technical debt is [`architecture/DEBT.md`](architecture/DEBT.md).
 
 ## Development
 

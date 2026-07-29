@@ -63,6 +63,11 @@ forgotten:
 4. **Fixtures before wiring**, exactly as the geometry stages were built.
 5. **One package per commit.** Tick its box in `../05-p0-build-checklist.md`, then stop for
    review before the next.
+6. **Record what you deferred**, in the least losable place — see `../../DEBT.md` for the
+   three destinations. A shortcut at a line gets a `ponytail:` comment there; debt a later
+   package will pay goes into that package's entry so it becomes an acceptance criterion; only
+   what has neither gets a ledger row. A shortcut you cannot write a "Retire when" for is a
+   decision — write an ADR instead.
 
 ---
 

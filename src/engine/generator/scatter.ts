@@ -150,7 +150,15 @@ export function scatterMountains(
   }));
 }
 
-/** 10f — forests want moisture and middling ground: not the sea, not the peaks, not desert. */
+/**
+ * 10f — forests want moisture and middling ground: not the sea, not the peaks, not desert.
+ *
+ * ponytail: density is a *dart count*, not a target — if the accept predicate is satisfied by
+ * very little of the map, few darts land. Measured at 4000×3000, seeds 1–3: the `multiple`
+ * world type gave 81 trees where its neighbours gave ~950, because its band of high moisture
+ * at middling elevation can be small. Count accepted points and re-throw toward a target if
+ * generated worlds start reading under-forested.
+ */
 export function scatterForests(
   { fields, canvas, landmasses, seaLevel, peak, rng }: ScatterFields,
   density: number,
