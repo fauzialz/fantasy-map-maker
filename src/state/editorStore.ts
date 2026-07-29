@@ -1,8 +1,10 @@
 import { create } from "zustand";
 import { createEmptyScene } from "../scene/scene";
 import { ICON_KINDS } from "../sprites/registry";
+import type { GenerateResult } from "../engine/generator/generate";
 import type {
   CanvasPreset,
+  GeneratorMeta,
   Landmass,
   LayerId,
   Scene,
@@ -61,6 +63,14 @@ interface EditorState {
   riverTaper: boolean;
   /** ids of the current multi-selection, within the active layer */
   selection: string[];
+  /**
+   * The generator's advanced drawer. Session-only, unlike `scene.generator`: the data model
+   * (§1) lists seed / landAmount / roughness / worldType and nothing else, and the schema is
+   * a hard contract — new persisted fields would mean a schemaVersion bump and a migration.
+   */
+  seaLevel: number | null;
+  mountainDensity: number;
+  forestDensity: number;
   /** undo stack, oldest first; the last entry is what `undo()` reverses */
   past: Step[];
   /** steps undone and still redoable, cleared by the next edit */
@@ -89,6 +99,17 @@ interface EditorState {
    * `merge` folds the step into the one below when it has the same label and target — for
    * sliders, which fire an event per pixel.
    */
+  setGenerator: (patch: Partial<GeneratorMeta>) => void;
+  setAdvanced: (patch: {
+    seaLevel?: number | null;
+    mountainDensity?: number;
+    forestDensity?: number;
+  }) => void;
+  /**
+   * 10h — the generated world replaces the canvas as **one** undoable command, carrying the
+   * entire previous scene so it is reversible even past the confirm (system design §13).
+   */
+  applyGenerated: (result: GenerateResult) => void;
   commit: (before: Scene, label: string, merge?: boolean) => void;
   /** `commit` around a single synchronous change — a click, a keypress, a toggle. */
   record: (label: string, change: () => void, merge?: boolean) => void;
@@ -116,6 +137,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   riverWidth: 26,
   riverTaper: true,
   selection: [],
+  seaLevel: null,
+  mountainDensity: 0.5,
+  forestDensity: 0.5,
   past: [],
   future: [],
 
@@ -207,6 +231,41 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ),
       },
     })),
+
+  // Generator knobs live in the scene but outside the undo diff (which watches layers and
+  // settings): fiddling with a seed is not an edit, generating is.
+  setGenerator: (patch) =>
+    set((state) => ({
+      scene: { ...state.scene, generator: { ...state.scene.generator, ...patch } },
+    })),
+
+  setAdvanced: (patch) => set(patch),
+
+  applyGenerated: (result) =>
+    set((state) => {
+      const objects: Partial<Record<LayerId, SceneObject[]>> = {
+        terrain: result.landmasses,
+        mountains: result.mountains,
+        forests: result.trees,
+      };
+      // Generate replaces the canvas (ADR-21): layers it does not populate are emptied, not
+      // left holding icons and labels that belonged to a map that no longer exists.
+      const scene: Scene = {
+        ...state.scene,
+        meta: { ...state.scene.meta, updatedAt: new Date().toISOString() },
+        layers: state.scene.layers.map((layer) => ({ ...layer, objects: objects[layer.id] ?? [] })),
+      };
+
+      return {
+        scene,
+        selection: [],
+        past: [
+          ...state.past,
+          { label: "generate", layers: [], scene: { before: state.scene, after: scene } },
+        ],
+        future: [],
+      };
+    }),
 
   commit: (before, label, merge = false) =>
     set((state) => {

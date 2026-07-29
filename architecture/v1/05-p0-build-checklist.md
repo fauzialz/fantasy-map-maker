@@ -40,9 +40,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   step; terrain commands store only affected-landmass before/after. Steps are per-layer
   object diffs; sliders coalesce; a new canvas is undoable as a whole-scene step (the
   shape WP-10's Generate reuses).
-- [ ] **WP-10 · Generator** (10a–10h) — noise fields → mask → Pipeline B → speck filter
+- [x] **WP-10 · Generator** (10a–10h) — noise fields → mask → Pipeline B → speck filter
   → biomes → mountain/forest Poisson scatter → budget cap → assemble; confirm modal;
-  one undoable replace; seed = metadata only.
+  one undoable replace; seed = metadata only. Sea level is a **quantile** of the elevation
+  field, so land amount means what it says. 25 fixtures; 4000×3000 world in ~250–420 ms.
 - [ ] **WP-11 · Export** — PNG/JPG/WebP; **resolution clamp + warn**; **JPG flattens**
   onto bg.
 - [ ] **WP-12 · Local-first persistence** — IndexedDB autosave/restore; maps carry

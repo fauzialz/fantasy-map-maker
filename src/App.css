@@ -218,3 +218,13 @@ main {
   gap: 6px;
   margin-bottom: 8px;
 }
+
+/* The advanced drawer is <details>: the native disclosure is the whole widget. */
+.advanced {
+  margin-bottom: 10px;
+}
+.advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  margin-bottom: 8px;
+}

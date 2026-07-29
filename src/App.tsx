@@ -4,11 +4,13 @@ import { Toasts } from "./ui/Toasts";
 import { callGeometry } from "./engine/worker/client";
 import { restack } from "./scene/transform";
 import { ICON_KINDS } from "./sprites/registry";
-import type { CanvasPreset, Label, LayerId } from "./scene/types";
+import type { CanvasPreset, Label, LayerId, WorldType } from "./scene/types";
 import { LAYER_OBJECT, LAYER_TOOLS, useEditorStore, type ObjectTool } from "./state/editorStore";
+import { useToastStore } from "./state/toastStore";
 import "./App.css";
 
 const PRESETS: CanvasPreset[] = ["landscape", "square", "portrait"];
+const WORLD_TYPES: WorldType[] = ["single", "archipelago", "multiple"];
 
 /** "place" means something different with a spline in your hand than with a stamp. */
 const TOOL_LABEL: Partial<Record<LayerId, Partial<Record<ObjectTool, string>>>> = {
@@ -70,7 +72,53 @@ export default function App() {
       ),
     );
   };
+  const generator = useEditorStore((s) => s.scene.generator);
+  const setGenerator = useEditorStore((s) => s.setGenerator);
+  const seaLevel = useEditorStore((s) => s.seaLevel);
+  const mountainDensity = useEditorStore((s) => s.mountainDensity);
+  const forestDensity = useEditorStore((s) => s.forestDensity);
+  const setAdvanced = useEditorStore((s) => s.setAdvanced);
   const [worker, setWorker] = useState("checking…");
+  const [generating, setGenerating] = useState(false);
+
+  /**
+   * 10h — generate the world in the worker, then apply the whole replace as one command.
+   * Rings need no special handling: they are derived from the landmasses, so they follow.
+   */
+  const generate = async () => {
+    const state = useEditorStore.getState();
+    const populated = state.scene.layers.some((layer) => layer.objects.length > 0);
+    // ponytail: window.confirm is the confirm modal until WP-13 brings in Radix. One line,
+    // and it cannot drift out of step with what it is guarding.
+    if (
+      populated &&
+      !window.confirm("Generate a new world? This replaces everything on the canvas.")
+    )
+      return;
+
+    setGenerating(true);
+    try {
+      const result = await callGeometry("generate", {
+        canvas: { w: state.scene.meta.canvas.w, h: state.scene.meta.canvas.h },
+        ...state.scene.generator,
+        seaLevel: state.seaLevel,
+        mountainDensity: state.mountainDensity,
+        forestDensity: state.forestDensity,
+        coastDetail: state.scene.settings.coastDetail,
+      });
+      useEditorStore.getState().applyGenerated(result);
+      useToastStore
+        .getState()
+        .show(
+          `Generated ${result.landmasses.length} landmasses, ${result.mountains.length} mountains, ${result.trees.length} trees`,
+          () => useEditorStore.getState().undo(),
+        );
+    } catch (err) {
+      useToastStore.getState().show(`Generate failed: ${(err as Error).message}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   // Undo has to answer wherever the pointer is, so it lives above the per-tool key handlers
   // rather than in any one of them.
@@ -368,6 +416,102 @@ export default function App() {
             }
           />
         </label>
+
+        <h2>Generator</h2>
+        <label className="slider">
+          Land amount <b>{generator.landAmount.toFixed(2)}</b>
+          <input
+            type="range"
+            min={0.1}
+            max={0.9}
+            step={0.05}
+            value={generator.landAmount}
+            onChange={(e) => setGenerator({ landAmount: Number(e.target.value) })}
+          />
+        </label>
+        <label className="slider">
+          Roughness <b>{generator.roughness.toFixed(2)}</b>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={generator.roughness}
+            onChange={(e) => setGenerator({ roughness: Number(e.target.value) })}
+          />
+        </label>
+        <div className="tools">
+          {WORLD_TYPES.map((type) => (
+            <button
+              key={type}
+              type="button"
+              className={generator.worldType === type ? "active" : undefined}
+              onClick={() => setGenerator({ worldType: type })}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+
+        <details className="advanced">
+          <summary>Advanced</summary>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={seaLevel !== null}
+              onChange={(e) => setAdvanced({ seaLevel: e.target.checked ? 0.5 : null })}
+            />
+            Set sea level by hand
+          </label>
+          <label className="slider">
+            Sea level <b>{seaLevel === null ? "from land amount" : seaLevel.toFixed(2)}</b>
+            <input
+              type="range"
+              min={0.05}
+              max={0.95}
+              step={0.05}
+              value={seaLevel ?? 0.5}
+              disabled={seaLevel === null}
+              onChange={(e) => setAdvanced({ seaLevel: Number(e.target.value) })}
+            />
+          </label>
+          <label className="slider">
+            Mountain density <b>{mountainDensity.toFixed(2)}</b>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={mountainDensity}
+              onChange={(e) => setAdvanced({ mountainDensity: Number(e.target.value) })}
+            />
+          </label>
+          <label className="slider">
+            Forest density <b>{forestDensity.toFixed(2)}</b>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={forestDensity}
+              onChange={(e) => setAdvanced({ forestDensity: Number(e.target.value) })}
+            />
+          </label>
+        </details>
+
+        <div className="tools">
+          <button type="button" onClick={generate} disabled={generating}>
+            {generating ? "Generating…" : "Generate world"}
+          </button>
+          <button
+            type="button"
+            disabled={generating}
+            onClick={() => setGenerator({ seed: Math.floor(Math.random() * 1e9) })}
+          >
+            Re-roll
+          </button>
+        </div>
+        <p className="status">seed {generator.seed}</p>
 
         <h2>Canvas</h2>
         <div className="presets">

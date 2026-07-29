@@ -1,4 +1,5 @@
 import type { Landmass } from "../../scene/types";
+import type { GenerateRequest, GenerateResult } from "../generator/generate";
 import type { MultiPolygon } from "../geometry/types";
 import type { DeriveRings } from "../rings/rings";
 import type { TerrainCommit } from "../terrain/pipeline";
@@ -15,7 +16,8 @@ export interface GeometryOps {
   terrainCommit: { payload: TerrainCommit; result: { landmasses: Landmass[] } };
   /** Pipeline C: land union -> water -> bands -> clip. One MultiPolygon per ring. */
   deriveRings: { payload: DeriveRings; result: { bands: MultiPolygon[] } };
-  // generate (WP-10) lands here.
+  /** Pipeline B: noise fields → mask → terrain → biomes → scatter, all in one round-trip. */
+  generate: { payload: GenerateRequest; result: GenerateResult };
 }
 
 export type Op = keyof GeometryOps;
