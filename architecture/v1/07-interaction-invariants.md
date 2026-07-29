@@ -121,6 +121,20 @@ group turns (for a group wider than tall, the union gets **narrower** at 40°, n
 Handles are 9 screen px. [SelectionOverlay.tsx](../../src/canvas/SelectionOverlay.tsx)
 and [handles.ts](../../src/canvas/handles.ts) each divide by the current scale, and must
 keep using the same constants, or what you see stops matching what you can grab.
+[RiverOverlay.tsx](../../src/canvas/RiverOverlay.tsx) and
+[useRiverTool.ts](../../src/canvas/useRiverTool.ts) share `HANDLE_PX` for the same reason.
+
+### I9 — One predicate decides what is interactive: `hasFootprint`
+_Added by WP-8._ Selection, the rbush index, the selection frame, the eraser and the
+transforms all ask [bounds.ts](../../src/scene/bounds.ts) the same question: does this
+object have an anchor and a drawn box? Answer **yes** and it is selectable, movable,
+scalable, rotatable and erasable with no further work — that is how icons and labels
+arrived complete, by widening one type and one function rather than by adding tools.
+Answer **no** (landmass, river) and the object is path-based and **must** bring its own
+tool; handing it a footprint instead would hang scale handles off geometry that
+`translateObjects` deliberately refuses to move, so the frame would promise a drag that
+silently does nothing. When adding an object type, the first question is which side of
+this predicate it falls on.
 
 ---
 
@@ -189,8 +203,15 @@ what sorts.
 | Multi-object transforms | [scene/transform.ts](../../src/scene/transform.ts) |
 | Sprite extents, anchoring | [sprites/registry.ts](../../src/sprites/registry.ts), [sprites/raster.ts](../../src/sprites/raster.ts) |
 | Interaction state | [canvas/useSelection.ts](../../src/canvas/useSelection.ts) |
+| River spline, ribbon, hit-test | [engine/river.ts](../../src/engine/river.ts) |
+| River drawing + point editing | [canvas/useRiverTool.ts](../../src/canvas/useRiverTool.ts) |
+| Label measurement + drawing | [sprites/text.ts](../../src/sprites/text.ts) |
 
-The driver scripts used for this pass were scratchpad tooling and were not committed. §1
-has enough to rebuild one in about twenty lines; it is worth doing again for WP-8
-(rivers, labels), WP-10 (the generate confirm flow) and WP-13, all of which are
-interaction-heavy and carry the same class of risk.
+The driver scripts used for these passes were scratchpad tooling and were not committed.
+§1 has enough to rebuild one in about twenty lines, and WP-8 did exactly that: 15 checks
+covering place / select / move / delete for icons and labels, and draw / commit / select /
+reshape / delete for rivers, all asserted against the HUD. Two details worth reusing —
+`Page.javascriptDialogOpening` + `Page.handleJavaScriptDialog` drives the label's `prompt`
+without stubbing it out, and the driver must `location.reload()` first or it inherits
+whatever the last run left on the canvas. Still worth doing again for WP-10 (the generate
+confirm flow) and WP-13.

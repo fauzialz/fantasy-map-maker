@@ -31,8 +31,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   one-by-one / object-eraser; z-order `(manual z, Y, scale)`.
 - [x] **WP-7 · Selection & editing** — click / shift-click / marquee (rbush); transform
   handles; bring-forward/send-back; delete; smooth at 1–2k objects.
-- [ ] **WP-8 · Icons, rivers, labels** — icon palette; river spline (tapering, no
-  rings); text labels (fantasy font, straight).
+- [x] **WP-8 · Icons, rivers, labels** — icon palette (icons are sprites with a named
+  variant); river spline tool (Chaikin centreline → tapering ribbon, no rings, draggable
+  control points); text labels with a paper halo. Verified by driven input, 15 checks.
 
 ## Systems
 - [ ] **WP-9 · Undo/redo** — command stack; one stroke / scatter-drag / generate = one
