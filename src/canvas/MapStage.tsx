@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Line, Stage } from "react-konva";
-import { selectLandmasses, useEditorStore } from "../state/editorStore";
+import { LAYER_OBJECT, selectLandmasses, useEditorStore } from "../state/editorStore";
 import { LAYER_ORDER, type LayerId, type Point } from "../scene/types";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { RingsLayer } from "./RingsLayer";
+import { RiverOverlay } from "./RiverOverlay";
 import { VignetteLayer } from "./VignetteLayer";
 import { SemanticLayer } from "./SemanticLayer";
 import { useCoastalRings } from "./useCoastalRings";
 import { PALETTE } from "./palette";
 import { SelectionOverlay } from "./SelectionOverlay";
-import { LAYER_OBJECT, useObjectBrush } from "./useObjectBrush";
+import { useObjectBrush } from "./useObjectBrush";
+import { useRiverTool } from "./useRiverTool";
 import { useSelection } from "./useSelection";
 import { useTerrainBrush } from "./useTerrainBrush";
 import {
@@ -129,6 +131,13 @@ export function MapStage() {
     scale: vp?.scale ?? 1,
     toMapPoint,
   });
+  // Rivers are path-based, so they sit outside the anchor-based selection stack and drive
+  // their own tool (ADR-14) — drawn point by point, reshaped by their control points.
+  const river = useRiverTool({
+    enabled: activeLayerId === "rivers" && !spaceHeld,
+    scale: vp?.scale ?? 1,
+    toMapPoint,
+  });
 
   // Pan: middle-drag, or space + left-drag. Plain left-drag paints.
   const dragRef = useRef<{ x: number; y: number; vp: Viewport } | null>(null);
@@ -144,6 +153,7 @@ export function MapStage() {
     if (
       brush.begin(e.clientX, e.clientY) ||
       objects.begin(e.clientX, e.clientY) ||
+      river.begin(e.clientX, e.clientY) ||
       selection.begin(e.clientX, e.clientY, e.shiftKey)
     )
       e.preventDefault();
@@ -204,21 +214,49 @@ export function MapStage() {
   const fullMapBytes = map.w * map.h * 4 * LAYER_ORDER.length;
   const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
-  // Panning and the space-drag override everything; otherwise the selection's own
-  // handle-aware cursor wins, and a painting tool falls back to a crosshair.
+  // Panning and the space-drag override everything; otherwise whichever tool owns the
+  // layer supplies its own handle-aware cursor, and a painting tool falls back to a
+  // crosshair. Same precedence as onMouseDown, so the pointer promises what a press does.
   const cursor = panning
     ? "grabbing"
     : spaceHeld
       ? "grab"
       : (selection.cursor ??
+        river.cursor ??
         (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId] ? "crosshair" : "default"));
+
+  /** The live, uncached layer draws whatever the active tool is in the middle of. */
+  const overlayFor = (id: LayerId, scale: number) => {
+    if (id !== activeLayerId) return undefined;
+    if (onObjectLayer && objectTool === "select")
+      return <SelectionOverlay frame={selection.frame} marquee={selection.marquee} scale={scale} />;
+    if (id === "rivers" && river.active)
+      return <RiverOverlay preview={river.preview} points={river.points} scale={scale} />;
+    if (id === "terrain" && brush.previewPoints)
+      return (
+        <Line
+          points={brush.previewPoints}
+          // the sea brush previews as water, so erasing reads as erasing
+          stroke={terrainTool === "sea" ? PALETTE.seaDeep : PALETTE.paper}
+          strokeWidth={brushSize}
+          lineCap="round"
+          lineJoin="round"
+          opacity={0.75}
+        />
+      );
+    return undefined;
+  };
 
   return (
     <div
       ref={containerRef}
       className="stage"
       onMouseDown={onMouseDown}
-      onMouseMove={(e) => selection.hover(e.clientX, e.clientY)}
+      onMouseMove={(e) => {
+        selection.hover(e.clientX, e.clientY);
+        river.hover(e.clientX, e.clientY);
+      }}
+      onDoubleClick={river.finish}
       style={{ cursor }}
     >
       {view && vp && cache && (
@@ -238,25 +276,7 @@ export function MapStage() {
               cacheRect={cache.rect}
               cacheScale={cache.scale}
               onCacheBytes={onCacheBytes}
-              overlay={
-                layer.id === activeLayerId && onObjectLayer && objectTool === "select" ? (
-                  <SelectionOverlay
-                    frame={selection.frame}
-                    marquee={selection.marquee}
-                    scale={vp.scale}
-                  />
-                ) : layer.id === "terrain" && brush.previewPoints ? (
-                  <Line
-                    points={brush.previewPoints}
-                    // the sea brush previews as water, so erasing reads as erasing
-                    stroke={terrainTool === "sea" ? PALETTE.seaDeep : PALETTE.paper}
-                    strokeWidth={brushSize}
-                    lineCap="round"
-                    lineJoin="round"
-                    opacity={0.75}
-                  />
-                ) : undefined
-              }
+              overlay={overlayFor(layer.id, vp.scale)}
             />
           ))}
           {scene.settings.parchment && <VignetteLayer map={map} />}

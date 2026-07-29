@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import { MapStage } from "./canvas/MapStage";
-import { LAYER_OBJECT } from "./canvas/useObjectBrush";
 import { Toasts } from "./ui/Toasts";
 import { callGeometry } from "./engine/worker/client";
 import { restack } from "./scene/transform";
-import type { CanvasPreset } from "./scene/types";
-import { useEditorStore } from "./state/editorStore";
+import { ICON_KINDS } from "./sprites/registry";
+import type { CanvasPreset, Label, LayerId } from "./scene/types";
+import { LAYER_OBJECT, LAYER_TOOLS, useEditorStore, type ObjectTool } from "./state/editorStore";
 import "./App.css";
 
 const PRESETS: CanvasPreset[] = ["landscape", "square", "portrait"];
+
+/** "place" means something different with a spline in your hand than with a stamp. */
+const TOOL_LABEL: Partial<Record<LayerId, Partial<Record<ObjectTool, string>>>> = {
+  rivers: { select: "edit", place: "draw" },
+};
 
 // ponytail: this rail is a stand-in for the WP-13 toolbar/layer panel. It exists so the
 // active layer can be switched — the only interaction WP-1 has to prove.
@@ -25,7 +30,28 @@ export default function App() {
   const objectTool = useEditorStore((s) => s.objectTool);
   const setObjectTool = useEditorStore((s) => s.setObjectTool);
   const objectLayer = LAYER_OBJECT[activeLayerId];
+  const layerTools = LAYER_TOOLS[activeLayerId];
   const selection = useEditorStore((s) => s.selection);
+  const iconKind = useEditorStore((s) => s.iconKind);
+  const setIconKind = useEditorStore((s) => s.setIconKind);
+  const labelSize = useEditorStore((s) => s.labelSize);
+  const setLabelSize = useEditorStore((s) => s.setLabelSize);
+  const riverWidth = useEditorStore((s) => s.riverWidth);
+  const setRiverWidth = useEditorStore((s) => s.setRiverWidth);
+  const riverTaper = useEditorStore((s) => s.riverTaper);
+  const setRiverTaper = useEditorStore((s) => s.setRiverTaper);
+  const patchObject = useEditorStore((s) => s.patchObject);
+
+  /**
+   * The one selected label, if that is what is selected — the size slider and the text
+   * button edit it directly, so they read as properties of the thing rather than defaults.
+   */
+  const editingLabel =
+    activeLayerId === "labels" && selection.length === 1
+      ? (scene.layers
+          .find((l) => l.id === "labels")
+          ?.objects.find((o) => o.id === selection[0] && o.type === "label") as Label | undefined)
+      : undefined;
 
   /** Restacking lives in the store so the rail and the canvas agree on what is selected. */
   const restackSelection = (direction: 1 | -1) => {
@@ -111,22 +137,100 @@ export default function App() {
           </>
         )}
 
-        {objectLayer && (
+        {layerTools && (
           <>
             <h2>{activeLayerId}</h2>
             <div className="tools">
-              {(["select", "scatter", "place", "erase"] as const).map((tool) => (
+              {layerTools.map((tool) => (
                 <button
                   key={tool}
                   type="button"
                   className={objectTool === tool ? "active" : undefined}
                   onClick={() => setObjectTool(tool)}
                 >
-                  {tool}
+                  {TOOL_LABEL[activeLayerId]?.[tool] ?? tool}
                 </button>
               ))}
             </div>
-            {objectTool === "select" ? (
+
+            {activeLayerId === "icons" && objectTool === "place" && (
+              <div className="palette">
+                {ICON_KINDS.map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    className={iconKind === kind ? "active" : undefined}
+                    onClick={() => setIconKind(kind)}
+                  >
+                    {kind}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {activeLayerId === "labels" && (
+              <>
+                <label className="slider">
+                  Text size <b>{editingLabel?.size ?? labelSize}</b>
+                  <input
+                    type="range"
+                    min={24}
+                    max={220}
+                    step={4}
+                    value={editingLabel?.size ?? labelSize}
+                    onChange={(e) => {
+                      const size = Number(e.target.value);
+                      if (editingLabel) patchObject<Label>("labels", editingLabel.id, { size });
+                      else setLabelSize(size);
+                    }}
+                  />
+                </label>
+                <div className="tools">
+                  <button
+                    type="button"
+                    disabled={!editingLabel}
+                    onClick={() => {
+                      if (!editingLabel) return;
+                      const text = window.prompt("Label text", editingLabel.text)?.trim();
+                      if (text) patchObject<Label>("labels", editingLabel.id, { text });
+                    }}
+                  >
+                    Edit text
+                  </button>
+                </div>
+              </>
+            )}
+
+            {activeLayerId === "rivers" && (
+              <>
+                <label className="slider">
+                  River width <b>{riverWidth}</b>
+                  <input
+                    type="range"
+                    min={6}
+                    max={90}
+                    step={2}
+                    value={riverWidth}
+                    onChange={(e) => setRiverWidth(Number(e.target.value))}
+                  />
+                </label>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={riverTaper}
+                    onChange={(e) => setRiverTaper(e.target.checked)}
+                  />
+                  Widen toward the mouth
+                </label>
+                <p className="status">
+                  {objectTool === "place"
+                    ? "click from source to sea · double-click or Enter finishes · Escape cancels"
+                    : "click a river to select · drag its points to reshape · Delete removes"}
+                </p>
+              </>
+            )}
+
+            {objectLayer && objectTool === "select" && (
               <>
                 <p className="status">
                   {selection.length === 0
@@ -150,7 +254,9 @@ export default function App() {
                   </button>
                 </div>
               </>
-            ) : (
+            )}
+
+            {objectLayer && objectTool !== "select" && objectTool !== "place" && (
               <label className="slider">
                 Brush size <b>{brushSize}</b>
                 <input

@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import { Shape } from "react-konva";
+import { isSprite, spriteRef } from "../../scene/bounds";
 import { inDrawOrder } from "../../scene/order";
 import type { SceneObject } from "../../scene/types";
 import { drawSprite } from "../../sprites/raster";
+import { drawLabel } from "../../sprites/text";
 
 /**
  * Every sprite object in a layer is drawn by ONE Konva shape rather than one node each.
@@ -25,16 +27,12 @@ export function ObjectBatch({ objects }: { objects: SceneObject[] }) {
       sceneFunc={(context) => {
         const raw = context as unknown as CanvasRenderingContext2D;
         for (const object of sorted) {
-          if (object.type !== "mountain" && object.type !== "tree") continue;
-          drawSprite(
-            raw,
-            object.type,
-            object.variant,
-            object.x,
-            object.y,
-            object.scale,
-            object.rotation,
-          );
+          if (object.type === "label") {
+            drawLabel(raw, object);
+          } else if (isSprite(object)) {
+            const { kind, variant } = spriteRef(object);
+            drawSprite(raw, kind, variant, object.x, object.y, object.scale, object.rotation);
+          }
         }
       }}
     />

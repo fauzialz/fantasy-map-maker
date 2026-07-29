@@ -1,14 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LayerId, Mountain, Point, Tree } from "../scene/types";
+import type { LayerId, Point, SceneObject } from "../scene/types";
 import { variantCount } from "../sprites/registry";
 import { isUnderBrush } from "./objectHit";
-import { useEditorStore } from "../state/editorStore";
-
-/** Which object type each scatterable layer creates. */
-export const LAYER_OBJECT: Partial<Record<LayerId, "mountain" | "tree">> = {
-  mountains: "mountain",
-  forests: "tree",
-};
+import { LAYER_OBJECT, useEditorStore } from "../state/editorStore";
 
 interface Options {
   activeLayerId: LayerId;
@@ -18,18 +12,37 @@ interface Options {
 
 const jitter = (spread: number) => (Math.random() - 0.5) * 2 * spread;
 
-function makeObject(kind: "mountain" | "tree", [x, y]: Point, scatter: boolean): Mountain | Tree {
-  return {
+/**
+ * @returns the new object, or undefined when the user backed out of naming a label —
+ * placing an empty label would leave an invisible, unclickable object on the map.
+ */
+function makeObject(
+  kind: NonNullable<(typeof LAYER_OBJECT)[LayerId]>,
+  [x, y]: Point,
+  scatter: boolean,
+): SceneObject | undefined {
+  const base = {
     id: crypto.randomUUID(),
-    type: kind,
     x,
     y,
     // Map sprites read as drawn-in-place; a few degrees keeps a range from looking stamped.
     rotation: scatter ? jitter(5) : 0,
     scale: scatter ? 1 + jitter(0.28) : 1,
     z: 0,
-    variant: Math.floor(Math.random() * variantCount(kind)),
-  } as Mountain | Tree;
+  };
+
+  if (kind === "label") {
+    // ponytail: a native prompt is the whole text-entry UI for now. WP-13 replaces it with
+    // an inline editor on the canvas; until then this is one line and works everywhere.
+    const text = window.prompt("Label text")?.trim();
+    if (!text) return undefined;
+    const { labelSize } = useEditorStore.getState();
+    return { ...base, type: "label", text, font: "fantasy-serif", size: labelSize, pathId: null };
+  }
+  if (kind === "landmark") {
+    return { ...base, type: "landmark", kind: useEditorStore.getState().iconKind };
+  }
+  return { ...base, type: kind, variant: Math.floor(Math.random() * variantCount(kind)) };
 }
 
 /**
@@ -51,7 +64,7 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint }: Options) 
       if (!kind) return;
       const spread = brushSize / 2;
       const placed = makeObject(kind, [point[0] + jitter(spread), point[1] + jitter(spread)], true);
-      addObjects(activeLayerId, [placed]);
+      if (placed) addObjects(activeLayerId, [placed]);
     },
     [activeLayerId, kind],
   );
@@ -84,8 +97,9 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint }: Options) 
         return;
       }
       if (objectTool === "place") {
-        if (first && kind)
-          useEditorStore.getState().addObjects(activeLayerId, [makeObject(kind, point, false)]);
+        if (!first || !kind) return;
+        const placed = makeObject(kind, point, false);
+        if (placed) useEditorStore.getState().addObjects(activeLayerId, [placed]);
         return;
       }
 

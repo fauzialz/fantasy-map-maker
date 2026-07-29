@@ -16,7 +16,7 @@ export interface Sprite {
   highlight?: string;
 }
 
-export type SpriteKind = "mountain" | "tree";
+export type SpriteKind = "mountain" | "tree" | "landmark";
 
 const MOUNTAINS: Sprite[] = [
   {
@@ -63,16 +63,88 @@ const TREES: Sprite[] = [
   },
 ];
 
+/**
+ * Icons are ordinary sprites whose "variant" is named. The data model keys them by an open
+ * `kind` string (§4), so the array order below IS the variant index — see `iconVariant`.
+ */
+export const ICON_KINDS = [
+  "castle",
+  "city",
+  "town",
+  "tower",
+  "ruin",
+  "compass",
+  "ship",
+  "monster",
+] as const;
+export type IconKind = (typeof ICON_KINDS)[number];
+
+const ICONS: Sprite[] = [
+  {
+    // castle — two crenellated towers over a curtain wall
+    body: "M18 88 L18 30 L23 30 L23 36 L27 36 L27 30 L32 30 L32 36 L36 36 L36 50 L40 50 L40 44 L45 44 L45 50 L55 50 L55 44 L60 44 L60 50 L64 50 L64 36 L68 36 L68 30 L73 30 L73 36 L77 36 L77 30 L82 30 L82 88 Z",
+    detail: "M46 88 L46 70 Q50 64 54 70 L54 88 M25 48 L25 56 M75 48 L75 56",
+  },
+  {
+    // city — a walled skyline
+    body: "M10 88 L10 62 L20 62 L20 50 L30 50 L30 62 L38 62 L38 40 L48 40 L48 62 L56 62 L56 52 L66 52 L66 62 L76 62 L76 46 L86 46 L86 88 Z",
+    detail: "M14 70 L82 70 M24 56 L24 60 M42 46 L42 54 M80 52 L80 60",
+  },
+  {
+    // town — a pair of pitched roofs
+    body: "M18 88 L18 64 L32 52 L46 64 L46 88 Z M52 88 L52 70 L64 60 L76 70 L76 88 Z",
+    detail: "M28 88 L28 78 L36 78 L36 88 M62 88 L62 80 L68 80 L68 88",
+  },
+  {
+    // tower — a single keep under a conical roof
+    body: "M36 88 L36 34 L32 34 L50 14 L68 34 L64 34 L64 88 Z",
+    detail: "M44 44 L44 54 L56 54 L56 44 Z M46 88 L46 74 Q50 68 54 74 L54 88",
+  },
+  {
+    // ruin — broken walls
+    body: "M14 88 L14 50 L24 50 L24 62 L34 62 L34 44 L44 44 L44 70 L58 70 L58 54 L68 54 L68 66 L78 66 L78 88 Z",
+    detail: "M14 74 L78 74 M30 62 L30 74 M52 74 L52 88",
+  },
+  {
+    // compass rose
+    body: "M50 12 L58 42 L88 50 L58 58 L50 88 L42 58 L12 50 L42 42 Z",
+    highlight: "M50 12 L58 42 L50 50 L42 42 Z",
+    detail: "M28 28 L44 44 M72 28 L56 44 M28 72 L44 56 M72 72 L56 56",
+  },
+  {
+    // ship — hull, mast and two sails
+    body: "M12 76 L88 76 L76 88 L24 88 Z M48 66 L48 18 L52 18 L52 66 Z M54 24 L78 46 L54 58 Z M46 28 L28 46 L46 58 Z",
+    detail: "M22 80 L78 80",
+  },
+  {
+    // sea monster — a coil and a rearing head
+    body: "M6 88 Q6 60 24 60 Q42 60 42 88 L32 88 Q32 70 24 70 Q16 70 16 88 Z M52 88 L52 46 Q52 30 68 30 Q86 30 86 46 Q86 56 76 58 L76 46 Q76 40 68 40 Q62 40 62 48 L62 88 Z",
+    detail: "M71 42 L71 43",
+  },
+];
+
 export const SPRITES: Record<SpriteKind, Sprite[]> = {
   mountain: MOUNTAINS,
   tree: TREES,
+  landmark: ICONS,
 };
 
 /** Height in map units at scale 1. Mountains read as landmarks, trees as texture. */
 export const SPRITE_HEIGHT: Record<SpriteKind, number> = {
   mountain: 190,
   tree: 84,
+  // Icons leave more of their grid empty than mountains do, so the nominal height has to
+  // run higher for a castle to read as a landmark rather than a speck beside a peak.
+  landmark: 165,
 };
+
+/**
+ * `kind` → registry index. An unknown kind falls back to the first icon rather than
+ * vanishing: the data model calls `kind` an open string, so a scene may name one this
+ * build has no artwork for, and a missing sprite would silently drop the object.
+ */
+export const iconVariant = (kind: string): number =>
+  Math.max(0, ICON_KINDS.indexOf(kind as IconKind));
 
 export const variantCount = (kind: SpriteKind): number => SPRITES[kind].length;
 

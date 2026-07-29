@@ -4,6 +4,7 @@ import { Layer } from "react-konva";
 import type { Layer as SceneLayer, LayerId } from "../scene/types";
 import { LandmassShape } from "./shapes/LandmassShape";
 import { ObjectBatch } from "./shapes/ObjectBatch";
+import { RiverShape } from "./shapes/RiverShape";
 import { useLayerCache } from "./useLayerCache";
 import type { Rect } from "./viewport";
 
@@ -43,8 +44,13 @@ export const SemanticLayer = memo(function SemanticLayer({
 
   return (
     <Layer ref={ref} visible={layer.visible} listening={false}>
+      {/* Path-based objects get a node each; everything with an anchor is batched below. */}
       {layer.objects.map((object) =>
-        object.type === "landmass" ? <LandmassShape key={object.id} landmass={object} /> : null,
+        object.type === "landmass" ? (
+          <LandmassShape key={object.id} landmass={object} />
+        ) : object.type === "river" ? (
+          <RiverShape key={object.id} river={object} />
+        ) : null,
       )}
       <ObjectBatch objects={layer.objects} />
       {overlay}

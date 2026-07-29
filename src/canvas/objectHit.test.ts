@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { Mountain, SceneObject, Tree } from "../scene/types";
-import { isSpriteObject, isUnderBrush } from "./objectHit";
+import { hasFootprint } from "../scene/bounds";
+import type { Landmark, Mountain, SceneObject, Tree } from "../scene/types";
+import { isUnderBrush } from "./objectHit";
 
 const at = (x: number, y: number, scale = 1): Tree => ({
   id: "t",
@@ -35,7 +36,13 @@ describe("object eraser hit-test", () => {
     expect(isUnderBrush(small, [100, 100], 30)).toBe(false);
   });
 
-  it("ignores objects the sprite renderer does not draw", () => {
+  it("picks up icons, which are sprites with a named variant", () => {
+    const castle: Landmark = { ...at(100, 100), type: "landmark", kind: "castle" };
+    expect(isUnderBrush(castle, [100, 100], 20)).toBe(true);
+    expect(isUnderBrush(castle, [900, 900], 20)).toBe(false);
+  });
+
+  it("ignores path-based objects, which have no footprint", () => {
     const landmass: SceneObject = {
       id: "l",
       type: "landmass",
@@ -47,7 +54,7 @@ describe("object eraser hit-test", () => {
       holes: [],
       biome: "grassland",
     };
-    expect(isSpriteObject(landmass)).toBe(false);
+    expect(hasFootprint(landmass)).toBe(false);
     expect(isUnderBrush(landmass, [5, 5], 500)).toBe(false);
   });
 });

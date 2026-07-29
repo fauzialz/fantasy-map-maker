@@ -27,6 +27,18 @@ export const BIOME_FILL: Record<Biome, string> = {
   swamp: "#C0C69C",
 };
 
+/**
+ * Rivers are drawn **opaque**, unlike the sea, so that a tributary joining a main river
+ * reads as one body of water. Any translucency stacks where two river objects overlap and
+ * paints the confluence a darker colour than either river — at alpha 1 the second fill
+ * lands on the identical colour and cannot show a seam. Same reason a river carries no
+ * bank stroke: an outline would draw straight across the river it flows into.
+ *
+ * The value is `sea` at `SEA_OPACITY` pre-blended over land, so a lone river looks exactly
+ * as it did while it was translucent.
+ */
+export const RIVER_FILL = "#85A296";
+
 /** Land is slightly translucent so the parchment grain reads through it. */
 export const LAND_OPACITY = 0.95;
 /**

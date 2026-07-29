@@ -13,10 +13,12 @@ const OVERSAMPLE = 2;
 const FILL: Record<SpriteKind, string> = {
   mountain: "#B9AE93",
   tree: "#6F7F55",
+  landmark: "#D8C9A4",
 };
 const STROKE: Record<SpriteKind, string> = {
   mountain: PALETTE.ink,
   tree: "#3E4A2E",
+  landmark: PALETTE.ink,
 };
 
 export interface RasterSprite {

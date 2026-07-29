@@ -1,4 +1,4 @@
-import { boundsCenter, boundsOf, isSprite, objectCorners, rotatePoint } from "./bounds";
+import { boundsCenter, boundsOf, hasFootprint, objectCorners, rotatePoint } from "./bounds";
 import type { Point, SceneObject } from "./types";
 
 /**
@@ -24,7 +24,7 @@ export interface Frame {
  * lives only as long as the selection does.
  */
 export function frameOf(objects: SceneObject[], rotation = 0): Frame | undefined {
-  const sprites = objects.filter(isSprite);
+  const sprites = objects.filter(hasFootprint);
   if (sprites.length === 0) return undefined;
 
   if (sprites.length === 1) {

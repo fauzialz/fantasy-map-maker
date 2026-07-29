@@ -2,21 +2,27 @@ import simplifyJs from "simplify-js";
 import type { Point, Ring } from "../geometry/types";
 
 /**
- * S3 — Chaikin corner cutting on a closed ring. Each iteration replaces every vertex
- * with two points a quarter and three quarters along its outgoing edge, so the point
- * count doubles and hard corners round off.
+ * S3 — Chaikin corner cutting. Each iteration replaces every vertex with two points a
+ * quarter and three quarters along its outgoing edge, so the point count doubles and hard
+ * corners round off.
+ *
+ * @param closed a coastline wraps, so every vertex is cut. An **open** polyline (a river
+ * centreline) instead pins its endpoints, or the spline would creep away from the first
+ * and last points the user clicked.
  */
-export function chaikin(ring: Ring, iterations = 2): Ring {
+export function chaikin(ring: Ring, iterations = 2, closed = true): Ring {
   let current = ring;
   for (let pass = 0; pass < iterations; pass++) {
     if (current.length < 3) return current;
-    const next: Ring = [];
-    for (let i = 0, n = current.length; i < n; i++) {
+    const n = current.length;
+    const next: Ring = closed ? [] : [current[0]];
+    for (let i = 0, edges = closed ? n : n - 1; i < edges; i++) {
       const [x1, y1] = current[i];
       const [x2, y2] = current[(i + 1) % n];
       next.push([x1 * 0.75 + x2 * 0.25, y1 * 0.75 + y2 * 0.25]);
       next.push([x1 * 0.25 + x2 * 0.75, y1 * 0.25 + y2 * 0.75]);
     }
+    if (!closed) next.push(current[n - 1]);
     current = next;
   }
   return current;

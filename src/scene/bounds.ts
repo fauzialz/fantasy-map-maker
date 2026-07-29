@@ -1,4 +1,6 @@
 import { spriteBounds } from "../sprites/raster";
+import { textBounds } from "../sprites/text";
+import { iconVariant, type SpriteKind } from "../sprites/registry";
 import type { SceneObject } from "./types";
 
 export interface Bounds {
@@ -8,14 +10,41 @@ export interface Bounds {
   maxY: number;
 }
 
-export type SpriteObject = Extract<SceneObject, { type: "mountain" | "tree" }>;
+/** Objects the sprite renderer draws. Icons are sprites whose variant is named (`kind`). */
+export type SpriteObject = Extract<SceneObject, { type: "mountain" | "tree" | "landmark" }>;
 
 export const isSprite = (object: SceneObject): object is SpriteObject =>
-  object.type === "mountain" || object.type === "tree";
+  object.type === "mountain" || object.type === "tree" || object.type === "landmark";
 
-/** The four corners of a sprite's artwork, relative to its anchor, before rotation. */
-export function objectCorners(object: SpriteObject): [number, number][] {
-  const { left, right, top, bottom } = spriteBounds(object.type, object.variant, object.scale);
+/** Where a sprite object sits in the registry — the one place `kind` becomes an index. */
+export const spriteRef = (object: SpriteObject): { kind: SpriteKind; variant: number } =>
+  object.type === "landmark"
+    ? { kind: "landmark", variant: iconVariant(object.kind) }
+    : { kind: object.type, variant: object.variant };
+
+/**
+ * Everything with an anchor and a drawn box: sprites plus labels.
+ *
+ * This predicate is the seam the whole interaction stack keys on — hit-testing, the rbush
+ * index, the selection frame, the eraser and the transforms all ask it. Anything that
+ * answers `true` here is selectable, movable and erasable without further work; anything
+ * that does not (landmass, river) is path-based and interacts through its own tool.
+ */
+export type PlacedObject = SpriteObject | Extract<SceneObject, { type: "label" }>;
+
+export const hasFootprint = (object: SceneObject): object is PlacedObject =>
+  isSprite(object) || object.type === "label";
+
+/** The object's drawn box relative to its anchor, before rotation. */
+export function footprint(object: PlacedObject) {
+  if (object.type === "label") return textBounds(object.text, object.size * object.scale);
+  const { kind, variant } = spriteRef(object);
+  return spriteBounds(kind, variant, object.scale);
+}
+
+/** The four corners of an object's artwork, relative to its anchor, before rotation. */
+export function objectCorners(object: PlacedObject): [number, number][] {
+  const { left, right, top, bottom } = footprint(object);
   return [
     [left, top],
     [right, top],
@@ -40,7 +69,7 @@ export const rotatePoint = ([x, y]: [number, number], degrees: number): [number,
  * thing — see `frameOf`, which stays oriented with the object.
  */
 export function objectBounds(object: SceneObject): Bounds | undefined {
-  if (!isSprite(object)) return undefined;
+  if (!hasFootprint(object)) return undefined;
 
   let minX = Infinity;
   let minY = Infinity;
