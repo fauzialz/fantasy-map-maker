@@ -84,7 +84,8 @@ numbering; nothing here blocks P1–P3.
 **Batch 1 — terrain as objects.** Terrain stops being paint-only and becomes selectable,
 colourable and movable. Full design, constraints, acceptance criteria and fixtures in
 `08-terrain-as-objects.md`; **ADR-25** records why it sits here rather than inside P0 (it
-needs WP-13's real UI, and it rewrites interaction invariant I9).
+needs WP-13's real UI, and it rewrites interaction invariant I9). **D1 is now settled — yes**
+(ADR-28), so WP-15 is unblocked; D4 and D6 are still open.
 
 - [ ] **WP-14 · Terrain select & colour** (T1) — point-in-polygon hit-test; click /
   shift-click / marquee-by-containment; selection draws as a **highlighted coastline with no
@@ -99,6 +100,22 @@ needs WP-13's real UI, and it rewrites interaction invariant I9).
 - [ ] **WP-17 · Carve a strait** — the third overlap outcome: bite a channel, then roughen
   the machine-straight cut so it reads as coastline. Own package; needs the
   ≥20%-area-remains guard so a small landmass is never erased.
+
+**Batch 2 — selection across layers.** The Select tool stops being scoped to the active
+layer, and the toolbar stops presenting a pointer mode as a peer of the six layers. Design in
+`09-selection-across-layers.md`, decided in **ADR-28**. Every decision it needed is taken.
+
+- [ ] **WP-18 · Selection, unlinked from the layer** — toolbar splits into mode / create
+  groups; Select hit-tests every **visible, unlocked** layer at once and is never disabled;
+  lock and visibility scope a selection; mixed selections show common controls only; a layer
+  is **live when active or holding a selection**; Erase relabels itself "Sea brush" on
+  Terrain. **Ships alone, blocks nothing** — take it before, after or between Batch 1's
+  packages. Carries a measurement: drag frame time across a four-layer selection.
+- [ ] **WP-19 · Terrain joins the selection** (needs WP-17 **and** WP-18) — one frame over
+  land and sprites, honest only once WP-16 makes every handle move geometry; WP-14's
+  coastline highlight stays, additive; footprint wins the click over land; the marquee is
+  asymmetric on purpose; double-click a landmass to take its contents too. **The risk is one
+  item**: overlap resolution runs first and its resolved delta goes to the whole drag.
 
 ## Later phases (see the phase prompts)
 - [ ] **P1** — self-contained HTML embed export + `.map.json` import/export.

@@ -21,7 +21,8 @@ prompts** used to drive an AI coding agent through the build.
    to actually verify it. Read before touching the renderer, bounds, or selection.
 6. `prompts/phase-0-core-editor.md` — start building here.
 7. `prompts/phase-0.5-core-editor-improvement.md` — where editor work goes *after* P0.
-   Open-ended, one batch per design doc; `08-terrain-as-objects.md` is the first.
+   Open-ended, one batch per design doc; `08-terrain-as-objects.md` is the first and
+   `09-selection-across-layers.md` the second.
 
 **Files:**
 - `HOW-TO-PROMPT-THE-AGENT.md` — operator's guide: kickoff prompts + build loop.
@@ -41,6 +42,10 @@ prompts** used to drive an AI coding agent through the build.
   keep in step, the seven bugs that came from breaking them, and the CDP recipe for
   driving real pointer input. Written because a screenshot of seeded state proved nothing
   about interaction.
+- `09-selection-across-layers.md` — **scheduled as WP-18 and WP-19.** One Select tool over
+  every layer instead of one at a time, and the toolbar split so a pointer mode stops looking
+  like a peer of the six layers. WP-18 ships alone and blocks nothing; WP-19 puts land and
+  sprites in one selection once Batch 1 has made land transformable. See ADR-28.
 - `08-terrain-as-objects.md` — **scheduled as WP-14 → WP-17, the first work after P0.**
   Making landmasses selectable, colourable and transformable: the constraints it must
   satisfy, tiers split by which operations are lossless, the overlap policy (default **keep
@@ -80,7 +85,7 @@ prompts** used to drive an AI coding agent through the build.
 | Phase | Goal | Backend? | Headline deliverables |
 |---|---|---|---|
 | **P0 — Core editor** | A complete, deployable editor | No | Terrain brush, coastal rings, mountains/forests/icons/rivers, multi-select, undo/redo, noise generator, image export, local-first autosave |
-| **0.5 — Core-editor improvement** (ongoing, never closes) | Editor enhancements after P0 | No | Batch 1: terrain as objects — select / colour / name / delete land, move + rotate, resize, overlap policy. Work order `prompts/phase-0.5-core-editor-improvement.md`, design `08-terrain-as-objects.md` |
+| **0.5 — Core-editor improvement** (ongoing, never closes) | Editor enhancements after P0 | No | Batch 1: terrain as objects — select / colour / name / delete land, move + rotate, resize, overlap policy (`08-terrain-as-objects.md`). Batch 2: selection across layers — one Select tool over every layer, land and sprites in one selection (`09-selection-across-layers.md`). Work order `prompts/phase-0.5-core-editor-improvement.md` |
 | **P1 — Distribution** | Get maps out, no server | No | Self-contained HTML embed export, `.map.json` import/export |
 | **P2 — Accounts & sharing** | Persistence + hosted sharing | Yes (Go + Postgres + Zitadel) | Login, cloud save, "my maps", claim local drafts, share page + hosted iframe, SVG/PDF export |
 | **P3 — React library** | Reusable component | No | `@byfauzi/map-viewer` then `@byfauzi/map-editor` npm packages |

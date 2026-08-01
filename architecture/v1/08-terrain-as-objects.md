@@ -222,6 +222,10 @@ prompt in either direction.
   objects are not selectable" stops being a rule and becomes an exception list of one;
   giving rivers the same treatment is a separate decision, not a freebie.
 - **Non-destructive transforms.** Would need a schema bump (C7).
+- **Selecting land and sprites together.** This document gives terrain its own selection on
+  its own layer. Putting landmasses into the *same* selection as mountains and labels is
+  **WP-19**, in `09-selection-across-layers.md` — it needs all three tiers below plus WP-18,
+  and it is where the shared-delta consequence of §5's "keep apart" gets resolved.
 
 ## 7. Proposed replacement for invariant I9
 
@@ -238,7 +242,7 @@ prompt in either direction.
 
 | | Decision | Status |
 |---|---|---|
-| **D1** | Rewrite I9 to admit two interaction models? | **Open.** Recommended yes, per §7. WP-14 does not need it — nothing gains a footprint. WP-15 cannot start without it. |
+| **D1** | Rewrite I9 to admit two interaction models? | **Settled: yes**, per §7 — decided alongside Batch 2 (`09-selection-across-layers.md`, **ADR-28**), because a shared frame over land and sprites is exactly what two models licenses. **WP-15 is unblocked.** |
 | **D2** | Ship in tiers, or all at once? | **Settled: tiers**, scheduled WP-14 → WP-17 after P0. |
 | **D3** | Overlap policy: setting or modal? | **Settled: radio group in the terrain panel, default "keep apart"** (ADR-25). |
 | **D4** | Does `ringGap` stay global when land is scaled? | **Open.** Recommended yes — rings derive from the union, so a per-landmass gap is not expressible. Decide inside WP-16. |

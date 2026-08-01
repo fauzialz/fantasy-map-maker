@@ -77,9 +77,10 @@ forgotten:
 **Prerequisite:** WP-13, because every package here needs real UI (a biome palette, a rail
 settings group, toasts carrying actions).
 
-**Settle first:** **D1** (rewrite invariant I9 — WP-14 does not need it, WP-15 cannot start
-without it), **D4** (does `ringGap` stay global when land is scaled), **D6** (does the brush
-paint the chosen biome directly). See `08` §8.
+**Settle first:** **D4** (does `ringGap` stay global when land is scaled), **D6** (does the
+brush paint the chosen biome directly). See `08` §8. **D1 is settled — yes**, two interaction
+models, decided with Batch 2 (ADR-28): a shared frame over land and sprites is exactly what it
+licenses. WP-15 is therefore unblocked.
 
 **What this batch is about.** Landmasses are path-based: absolute geometry with no anchor and
 no footprint, deliberately excluded from the sprite selection stack by invariant I9. This
@@ -135,6 +136,58 @@ carve that would erase what the user just dragged falls back to "keep apart".
   carve that splits one landmass into several reports it in the toast, larger piece keeping
   the id (ADR-10).
 - **Fixtures:** `08` §5.
+
+---
+
+## Batch 2 — Selection across layers (WP-18, WP-19)
+
+**Design:** `../09-selection-across-layers.md` — read it in full. **Decision:** ADR-28.
+**Prerequisite:** WP-13 for WP-18 (it regroups the toolbar WP-13 built); **WP-17 and WP-18**
+for WP-19.
+
+**Settle first:** nothing. Every decision this batch needed was taken in the review that
+produced `09` — see its §6, which records the rejected alternatives too.
+
+**What this batch is about.** The toolbar flattens two orthogonal axes — *what you are
+making* (the six layers) and *what the pointer does* (Select, Erase) — into one row of
+eight peers. That is why Select reads as a broken sibling of Mountains and why "disabled on
+Terrain" feels arbitrary. Underneath the presentation problem is a real one: the Select tool
+is scoped to the active layer, which is **narrower than invariant I9**, whose whole promise is
+that anything with a footprint is selectable and transformable with no further work.
+
+**Why WP-18 is small.** The index, the undo stack and the transforms already operate on plain
+`SceneObject[]`; `useSelection` binds to the active layer in exactly four places; and
+`SpatialIndex` already ignores anything without a footprint. This is mostly deletion.
+
+### WP-18 · Selection, unlinked from the layer
+Toolbar splits into mode and create groups; Select hit-tests every **visible, unlocked** layer
+at once and is never disabled; lock and visibility become how a selection is scoped; mixed
+selections show common controls only; a layer is **live when active *or* holding a selected
+object**; Erase keeps its behaviour and relabels itself **"Sea brush"** on Terrain.
+
+**Ships alone and blocks nothing** — take it before, after or between Batch 1's packages.
+
+- **Acceptance:** a marquee spanning mountains, forests, icons and labels selects from all
+  four and moves them as one undo step · a locked or hidden layer contributes nothing to a
+  click or a marquee · Select is never disabled · text size appears only when the selection is
+  all labels · bring-forward restacks each object **within its own layer** · **measured**:
+  drag frame time with a selection spanning four layers, recorded with its object count ·
+  driven input, not a screenshot.
+
+### WP-19 · Terrain joins the selection
+One frame over land and sprites, which is only honest once WP-16 makes every handle move
+geometry. WP-14's coastline highlight stays, **additive** to the frame. Hit precedence is
+footprint first, landmass as fallback; the marquee is asymmetric on purpose — intersection for
+sprites, containment for land; a double-click on a landmass selects it and its contents.
+
+**The risk sits in one item:** overlap resolution runs first and its **resolved delta** goes to
+every object in the drag, or the mountains end up off the land they were standing on.
+
+- **Acceptance:** a landmass and its mountains move together and stay registered when "keep
+  apart" slides the drop back · clicking a mountain on a coast selects the mountain · a marquee
+  clipping a continent's corner takes its trees and not the continent · double-click selects
+  land plus contents · one ring derivation per drop · the biome palette appears for a mixed
+  selection and recolours only the land · driven input.
 
 ---
 

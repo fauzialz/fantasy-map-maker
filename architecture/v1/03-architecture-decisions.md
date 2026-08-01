@@ -276,3 +276,32 @@ a **cap**, because whole-scene steps retain entire scenes. Full detail in
 **Rejected:** a class per command (more code, and each new gesture must re-derive the
 granularity rule); storing whole-scene snapshots for everything (simple, but a 2k-object scene
 per keystroke).
+
+## ADR-28 — Selection is global; the toolbar separates mode from layer
+**Decision:** The Select tool stops being scoped to the active layer. It hit-tests and
+transforms **every visible, unlocked layer at once**, and the toolbar splits into two groups —
+**mode** (Select, Erase) and **create** (the six layers). Layer **lock and visibility** become
+how a selection is scoped. A layer counts as **live** when it is active *or* holds a selected
+object. Landmasses join the same selection at **WP-19**, once WP-14…WP-17 have made them
+transformable — which settles **D1** (`08` §8) as *yes, two interaction models*.
+**Why:** the toolbar was flattening two orthogonal axes — what you are making, and what the
+pointer does — into one row of eight peers, which is why Select read as a broken sibling and
+why "disabled on Terrain" felt arbitrary. Underneath, the per-layer restriction was **narrower
+than invariant I9**, which already promises that anything with a footprint is selectable and
+transformable "with no further work". Mountains + forests + icons + labels *is* `hasFootprint`.
+The index, the undo stack and the transforms already operate on plain object arrays, so this is
+mostly removing a restriction rather than adding a mechanism.
+**Consequences:** a drag must apply **one resolved delta** to the whole selection, because
+"keep apart" can slide a landmass back along the drag path and sprites dragged with it would
+otherwise end up off the land they stood on; the marquee is deliberately **asymmetric** —
+intersection for footprint objects, containment for land; and the live-layer rule trades
+bitmap memory for draw time, which the ~1–2k budget absorbs because that budget is on total
+objects, not per layer. Full design in `09-selection-across-layers.md`.
+**Rejected:** leaving Select per-layer and merely not disabling it (papers over the hierarchy
+and makes the button silently change your layer); a separate type-filter UI for marquee
+over-grab (scope creep — the layer panel already has the controls); splitting Erase into a
+global object eraser plus a terrain-rail mode (amends ADR-18, and makes Erase delete objects
+for someone on Terrain who expected the sea brush — it is **relabelled** instead, reading "Sea
+brush" on Terrain); and **automatic ride-along**, where moving land carries its contents
+without selecting them (hidden behaviour, needs a containment query and a coast-straddling
+policy, and the marquee plus a double-click give the same ergonomics explicitly).

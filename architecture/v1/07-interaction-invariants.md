@@ -143,11 +143,20 @@ tool; handing it a footprint instead would hang scale handles off geometry that
 silently does nothing. When adding an object type, the first question is which side of
 this predicate it falls on.
 
-> **Rewrite proposed, not accepted.** `08-terrain-as-objects.md` §7 replaces I9 with a
+> **Rewrite accepted, lands with WP-15.** `08-terrain-as-objects.md` §7 replaces I9 with a
 > two-model version, so landmasses can be selected and transformed by path rather than by
-> footprint. That is decision **D1** there and is still open — until it is taken, the text
-> above stands. WP-14 was deliberately scoped to need no change here (nothing gains a
-> footprint); WP-15 cannot start without it.
+> footprint. That was decision **D1**, and it is now **settled yes** (ADR-28) — a shared frame
+> over land and sprites is precisely what two models licenses. **The text above still governs
+> the code until WP-15 ships the transforms that make the second model true**; swapping it
+> before then would describe a model nothing implements. WP-14 needs no change here.
+>
+> **Related, and not yet built: `09-selection-across-layers.md`.** WP-18 unbinds selection
+> from the active layer, and WP-19 puts land and sprites in one selection. Three rules come
+> with them — footprint wins a click over land, the marquee is intersection for footprint and
+> containment for land, and a drag applies **one resolved delta** to the whole selection
+> because "keep apart" can move a landmass less far than it was dragged. They are specified
+> in `09` rather than added here, because this file records rules that have been *proven* by
+> a bug or a driver; they graduate into this list once WP-18 and WP-19 have earned them.
 
 ---
 
