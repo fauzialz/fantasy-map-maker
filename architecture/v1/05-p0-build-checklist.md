@@ -102,10 +102,14 @@ needs WP-13's real UI, and it rewrites interaction invariant I9). **D1 is now se
       gains a tool switch" no longer applies. "No handles" now holds **by construction**:
       `objectBounds` stays undefined for a path object, so `frameOf` and the rbush index skip
       it without being asked. Verified by driven input, 15 checks.
-- [ ] **WP-15 · Terrain move & rotate** (T2) — rigid path transforms baked into
+- [x] **WP-15 · Terrain move & rotate** (T2) — rigid path transforms baked into
       `path`/`holes`; rings **freeze and fade during the drag**, one derivation on drop;
       **overlap radio, default "keep apart"** (slide back along the drag path to the last
-      position that fit). Requires the I9 rewrite first.
+      position that fit). **This landed the I9 rewrite** — the first code where a path
+      object's handles actually move geometry. Overlap resolution was generalised beyond
+      `08` §5's formulation to cover **rotation** as well as translation, because C1 does
+      not care which gesture broke it. 21 unit fixtures + driven input, 15 checks.
+      **Carve** is absent from the radio rather than disabled — it arrives with WP-17.
 - [ ] **WP-16 · Terrain resize** (T3) — scale, then **re-simplify** at the scene's
       `coastDetail` so a scaled coast keeps the point density of a hand-painted one.
 - [ ] **WP-17 · Carve a strait** — the third overlap outcome: bite a channel, then roughen

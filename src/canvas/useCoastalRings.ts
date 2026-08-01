@@ -15,13 +15,20 @@ const DEBOUNCE_MS = 150;
  * Toggling `coastalRings` off is instant and skips the work entirely — the geometry can
  * never go stale because there is no stored copy to go stale.
  *
+ * **Suspended during a terrain drag (C2).** Deriving costs 119–488 ms against a 16 ms
+ * frame, so a drag that rewrites `landmasses` on every mousemove would queue back-to-back
+ * derivations for its whole length and saturate the worker. While `suspended` the hook
+ * keeps the bands it already has and derives nothing; releasing it fires exactly one pass
+ * against the geometry as dropped. The stale bands are faded by the layer so the freeze
+ * reads as deliberate rather than broken.
+ *
  * **At most one derivation is ever in flight.** A worker task cannot be interrupted once it
  * starts, so the only way not to fall behind is to never queue work for a world that has
  * already been replaced: while one derivation runs, changes only mark the result stale, and
  * the effect re-fires with whatever is current the moment it finishes. Re-rolling the
  * generator ten times costs one derivation per completed pass, not ten queued in a row.
  */
-export function useCoastalRings(map: Size) {
+export function useCoastalRings(map: Size, suspended = false) {
   const landmasses = useEditorStore(selectLandmasses);
   const enabled = useEditorStore((s) => s.scene.settings.coastalRings);
   const ringCount = useEditorStore((s) => s.scene.settings.ringCount);
@@ -34,6 +41,9 @@ export function useCoastalRings(map: Size) {
   const sent = useRef<{ landmasses: Landmass[]; ringCount: number; ringGap: number } | null>(null);
 
   useEffect(() => {
+    // Hold, do not clear: the bands on screen are the last good ones, and clearing would
+    // make a drag look like it destroyed the rings.
+    if (suspended) return;
     if (!enabled || landmasses.length === 0) {
       setBands([]);
       sent.current = null;
@@ -70,7 +80,7 @@ export function useCoastalRings(map: Size) {
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [landmasses, enabled, ringCount, ringGap, map.w, map.h, deriving]);
+  }, [landmasses, enabled, ringCount, ringGap, map.w, map.h, deriving, suspended]);
 
-  return { bands, deriving, error };
+  return { bands, deriving, error, stale: suspended };
 }

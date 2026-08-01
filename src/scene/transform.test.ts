@@ -36,8 +36,30 @@ describe("translateObjects", () => {
     ]);
   });
 
-  it("leaves path-based objects alone", () => {
-    expect(translateObjects([land], 50, 50)[0]).toBe(land);
+  /**
+   * This used to assert that *every* path-based object came back untouched, which was
+   * invariant I9's original rule. WP-15 replaced it (decision D1): a landmass now bakes a
+   * translation into its points. Rivers keep the old behaviour until WP-20 — so the rule
+   * narrows from "path objects never move" to "path objects move only once something can
+   * actually move them", which is what I9 was protecting all along.
+   */
+  it("still leaves rivers alone — they have no transform until WP-20", () => {
+    const river: SceneObject = {
+      id: "r",
+      type: "river",
+      points: [
+        [0, 0],
+        [10, 10],
+      ],
+      width: 10,
+      taper: true,
+      z: 0,
+    };
+    expect(translateObjects([river], 50, 50)[0]).toBe(river);
+  });
+
+  it("no longer leaves landmasses alone — that is the point of WP-15", () => {
+    expect(translateObjects([land], 50, 50)[0]).not.toBe(land);
   });
 });
 
@@ -182,5 +204,117 @@ describe("bounds", () => {
         expect(box.maxY).toBeGreaterThanOrEqual(499.999);
       }
     });
+  });
+});
+
+/**
+ * WP-15 — the second interaction model. A landmass has no anchor and no rotation field
+ * (C5), so a transform has nowhere to record itself: it **bakes into the points**. These
+ * pin the properties that makes that safe — rigid means area-preserving and reversible.
+ */
+describe("path-based transforms", () => {
+  const square = (): Landmass => ({
+    id: "l1",
+    type: "landmass",
+    path: [
+      [100, 100],
+      [300, 100],
+      [300, 300],
+      [100, 300],
+    ],
+    holes: [
+      [
+        [150, 150],
+        [200, 150],
+        [200, 200],
+        [150, 200],
+      ],
+    ],
+    biome: "grassland",
+  });
+
+  const area = (ring: [number, number][]) => {
+    let sum = 0;
+    for (let i = 0; i < ring.length; i++) {
+      const [x1, y1] = ring[i];
+      const [x2, y2] = ring[(i + 1) % ring.length];
+      sum += x1 * y2 - x2 * y1;
+    }
+    return Math.abs(sum / 2);
+  };
+
+  it("translates every point of the coastline", () => {
+    const [moved] = translateObjects([square()], 40, -25) as Landmass[];
+    expect(moved.path).toEqual([
+      [140, 75],
+      [340, 75],
+      [340, 275],
+      [140, 275],
+    ]);
+  });
+
+  it("carries lakes with their parent", () => {
+    const [moved] = translateObjects([square()], 40, -25) as Landmass[];
+    expect(moved.holes[0]).toEqual([
+      [190, 125],
+      [240, 125],
+      [240, 175],
+      [190, 175],
+    ]);
+  });
+
+  it("leaves the original untouched — a drag transforms the snapshot (I6)", () => {
+    const before = square();
+    translateObjects([before], 999, 999);
+    expect(before.path[0]).toEqual([100, 100]);
+  });
+
+  it("preserves area under rotation — rigid means rigid", () => {
+    const before = square();
+    const [after] = rotateObjects([before], { x: 200, y: 200 }, 37) as Landmass[];
+    expect(area(after.path)).toBeCloseTo(area(before.path), 6);
+    expect(area(after.holes[0])).toBeCloseTo(area(before.holes[0]), 6);
+  });
+
+  it("round-trips a 360° rotation to within a scaled integer unit", () => {
+    const before = square();
+    const [after] = rotateObjects([before], { x: 173, y: 241 }, 360) as Landmass[];
+    for (const [i, [x, y]] of after.path.entries()) {
+      expect(x).toBeCloseTo(before.path[i][0], 6);
+      expect(y).toBeCloseTo(before.path[i][1], 6);
+    }
+  });
+
+  it("rotates lakes about the same origin as their parent", () => {
+    const before = square();
+    const [after] = rotateObjects([before], { x: 0, y: 0 }, 90) as Landmass[];
+    // (150,150) about the origin by 90° → (-150,150)
+    expect(after.holes[0][0][0]).toBeCloseTo(-150, 6);
+    expect(after.holes[0][0][1]).toBeCloseTo(150, 6);
+  });
+
+  it("still refuses to scale a landmass — that is WP-16, and it is destructive", () => {
+    const before = square();
+    const [after] = scaleObjects([before], { x: 0, y: 0 }, 2) as Landmass[];
+    expect(after.path).toEqual(before.path);
+  });
+
+  it("moves a landmass and a mountain by the same delta in one call", () => {
+    const mountain = {
+      id: "m",
+      type: "mountain" as const,
+      x: 10,
+      y: 20,
+      rotation: 0,
+      scale: 1,
+      z: 0,
+      variant: 0,
+    };
+    const [land, peak] = translateObjects([square(), mountain], 5, 5) as [
+      Landmass,
+      typeof mountain,
+    ];
+    expect(land.path[0]).toEqual([105, 105]);
+    expect([peak.x, peak.y]).toEqual([15, 25]);
   });
 });

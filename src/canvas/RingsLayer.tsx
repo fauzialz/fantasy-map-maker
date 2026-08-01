@@ -8,6 +8,8 @@ import type { Rect } from "./viewport";
 
 interface Props {
   bands: MultiPolygon[];
+  /** frozen mid-drag: fade them, so the staleness reads as deliberate (C2) */
+  stale?: boolean;
   cacheRect: Rect;
   cacheScale: number;
   onCacheBytes: (bytes: number) => void;
@@ -20,6 +22,7 @@ interface Props {
  */
 export const RingsLayer = memo(function RingsLayer({
   bands,
+  stale = false,
   cacheRect,
   cacheScale,
   onCacheBytes,
@@ -36,7 +39,7 @@ export const RingsLayer = memo(function RingsLayer({
   });
 
   return (
-    <Layer ref={ref} listening={false}>
+    <Layer ref={ref} listening={false} opacity={stale ? 0.25 : 1}>
       <Shape
         listening={false}
         sceneFunc={(context) => drawRings(context as unknown as DrawContext, bands)}

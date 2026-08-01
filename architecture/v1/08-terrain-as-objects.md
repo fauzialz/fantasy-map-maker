@@ -114,7 +114,7 @@ returns nothing for a point in a lake · returns the island for a point on an is
 lake · marquee containment accepts a fully-enclosed landmass and rejects a partly-covered
 one.
 
-### T2 · WP-15 — Move & rotate  *(rigid; where the overlap policy lands)*
+### T2 · WP-15 — Move & rotate  *(rigid; where the overlap policy lands)*  — **built**
 
 **Scope.** Handles appear. Move and rotate the selection; both bake into `path`/`holes`.
 
@@ -181,6 +181,13 @@ nobody dragged, and nudging out of A can push into C without converging.
 **The formulation that works: slide back along the drag path** to the last position that
 fit. Binary-search the drag vector, ~10 overlap tests at a few ms each, on drop only.
 Deterministic, convergent, and it reads as "it slid back to where it last fit."
+
+**Generalised in WP-15 from "the drag vector" to "the gesture".** Rotation can bury a
+landmass in its neighbour exactly as a translation can, and C1 does not care which one did
+it. So the resolver takes the **snapshot plus a described gesture** — `{move, delta}` or
+`{rotate, origin, degrees}` — and replays it at fraction *t* using the very transforms the
+drag used, searching *t* instead of a vector. A rotation therefore walks its angle back to
+the last orientation that fit, which reads the same way.
 
 ### Carve a strait — best-looking, most dangerous  *(WP-17)*
 ```

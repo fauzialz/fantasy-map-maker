@@ -2,6 +2,7 @@ import type { Landmass } from "../../scene/types";
 import type { GenerateRequest, GenerateResult } from "../generator/generate";
 import type { MultiPolygon } from "../geometry/types";
 import type { DeriveRings } from "../rings/rings";
+import type { ResolveDrop, DropResult } from "../terrain/overlap";
 import type { TerrainCommit } from "../terrain/pipeline";
 
 /**
@@ -18,6 +19,8 @@ export interface GeometryOps {
   deriveRings: { payload: DeriveRings; result: { bands: MultiPolygon[] } };
   /** Pipeline B: noise fields → mask → terrain → biomes → scatter, all in one round-trip. */
   generate: { payload: GenerateRequest; result: GenerateResult };
+  /** WP-15: what a dragged landmass does when it lands on another (C1 must hold at rest). */
+  resolveDrop: { payload: ResolveDrop; result: DropResult };
 }
 
 export type Op = keyof GeometryOps;

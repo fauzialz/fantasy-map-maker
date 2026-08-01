@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createEmptyScene } from "../scene/scene";
 import { ICON_KINDS } from "../sprites/registry";
 import type { GenerateResult } from "../engine/generator/generate";
+import type { OverlapPolicy } from "../engine/terrain/overlap";
 import type {
   Biome,
   CanvasPreset,
@@ -58,6 +59,16 @@ interface EditorState {
   iconKind: string;
   /** biome the terrain brush paints (D6). Session state — the scene stores it per landmass. */
   terrainBiome: Biome;
+  /**
+   * What a dragged landmass does when it lands on another (ADR-25, D3). Read at *drop*
+   * time, never asked as a modal: a dialog appears after the press, so the pointer could
+   * not promise the outcome (C6), and it would repeat for every nudge.
+   *
+   * Default "apart" because a default is what happens when nobody chose, so it has to be
+   * the outcome that cannot lose work — merge fuses two objects into one and an id
+   * disappears, while sliding back changes only a position.
+   */
+  overlapPolicy: OverlapPolicy;
   /** font size for the next label, in map units */
   labelSize: number;
   /** width of the next river at its mouth, in map units */
@@ -84,6 +95,7 @@ interface EditorState {
   setObjectTool: (tool: ObjectTool) => void;
   setIconKind: (kind: string) => void;
   setTerrainBiome: (biome: Biome) => void;
+  setOverlapPolicy: (policy: OverlapPolicy) => void;
   setLabelSize: (size: number) => void;
   setRiverWidth: (width: number) => void;
   setRiverTaper: (taper: boolean) => void;
@@ -144,6 +156,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   objectTool: "scatter",
   iconKind: ICON_KINDS[0],
   terrainBiome: "grassland",
+  overlapPolicy: "apart",
   labelSize: 96,
   riverWidth: 26,
   riverTaper: true,
@@ -174,6 +187,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setObjectTool: (objectTool) => set({ objectTool }),
   setIconKind: (iconKind) => set({ iconKind }),
   setTerrainBiome: (terrainBiome) => set({ terrainBiome }),
+  setOverlapPolicy: (overlapPolicy) => set({ overlapPolicy }),
   setLabelSize: (labelSize) => set({ labelSize }),
   setRiverWidth: (riverWidth) => set({ riverWidth }),
   setRiverTaper: (riverTaper) => set({ riverTaper }),

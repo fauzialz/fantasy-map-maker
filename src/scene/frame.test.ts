@@ -107,20 +107,54 @@ describe("frameOf", () => {
     });
   });
 
+  const land: SceneObject = {
+    id: "l",
+    type: "landmass",
+    path: [
+      [0, 0],
+      [10, 0],
+      [10, 10],
+    ],
+    holes: [],
+    biome: "grassland",
+  };
+
   it("has no frame without selectable objects", () => {
     expect(frameOf([])).toBeUndefined();
-    const land: SceneObject = {
-      id: "l",
-      type: "landmass",
-      path: [
+    // A river is still frameless — it has no transform behind the handles until WP-20.
+    const river: SceneObject = {
+      id: "r",
+      type: "river",
+      points: [
         [0, 0],
-        [10, 0],
-        [10, 10],
+        [5, 5],
       ],
-      holes: [],
-      biome: "grassland",
+      width: 8,
+      taper: false,
+      z: 0,
     };
-    expect(frameOf([land])).toBeUndefined();
+    expect(frameOf([river])).toBeUndefined();
+  });
+
+  /**
+   * This asserted the opposite until WP-15. Landmasses were excluded from the frame because
+   * `translateObjects` refused to move them, and a frame whose handles do nothing is the
+   * defect I9 exists to prevent. Now the transforms behind those handles work, so the frame
+   * is honest — which is the precondition `08` §7 puts on the rewrite.
+   */
+  it("frames a landmass, measured over its coastline", () => {
+    const frame = frameOf([land]);
+    expect(frame).toBeDefined();
+    expect(frame!.width).toBe(10);
+    expect(frame!.height).toBe(10);
+    expect([frame!.cx, frame!.cy]).toEqual([5, 5]);
+  });
+
+  it("gives a landmass the session angle, not one of its own", () => {
+    // Land has no `rotation` field (C5), so a lone landmass measures in the supplied basis
+    // exactly as a group does — every new selection therefore starts upright (I7).
+    expect(frameOf([land], 0)!.rotation).toBe(0);
+    expect(frameOf([land], 40)!.rotation).toBe(40);
   });
 
   it("covers mountains too", () => {

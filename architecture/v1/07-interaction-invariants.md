@@ -160,28 +160,34 @@ tool; handing it a footprint instead would hang scale handles off geometry that
 silently does nothing. When adding an object type, the first question is which side of
 this predicate it falls on.
 
-> **Rewrite accepted; the first code that makes it true is WP-20, not WP-15.**
-> `08-terrain-as-objects.md` §7 replaces I9 with a two-model version, so path-based objects
-> can be selected and transformed by path rather than by footprint. That was decision **D1**,
-> now **settled yes** (ADR-28). **The text above still governs the code until a package ships
-> transforms that actually move a path object** — swapping it earlier would describe a model
-> nothing implements.
+> **Rewritten, and now true of the code — WP-15 landed it.** `08-terrain-as-objects.md` §7
+> replaces I9 with a two-model version, and decision **D1** settled it yes (ADR-28). The
+> precondition was always "once the transforms behind those handles actually move geometry";
+> WP-15 is where that became true, so the replacement text now governs:
 >
-> **That package is now WP-20, rivers** (ADR-29), sequenced ahead of both WP-15 and WP-19
-> because every transform is lossless on a river: they overlap deliberately, never get rings,
-> and carry the user's own control points rather than a simplified coast. The model gets
-> debugged where a mistake costs a misplaced river.
+> > **I9 — Two interaction models, and which one an object belongs to.**
+> > Objects with an anchor and a drawn box (`hasFootprint`: sprites, labels) are hit-tested by
+> > their box, indexed in rbush by AABB, and transformed about their anchor. Path-based
+> > objects have absolute geometry: they are hit-tested **by their path**, and transforms
+> > **bake into their points**. Both models may present the same frame and handles — but only
+> > once the transforms behind those handles actually move the geometry. A frame that promises
+> > a drag the transform refuses is the defect this invariant exists to prevent. When adding an
+> > object type, decide which model it uses before drawing anything.
 >
-> **Rules waiting in `09-selection-across-layers.md`, not added here yet:** a river's control
-> points outrank the frame's handles; **frame shape is not hit shape** — the box draws the
-> selection and takes *no* press, which includes I5's frame-interior move rung, so a
-> corner-to-corner river's mostly-empty box never steals a marquee; the cursor resolves that
-> identical precedence, because a pointer promising a move where a press marquees is **bug #2
-> with the parts swapped**; footprint wins a click over land; the marquee is intersection for
-> footprint and containment for land; and a drag applies **one resolved delta** to the whole
-> selection, because "keep apart" can move a landmass less far than it was dragged. They live
-> there rather than here because this file records rules **proven by a bug or a driver** — they
-> graduate into this list once WP-20 and WP-19 have earned them.
+> **Landmasses are on the second model; rivers are still on neither** — they are selectable but
+> have no transform until WP-20, so they get no frame. `scaleObjects` still refuses land, which
+> is the invariant doing its job: scaling a coast invalidates the epsilon it was simplified at
+> (C3), so the handle stays inert until WP-16 makes it honest.
+>
+> **ADR-29 planned rivers as the pilot for this**, on the grounds that every transform is
+> lossless on a river. That is still true and still the reason WP-20 is cheap — but WP-15 was
+> built first, so land, not rivers, is where the model got debugged.
+>
+> **Rules still waiting in `09-selection-across-layers.md`:** a river's control points outrank
+> the frame's handles; the box takes *no* press, including I5's frame-interior rung; the cursor
+> resolves that identical precedence; and the marquee is intersection for footprint and
+> containment for land — **that last one has now shipped** with WP-14. They graduate into this
+> list once WP-20 and WP-19 have earned them.
 
 ---
 

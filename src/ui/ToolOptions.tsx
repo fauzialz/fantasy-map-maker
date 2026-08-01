@@ -53,6 +53,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const record = useEditorStore((s) => s.record);
   const terrainBiome = useEditorStore((s) => s.terrainBiome);
   const setTerrainBiome = useEditorStore((s) => s.setTerrainBiome);
+  const overlapPolicy = useEditorStore((s) => s.overlapPolicy);
+  const setOverlapPolicy = useEditorStore((s) => s.setOverlapPolicy);
 
   const onTerrain = activeLayerId === "terrain";
   const tools = LAYER_TOOLS[activeLayerId];
@@ -242,6 +244,37 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
               />
             </label>
           )}
+        </>
+      )}
+
+      {(onTerrain || selectedLand.length > 0) && (
+        <>
+          <p className={panelTitle()}>On overlap</p>
+          <div className={segment()}>
+            {(["apart", "merge"] as const).map((policy) => (
+              <button
+                key={policy}
+                type="button"
+                data-overlap={policy}
+                className={toolButton({ active: overlapPolicy === policy })}
+                onClick={() => setOverlapPolicy(policy)}
+              >
+                {policy === "apart" ? "keep apart" : "merge"}
+              </button>
+            ))}
+          </div>
+          {/*
+            Read at drop time, never asked as a modal: a dialog appears *after* the press,
+            so the pointer could not promise the outcome (C6), and it would fire again on
+            every nudge. "Carve a strait" is the third outcome and arrives with WP-17 — it
+            is absent rather than disabled, because a control that does nothing is the thing
+            I9 exists to prevent.
+          */}
+          <p className={hint()}>
+            {overlapPolicy === "apart"
+              ? "A drop that lands on other land slides back along the drag to where it last fit."
+              : "A drop that lands on other land fuses with it — the larger piece keeps its name."}
+          </p>
         </>
       )}
 

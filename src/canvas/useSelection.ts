@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { callGeometry } from "../engine/worker/client";
+import type { DropGesture } from "../engine/terrain/overlap";
 import { hasFootprint, landmassAt, landmassBounds, type Bounds } from "../scene/bounds";
 import { frameOf } from "../scene/frame";
 import { rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
 import type { Landmass, Layer as SceneLayer, Point, Scene, SceneObject } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
+import { useToastStore } from "../state/toastStore";
 import { resolveGesture } from "./gesture";
 import { cursorForHandle, cursorForHover, type Handle } from "./handles";
 import { SpatialIndex } from "./spatialIndex";
@@ -36,7 +39,7 @@ const layersHolding = (layers: SceneLayer[], ids: Set<string>) =>
   layers.filter((layer) => layer.objects.some((object) => ids.has(object.id)));
 
 type Drag =
-  | { kind: "move"; start: Point; snapshot: SceneObject[] }
+  | { kind: "move"; start: Point; snapshot: SceneObject[]; gesture?: DropGesture }
   | {
       kind: "scale" | "rotate";
       /** the handle the drag started on, so its cursor survives the whole drag */
@@ -46,6 +49,7 @@ type Drag =
       start: Point;
       origin: Point;
       snapshot: SceneObject[];
+      gesture?: DropGesture;
     }
   | { kind: "marquee"; start: Point; additive: boolean };
 
@@ -189,6 +193,76 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
     [frame, enabled, index, objects, scale, toMapPoint],
   );
 
+  /**
+   * The drop, once land was part of the drag.
+   *
+   * Two things have to be true when this finishes. **C1**: no landmass overlaps another,
+   * or `z`, draw order and a topmost hit rule all come back (`08` §3). And **one resolved
+   * delta for the whole selection**: "keep apart" can move a landmass less far than it was
+   * dragged, so a mountain dragged alongside it must travel the same reduced distance or it
+   * ends up standing in the sea.
+   */
+  const resolveTerrainDrop = useCallback(
+    async (
+      before: Scene,
+      movedLand: Landmass[],
+      snapshot: SceneObject[],
+      gesture: DropGesture,
+      label: string,
+    ) => {
+      const state = useEditorStore.getState();
+      const movedIds = new Set(movedLand.map((landmass) => landmass.id));
+      const others = landmassesIn(
+        state.scene.layers.find((layer) => layer.id === "terrain")?.objects ?? [],
+      ).filter((landmass) => !movedIds.has(landmass.id));
+
+      try {
+        const result = await callGeometry("resolveDrop", {
+          snapshot: movedLand,
+          others,
+          gesture,
+          policy: state.overlapPolicy,
+        });
+        const store = useEditorStore.getState();
+        store.setLandmasses(result.landmasses);
+
+        // Everything else in the drag rides the *resolved* fraction, not the dragged one.
+        if (result.fraction < 1) {
+          const rest = snapshot.filter((object) => object.type !== "landmass");
+          if (rest.length > 0) {
+            const scaled =
+              gesture.kind === "move"
+                ? translateObjects(
+                    rest,
+                    gesture.delta[0] * result.fraction,
+                    gesture.delta[1] * result.fraction,
+                  )
+                : rotateObjects(rest, gesture.origin, gesture.degrees * result.fraction);
+            const patched = new Map(scaled.map((object) => [object.id, object]));
+            for (const layer of layersHolding(store.scene.layers, new Set(patched.keys()))) {
+              store.setLayerObjects(
+                layer.id,
+                layer.objects.map((object) => patched.get(object.id) ?? object),
+              );
+            }
+          }
+        }
+
+        if (result.merged)
+          useToastStore.getState().show("Landmasses merged — the larger piece kept its name");
+        else if (result.fraction < 1)
+          useToastStore.getState().show("Slid back to where it last fit");
+      } catch (err) {
+        useToastStore.getState().show(`Drop failed: ${(err as Error).message}`);
+      } finally {
+        // One step either way, and only after the resolution — otherwise undo would step
+        // back to the unresolved position and leave land overlapping.
+        useEditorStore.getState().commit(before, label);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!dragging) return;
 
@@ -208,7 +282,10 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       }
 
       if (current.kind === "move") {
-        apply(translateObjects(current.snapshot, x - current.start[0], y - current.start[1]));
+        const dx = x - current.start[0];
+        const dy = y - current.start[1];
+        current.gesture = { kind: "move", delta: [dx, dy] };
+        apply(translateObjects(current.snapshot, dx, dy));
         return;
       }
 
@@ -223,6 +300,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       const before = Math.atan2(current.start[1] - oy, current.start[0] - ox);
       const after = Math.atan2(y - oy, x - ox);
       const degrees = ((after - before) * 180) / Math.PI;
+      current.gesture = { kind: "rotate", origin: { x: ox, y: oy }, degrees };
       apply(rotateObjects(current.snapshot, { x: ox, y: oy }, degrees));
       // The frame turns with the group. A single object's frame reads its own rotation,
       // so this only matters for a multi-selection.
@@ -255,10 +333,18 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       // nothing to diff and commits no step.
       const before = pending.current;
       pending.current = null;
-      if (before)
-        useEditorStore
-          .getState()
-          .commit(before, current?.kind === "marquee" ? "select" : (current?.kind ?? "move"));
+      const label = current?.kind === "marquee" ? "select" : (current?.kind ?? "move");
+      // A marquee has no gesture and no snapshot; only a move or a transform can move land.
+      const transform = current && current.kind !== "marquee" ? current : undefined;
+      const movedLand = transform?.gesture ? landmassesIn(transform.snapshot) : [];
+
+      if (before && transform?.gesture && movedLand.length > 0) {
+        // C1 has to hold at rest, so a drop that lands on other land resolves before it
+        // commits. One worker round-trip on drop — never per frame.
+        void resolveTerrainDrop(before, movedLand, transform.snapshot, transform.gesture, label);
+      } else if (before) {
+        useEditorStore.getState().commit(before, label);
+      }
 
       drag.current = null;
       setMarquee(null);
@@ -271,7 +357,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", stop);
     };
-  }, [dragging, apply, index, marquee, objects, toMapPoint]);
+  }, [dragging, apply, index, marquee, objects, resolveTerrainDrop, toMapPoint]);
 
   // Delete removes the selection; Escape drops it.
   useEffect(() => {
@@ -318,6 +404,8 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
     selection,
     /** Selected landmasses, which draw as an outline rather than entering the frame. */
     landmasses: selectedLandmasses,
+    /** True while land is being dragged — rings suspend and fade for the duration (C2). */
+    movingLand: dragging && selectedLandmasses.length > 0,
     count: selected.length,
     /** what the pointer should look like right now, or undefined to fall back */
     cursor: dragging ? dragCursor : hoverCursor,

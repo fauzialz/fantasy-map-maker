@@ -333,6 +333,12 @@ frame-interior move rung, which is where the distinction is easiest to lose. Not
 is traded away: the box is added and takes nothing over. ADR-14 is untouched — rivers keep
 their own spline tool for drawing and point editing; this only adds a second way to move the
 whole thing.
+**Superseded in part, by events:** WP-15 (terrain move & rotate) was built before WP-20, so
+**land, not rivers, is where the two-model frame got debugged**. The reasoning above still
+holds and is still why WP-20 is cheap — every transform is lossless on a river — but it is no
+longer the pilot. What WP-15 proved carries over: the frame generalises over both models, and
+overlap resolution had to be generalised from "the drag vector" to "the gesture" so rotation
+resolves too.
 **Rejected:** picking a river by its bounding box (C4's mistake, on an object whose AABB is
 almost all water); **letting the frame interior claim presses for a path-only selection** —
 drafted first as ordinary vector-editor behaviour with shift as the escape, and rejected on

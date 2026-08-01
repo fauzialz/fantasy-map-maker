@@ -1,4 +1,4 @@
-import { boundsCenter, boundsOf, hasFootprint, objectCorners, rotatePoint } from "./bounds";
+import { hasFootprint, isFramed, objectCorners, rotatePoint, worldCorners } from "./bounds";
 import type { Point, SceneObject } from "./types";
 
 /**
@@ -24,11 +24,13 @@ export interface Frame {
  * lives only as long as the selection does.
  */
 export function frameOf(objects: SceneObject[], rotation = 0): Frame | undefined {
-  const sprites = objects.filter(hasFootprint);
-  if (sprites.length === 0) return undefined;
+  const framed = objects.filter(isFramed);
+  if (framed.length === 0) return undefined;
 
-  if (sprites.length === 1) {
-    const object = sprites[0];
+  // A lone sprite keeps its own angle. A landmass has no `rotation` field to keep (C5), so
+  // even one on its own measures in the session basis, the way a group does.
+  if (framed.length === 1 && hasFootprint(framed[0])) {
+    const object = framed[0];
     const corners = objectCorners(object);
     const [left, top] = corners[0];
     const [right, bottom] = corners[2];
@@ -43,19 +45,6 @@ export function frameOf(objects: SceneObject[], rotation = 0): Frame | undefined
     };
   }
 
-  if (rotation === 0) {
-    const bounds = boundsOf(sprites);
-    if (!bounds) return undefined;
-    const centre = boundsCenter(bounds);
-    return {
-      cx: centre.x,
-      cy: centre.y,
-      width: bounds.maxX - bounds.minX,
-      height: bounds.maxY - bounds.minY,
-      rotation: 0,
-    };
-  }
-
   /**
    * Measure the group in the frame's own basis rather than the world's: un-rotate every
    * corner by the frame angle, take the box there, and carry it back. Rotating an
@@ -66,16 +55,16 @@ export function frameOf(objects: SceneObject[], rotation = 0): Frame | undefined
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const object of sprites) {
-    for (const corner of objectCorners(object)) {
-      const [dx, dy] = rotatePoint(corner, object.rotation);
-      const [lx, ly] = rotatePoint([object.x + dx, object.y + dy], -rotation);
+  for (const object of framed) {
+    for (const point of worldCorners(object)) {
+      const [lx, ly] = rotatePoint(point, -rotation);
       minX = Math.min(minX, lx);
       minY = Math.min(minY, ly);
       maxX = Math.max(maxX, lx);
       maxY = Math.max(maxY, ly);
     }
   }
+  if (minX === Infinity) return undefined;
 
   const [cx, cy] = rotatePoint([(minX + maxX) / 2, (minY + maxY) / 2], rotation);
   return { cx, cy, width: maxX - minX, height: maxY - minY, rotation };

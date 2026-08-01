@@ -159,7 +159,14 @@ export function MapStage({ editing }: { editing?: Label }) {
 
   const brushSize = useEditorStore((s) => s.brushSize);
   const terrainTool = useEditorStore((s) => s.terrainTool);
-  const rings = useCoastalRings(map);
+  /**
+   * Ring derivation costs 119–488 ms against a 16 ms frame (C2), so it cannot track a
+   * drag. Declared before the hooks that need it and filled in by the selection below —
+   * the alternative is a drag that queues a derivation per mousemove and saturates the
+   * worker for its whole length.
+   */
+  const [movingLand, setMovingLand] = useState(false);
+  const rings = useCoastalRings(map, movingLand);
   /** A locked layer accepts no *creation* tool — that is what the lock means for making. */
   const unlocked = !scene.layers.find((l) => l.id === activeLayerId)?.locked;
   const ready = !spaceHeld && !draft;
@@ -190,6 +197,8 @@ export function MapStage({ editing }: { editing?: Label }) {
     scale: vp?.scale ?? 1,
     toMapPoint,
   });
+  useEffect(() => setMovingLand(selection.movingLand), [selection.movingLand]);
+
   // Rivers are path-based, so they sit outside the anchor-based selection stack and drive
   // their own tool (ADR-14) — drawn point by point, reshaped by their control points.
   const river = useRiverTool({
@@ -381,6 +390,7 @@ export function MapStage({ editing }: { editing?: Label }) {
           <BackgroundLayer map={map} parchment={scene.settings.parchment} />
           <RingsLayer
             bands={rings.bands}
+            stale={rings.stale}
             cacheRect={cache.rect}
             cacheScale={cache.scale}
             onCacheBytes={onRingBytes}
@@ -458,6 +468,7 @@ export function MapStage({ editing }: { editing?: Label }) {
         {undoDepth > 0 && <span>{undoDepth} undo</span>}
         {!unlocked && <span className="mbf:text-note">{activeLayerId} locked</span>}
         {brush.committing && <span>vectorising…</span>}
+        {rings.stale && <span className="mbf:text-note">rings frozen — they follow on drop</span>}
         {rings.deriving && <span>deriving rings…</span>}
         {brush.error && <span className="mbf:text-danger">{brush.error}</span>}
         {rings.error && <span className="mbf:text-danger">rings failed: {rings.error}</span>}

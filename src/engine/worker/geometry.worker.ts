@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import { generateWorld } from "../generator/generate";
+import { resolveDrop } from "../terrain/overlap";
 import { deriveRings } from "../rings/rings";
 import { terrainCommit } from "../terrain/pipeline";
 import type { GeometryOps, Op, WorkerRequest, WorkerResponse } from "./protocol";
@@ -13,6 +14,7 @@ const handlers: Handlers = {
   terrainCommit: (payload) => ({ landmasses: terrainCommit(payload) }),
   deriveRings: (payload) => ({ bands: deriveRings(payload) }),
   generate: (payload) => generateWorld(payload),
+  resolveDrop: (payload) => resolveDrop(payload),
 };
 
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {

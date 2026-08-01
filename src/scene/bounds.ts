@@ -117,6 +117,30 @@ export const boundsContainPoint = (bounds: Bounds, x: number, y: number): boolea
   x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
 
 /**
+ * Every point that has to be inside the selection frame, in **world space**.
+ *
+ * The two interaction models meet here (I9, rewritten by WP-15). A footprint object
+ * contributes the four corners of its artwork, carried out through its own rotation. A
+ * landmass contributes its coastline itself — not its box, because a box's corners rotate
+ * into the wrong place: measuring a group at an angle un-rotates these points into the
+ * frame's basis (I7), and an AABB corner is not a point on the shape.
+ */
+export function worldCorners(object: SceneObject): [number, number][] {
+  if (hasFootprint(object)) {
+    return objectCorners(object).map((corner) => {
+      const [dx, dy] = rotatePoint(corner, object.rotation);
+      return [object.x + dx, object.y + dy];
+    });
+  }
+  // Holes are inside the outer ring by construction, so they cannot widen the box.
+  return object.type === "landmass" ? object.path : [];
+}
+
+/** Anything a selection frame can be drawn around — the union of both models. */
+export const isFramed = (object: SceneObject): boolean =>
+  hasFootprint(object) || object.type === "landmass";
+
+/**
  * Which landmass covers this point, if any — the path-based half of the two interaction
  * models (I9). Promoted here from the generator's scatter, because selection needs the same
  * question the scatter asks: is this point on land?
