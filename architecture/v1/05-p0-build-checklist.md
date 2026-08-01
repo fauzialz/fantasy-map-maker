@@ -102,8 +102,10 @@ needs WP-13's real UI, and it rewrites interaction invariant I9). **D1 is now se
   ≥20%-area-remains guard so a small landmass is never erased.
 
 **Batch 2 — selection across layers.** The Select tool stops being scoped to the active
-layer, and the toolbar stops presenting a pointer mode as a peer of the six layers. Design in
-`09-selection-across-layers.md`, decided in **ADR-28**. Every decision it needed is taken.
+layer, the toolbar stops presenting a pointer mode as a peer of the six layers, and path-based
+objects gain the same frame sprites have. Design in `09-selection-across-layers.md`, decided
+in **ADR-28** and **ADR-29**. Every decision it needed is taken.
+**Build order is WP-18 → WP-20 → WP-19**, which is not numeric.
 
 - [x] **WP-18 · Selection, unlinked from the layer** — toolbar splits into mode / create
   groups; Select hit-tests every **visible, unlocked** layer at once and is never disabled;
@@ -112,7 +114,13 @@ layer, and the toolbar stops presenting a pointer mode as a peer of the six laye
   Terrain. Verified by driven input, 16 checks — cross-layer membership proved from the
   layer panel's own counts rather than asserted. **Measured**: after subtracting 62 ms of
   harness, a drag costs ~6 ms for 756 objects in one layer and ~23 ms for 957 across four.
-- [ ] **WP-19 · Terrain joins the selection** (needs WP-17 **and** WP-18) — one frame over
+- [ ] **WP-20 · Rivers gain a frame** — the two-model pilot, and **the next one to build**.
+  A selected river draws the ordinary frame *and* keeps its control points; `objectBounds`
+  and `frameOf` grow a path branch; `transform.ts` stops refusing to move path objects;
+  **scale multiplies `width`** too. Picking stays path-based — the box is feedback, never a
+  hit target. Chosen to go first because every constraint that makes WP-19 hard is absent:
+  rivers overlap deliberately, never get rings, and scale losslessly. Blocked on nothing.
+- [ ] **WP-19 · Terrain joins the selection** (needs WP-17 **and** WP-20) — one frame over
   land and sprites, honest only once WP-16 makes every handle move geometry; WP-14's
   coastline highlight stays, additive; footprint wins the click over land; the marquee is
   asymmetric on purpose; double-click a landmass to take its contents too. **The risk is one

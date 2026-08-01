@@ -143,20 +143,25 @@ tool; handing it a footprint instead would hang scale handles off geometry that
 silently does nothing. When adding an object type, the first question is which side of
 this predicate it falls on.
 
-> **Rewrite accepted, lands with WP-15.** `08-terrain-as-objects.md` §7 replaces I9 with a
-> two-model version, so landmasses can be selected and transformed by path rather than by
-> footprint. That was decision **D1**, and it is now **settled yes** (ADR-28) — a shared frame
-> over land and sprites is precisely what two models licenses. **The text above still governs
-> the code until WP-15 ships the transforms that make the second model true**; swapping it
-> before then would describe a model nothing implements. WP-14 needs no change here.
+> **Rewrite accepted; the first code that makes it true is WP-20, not WP-15.**
+> `08-terrain-as-objects.md` §7 replaces I9 with a two-model version, so path-based objects
+> can be selected and transformed by path rather than by footprint. That was decision **D1**,
+> now **settled yes** (ADR-28). **The text above still governs the code until a package ships
+> transforms that actually move a path object** — swapping it earlier would describe a model
+> nothing implements.
 >
-> **Related, and not yet built: `09-selection-across-layers.md`.** WP-18 unbinds selection
-> from the active layer, and WP-19 puts land and sprites in one selection. Three rules come
-> with them — footprint wins a click over land, the marquee is intersection for footprint and
-> containment for land, and a drag applies **one resolved delta** to the whole selection
-> because "keep apart" can move a landmass less far than it was dragged. They are specified
-> in `09` rather than added here, because this file records rules that have been *proven* by
-> a bug or a driver; they graduate into this list once WP-18 and WP-19 have earned them.
+> **That package is now WP-20, rivers** (ADR-29), sequenced ahead of both WP-15 and WP-19
+> because every transform is lossless on a river: they overlap deliberately, never get rings,
+> and carry the user's own control points rather than a simplified coast. The model gets
+> debugged where a mistake costs a misplaced river.
+>
+> **Rules waiting in `09-selection-across-layers.md`, not added here yet:** a river's control
+> points outrank the frame's handles; **frame shape is not hit shape** (the box draws the
+> selection, the path picks it); footprint wins a click over land; the marquee is intersection
+> for footprint and containment for land; and a drag applies **one resolved delta** to the
+> whole selection, because "keep apart" can move a landmass less far than it was dragged. They
+> live there rather than here because this file records rules **proven by a bug or a driver** —
+> they graduate into this list once WP-20 and WP-19 have earned them.
 
 ---
 

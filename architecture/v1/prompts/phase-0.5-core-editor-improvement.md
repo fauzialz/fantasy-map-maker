@@ -139,11 +139,13 @@ carve that would erase what the user just dragged falls back to "keep apart".
 
 ---
 
-## Batch 2 — Selection across layers (WP-18, WP-19)
+## Batch 2 — Selection across layers (WP-18, WP-20, WP-19)
 
-**Design:** `../09-selection-across-layers.md` — read it in full. **Decision:** ADR-28.
-**Prerequisite:** WP-13 for WP-18 (it regroups the toolbar WP-13 built); **WP-17 and WP-18**
-for WP-19.
+**Design:** `../09-selection-across-layers.md` — read it in full. **Decisions:** ADR-28,
+ADR-29. **Build order is WP-18 → WP-20 → WP-19, which is not numeric** — WP-20 was decided
+after WP-19 was written down and belongs before it.
+**Prerequisite:** WP-13 for WP-18 (it regroups the toolbar WP-13 built); nothing for WP-20;
+**WP-17 and WP-20** for WP-19.
 
 **Settle first:** nothing. Every decision this batch needed was taken in the review that
 produced `09` — see its §6, which records the rejected alternatives too.
@@ -174,11 +176,33 @@ object**; Erase keeps its behaviour and relabels itself **"Sea brush"** on Terra
   drag frame time with a selection spanning four layers, recorded with its object count ·
   driven input, not a screenshot.
 
+### WP-20 · Rivers gain a frame — *the two-model pilot, build before WP-19*
+A selected river draws the ordinary frame **and** keeps its control points. `objectBounds`
+and `frameOf` grow a path branch; `transform.ts` stops returning path objects untouched;
+**scale multiplies `width`** as well as the points. Picking stays path-based — the box is
+feedback, never a hit target (S8).
+
+**Why this one first.** Every constraint that makes WP-19 hard is absent: rivers overlap
+deliberately (no overlap policy, so **no shared-delta problem**), never get rings (nothing to
+freeze), and carry the user's own control points rather than a simplified coast (**scale is
+lossless**). All three transforms are lossless on a river — the only type in the scene where
+that holds — so this is where the two-model frame gets debugged.
+
+**The rung to get right:** a river's **control points outrank the frame's handles**. They
+collide at the ends, because an endpoint is usually what defines the corner a handle sits on.
+
+- **Acceptance:** a selected river shows a frame *and* its points, and dragging a point still
+  reshapes rather than moves · dragging inside the frame moves it rigidly as one undo step ·
+  a 360° rotation round-trips · scaling 2× doubles the drawn width as well as the length · a
+  river and the mountains along it select and move together · shift still starts a marquee
+  inside the frame's box · driven input.
+
 ### WP-19 · Terrain joins the selection
 One frame over land and sprites, which is only honest once WP-16 makes every handle move
-geometry. WP-14's coastline highlight stays, **additive** to the frame. Hit precedence is
-footprint first, landmass as fallback; the marquee is asymmetric on purpose — intersection for
-sprites, containment for land; a double-click on a landmass selects it and its contents.
+geometry — and on the model WP-20 has already proved on rivers. WP-14's coastline highlight
+stays, **additive** to the frame. Hit precedence is footprint first, landmass as fallback; the
+marquee is asymmetric on purpose — intersection for sprites, containment for land; a
+double-click on a landmass selects it and its contents.
 
 **The risk sits in one item:** overlap resolution runs first and its **resolved delta** goes to
 every object in the drag, or the mountains end up off the land they were standing on.

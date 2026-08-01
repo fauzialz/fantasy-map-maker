@@ -1,7 +1,8 @@
 # Selection Across Layers — One Select Tool, Two Interaction Models
 
 _Design document for **Batch 2** of `prompts/phase-0.5-core-editor-improvement.md`,
-scheduled as **WP-18** and **WP-19**. Decision recorded in **ADR-28**._
+scheduled as **WP-18**, **WP-20** and **WP-19** — in that build order, which is not numeric.
+Decisions recorded in **ADR-28** and **ADR-29**._
 
 ---
 
@@ -23,8 +24,9 @@ Select is orthogonal to all six. Presenting it as the seventh sibling is why it 
 oddly, and why "disabled on Terrain" feels arbitrary rather than principled.
 
 **This batch separates the axes and unbinds selection from the active layer.** WP-18 does it
-for everything with a footprint. WP-19 brings landmasses in, once WP-14…WP-17 have made them
-transformable.
+for everything with a footprint. WP-20 then extends the frame to the first path-based type —
+rivers, the one where every transform is lossless — and WP-19 brings landmasses in on the
+model WP-20 proved, once WP-14…WP-17 have made them transformable.
 
 ## 2. Why this is mostly *removing* a restriction
 
@@ -58,7 +60,8 @@ Four things make WP-18 small:
 | **S4** | Layer order is **fixed** and z-order is **within-layer**. Cross-layer z is meaningless by design, so bring-forward / send-back apply per layer independently. | ADR-15 |
 | **S5** | Land never overlaps land, so a drop can resolve to a **different delta than the one dragged** — "keep apart" slides the landmass back along the drag path. | ADR-10/11, `08` C1 |
 | **S6** | The pointer must promise exactly what the press will do. A frame with handles that move only part of the selection is the defect I9 exists to prevent. | I4, I9, `08` C6 |
-| **S7** | `translateObjects` and friends deliberately return path-based objects **untouched** — "so a selection can never silently deform terrain". Until WP-15/WP-16 replace that, a landmass in a selection is a landmass that will not move. | [transform.ts:9](../../src/scene/transform.ts#L9) |
+| **S7** | `translateObjects` and friends deliberately return path-based objects **untouched** — "so a selection can never silently deform terrain". **WP-20 is what replaces this**, for rivers first; until then a path object in a selection is one that will not move. | [transform.ts:9](../../src/scene/transform.ts#L9) |
+| **S8** | A frame's shape and an object's hit shape are **different things**. An AABB over a meandering path is mostly empty space, so a box may draw the selection but must never pick it. | `08` C4, WP-20 |
 
 ## 4. The packages
 
@@ -96,6 +99,59 @@ land before, after, or between its packages.
   when the selection is all labels · bring-forward on a mixed selection restacks each object
   **within its own layer** · **measured**: drag frame time with a selection spanning four
   layers, recorded with its object count. Driven input, not a screenshot.
+
+### WP-20 · Rivers gain a frame  *(the two-model pilot — build this before WP-19)*
+
+Numbered after WP-19 because it was decided later; **sequenced before it**, because it is
+the same machinery on the object type with none of the hazards. Blocked on nothing — D1 is
+settled and WP-18 has landed.
+
+**Why rivers are the cheap case.** Every constraint that makes WP-19 hard is absent:
+
+| | Constraint on landmasses | Why a river escapes it |
+|---|---|---|
+| **C1** | land never overlaps land, so a drop resolves to a different delta | rivers overlap *deliberately* — `PALETTE.river` is opaque precisely so a confluence is seamless. No overlap policy, and so **no shared-delta problem**, which is WP-19's single riskiest item |
+| **C2** | rings cost 119–488 ms and cannot track a drag | rivers never get rings (ADR-14, data model §4). Nothing to freeze, nothing to re-derive on drop |
+| **C3** | coast detail is baked at a Douglas–Peucker epsilon, so scale invalidates it | a river's `points` are the user's own control points, Chaikin-smoothed at draw time. Scaling is lossless — **no re-simplification** |
+
+Move, rotate **and** scale are therefore all lossless for a river. It is the only path-based
+type in the scene for which that is true, which is exactly what makes it the right place to
+prove the two-model frame before spending it on coastlines.
+
+1. **`objectBounds` and `frameOf` gain a path branch.** Both currently gate on
+   `hasFootprint` and then read `object.x` / `object.rotation`, which a river does not have.
+   This is D1's rewrite, and it is the bulk of the package.
+2. **`transform.ts` stops refusing.** [Line 9](../../src/scene/transform.ts#L9) is explicit —
+   path-based objects come back untouched "so a selection can never silently deform terrain".
+   Translate and rotate become a map over `points`. **Scale maps the points *and* multiplies
+   `width`**: without that, a river scaled with the map around it comes out a thread. `taper`
+   needs nothing — it is a fraction along the path, which every rigid transform preserves.
+3. **Bounds come from the control points, not the ribbon.** Chaikin keeps the curve inside
+   the convex hull of its inputs, so `AABB(points)` inflated by half the maximum width is a
+   correct superset and costs nothing. Slightly looser than the drawn ribbon; memoising
+   `riverRibbon` is the upgrade if the slack ever shows.
+4. **The frame is feedback; the hit-test stays path-based.** Keep `distanceToRiver`. A
+   meandering river's AABB covers a great deal of open water, and picking by box would be
+   wrong in exactly the way C4 says it is wrong for a crescent continent. **Frame shape and
+   hit shape are different things** — this is the first place that becomes explicit, and
+   WP-19 inherits it.
+5. **Control points beat frame handles.** They genuinely collide: a river's endpoint is
+   often precisely *at* an AABB corner, because it is what defines that corner. The ladder
+   gains a rung above everything else — control point → frame handle → frame interior →
+   object → empty space — and shift still escapes the shortcuts (I5).
+6. **Nothing existing is lost.** Point-dragging, click-to-select and Delete all stay. The one
+   behaviour that changes: a press inside the frame but away from the water now moves the
+   river instead of starting a marquee. That is ordinary vector-editor behaviour and shift is
+   the escape, but on a thin diagonal river the frame is mostly empty space, so it is the
+   real cost of the box.
+
+- **Acceptance:** a selected river draws a frame **and** its control points, and dragging a
+  control point still reshapes it rather than moving the whole thing · dragging inside the
+  frame moves the river rigidly, and one drag is one undo step · a 360° rotation
+  round-trips · scaling 2× doubles the drawn width as well as the length, so the river still
+  reads as the same river · a river and the mountains along it can be selected together and
+  move together (WP-18) · a click on open water inside the frame's box still starts a
+  marquee when shift is held · driven input, not a screenshot.
 
 ### WP-19 · Terrain joins the selection
 
@@ -145,9 +201,9 @@ broken promise (S6).
   ordinary object and nothing moves that you did not select. WP-19's marquee and double-click
   make selecting them one gesture; that is the whole ergonomic answer, and it means there is
   no containment query at drag time and no policy needed for objects sitting astride a coast.
-- **Rivers.** They stay on their own tool. `08` §6 already notes that once landmasses are
-  selectable, "path-based objects are not selectable" becomes an exception list of one;
-  giving rivers the same treatment is a separate decision, not a freebie.
+- **Auto-generated rivers, and rivers as water bodies.** WP-20 gives a river a frame; it
+  does not make rivers interact with land, join into networks, or generate themselves. Those
+  are v1's deferred items (`01` §15).
 - **Cross-layer z-order.** Meaningless by S4, and it stays absent rather than appearing and
   doing nothing.
 
@@ -166,14 +222,24 @@ several were close calls.
 | **E6** | Erase: leave, split, or relabel? | **Relabel** (option 3). Rejected splitting it into a global object eraser plus a terrain-rail mode: it amends ADR-18 and, worse, makes Erase delete objects for someone on Terrain who expected the sea brush. |
 | **E7** | Do landmasses join the same selection, and when? | **Yes, at WP-19, after WP-17.** This settles **D1** in `08` §8 — admitting two interaction models is precisely what a shared frame over land and sprites requires. |
 | **E8** | Does moving land carry its contents automatically? | **No.** Contents ride only when selected. Considered and rejected: it is hidden behaviour, it needs a containment query and a coast-straddling policy, and the marquee plus double-click give the same ergonomics explicitly. |
+| **E9** | Do rivers get a frame too? | **Yes**, WP-20. They are the only path-based type for which all three transforms are lossless, so the two-model frame can be proved there first. |
+| **E10** | Does scaling a river change its `width`? | **Yes.** Points alone would leave a river scaled with the map around it drawn as a thread. `taper` needs nothing — it is a fraction along the path. |
+| **E11** | Does a framed river get picked by its box? | **No — by path**, as now (`distanceToRiver`). The box is feedback only. A meandering river's AABB is mostly open water; picking by box is C4's mistake. **Frame shape ≠ hit shape**, and WP-19 inherits the rule. |
+| **E12** | Control points or frame handles, when they collide? | **Control points win.** They collide often, not rarely: a river's endpoint is usually what defines the AABB corner a handle sits on. |
+| **E13** | Rivers before or after landmasses? | **Before.** Same machinery, none of C1/C2/C3, and a bug costs a misplaced river rather than a re-simplified coastline and a 488 ms ring derivation. WP-20 de-risks WP-19. |
 
 ## 7. Cost
 
+Build order is **WP-18 → WP-20 → WP-19**, which is not numeric: WP-20 was decided after
+WP-19 was written down, and belongs before it.
+
 | | Package | Size | Blocked on |
 |---|---|---|---|
-| **WP-18** | Selection unlinked from the layer | ≈ half of WP-7 — four bindings, a toolbar regroup, and a live-layer rule | nothing |
-| **WP-19** | Terrain joins the selection | ≈ WP-7 | WP-17 and WP-18 |
+| **WP-18** | Selection unlinked from the layer | ≈ half of WP-7 — four bindings, a toolbar regroup, and a live-layer rule | nothing · **done** |
+| **WP-20** | Rivers gain a frame | ≈ half of WP-15 — two path branches, three transforms, one precedence rung | nothing |
+| **WP-19** | Terrain joins the selection | ≈ WP-7 | WP-17 and WP-20 |
 
-WP-18 is almost entirely deletion and rewiring: the index, the history and the transforms
-already work on plain object arrays. WP-19 is the larger one, and item 7 — the shared
-resolved delta — is where its risk sits.
+WP-18 was almost entirely deletion and rewiring: the index, the history and the transforms
+already worked on plain object arrays. WP-20 buys the two-model frame where every transform
+is lossless. WP-19 is the largest, and item 7 — the shared resolved delta — is where its risk
+sits; by the time it starts, everything except that item has already run on rivers.

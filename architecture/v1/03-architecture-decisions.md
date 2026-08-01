@@ -305,3 +305,34 @@ for someone on Terrain who expected the sea brush — it is **relabelled** inste
 brush" on Terrain); and **automatic ride-along**, where moving land carries its contents
 without selecting them (hidden behaviour, needs a containment query and a coast-straddling
 policy, and the marquee plus a double-click give the same ergonomics explicitly).
+
+## ADR-29 — Path objects get frames, and rivers prove the model first
+**Decision:** Path-based objects gain a **transform frame** — the same box, handles and
+rotate stalk sprites have — and their transforms **bake into their points**. **Rivers go
+first (WP-20), before landmasses (WP-19).** Scaling a river multiplies its `width` as well as
+its points. The frame is **feedback only**: picking stays path-based (`distanceToRiver`,
+point-in-polygon for land), because an AABB over a meandering path is mostly empty space. A
+river's **control points outrank the frame's handles** when the two collide.
+**Why:** this is the D1 two-model rewrite, and it has to happen somewhere. Rivers are the
+cheapest possible place: every constraint that makes landmass transforms hard is absent —
+rivers overlap deliberately (so no overlap policy and **no shared-delta problem**, WP-19's
+riskiest item), they never get rings (so nothing to freeze or re-derive against C2's
+119–488 ms), and their points are the user's own control points rather than a
+Douglas–Peucker simplification (so scale is lossless and C3's re-simplification never
+arises). Move, rotate and scale are **all lossless on a river** — the only type in the scene
+for which that is true. Proving frame-plus-bake there costs a misplaced river when it goes
+wrong, rather than a ruined coastline and a saturated worker.
+**Consequences:** `objectBounds` and `frameOf` each grow a path branch, and
+[transform.ts:9](../../src/scene/transform.ts#L9)'s blanket refusal to move path objects is
+retired for rivers — that refusal was the guard standing in for the frame not existing yet.
+The gesture ladder gains a rung above handles. **Frame shape and hit shape become separate
+concepts** (S8), which WP-19 inherits rather than rediscovers. One behaviour regresses
+slightly and knowingly: a press inside a thin diagonal river's mostly-empty box now moves it
+instead of starting a marquee, with shift as the escape (I5). ADR-14 is untouched — rivers
+keep their own spline tool for drawing and point editing; this only adds a second way to
+move the whole thing.
+**Rejected:** picking a river by its bounding box (C4's mistake, on an object whose AABB is
+almost all water); scaling points without `width` (a river scaled with the map around it
+comes out a thread); frame handles outranking control points (they collide precisely at the
+ends, because a river's endpoint is usually what defines the corner a handle sits on); and
+doing landmasses first, which spends the model's debugging budget on the expensive case.

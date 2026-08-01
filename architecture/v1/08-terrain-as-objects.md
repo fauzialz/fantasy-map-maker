@@ -218,9 +218,10 @@ prompt in either direction.
 ## 6. What this does *not* cover
 
 - **Sub-landmass biomes.** One biome per landmass (C8). Two colours means two landmasses.
-- **Rivers.** They stay on their own tool. Once landmasses have a footprint, "path-based
-  objects are not selectable" stops being a rule and becomes an exception list of one;
-  giving rivers the same treatment is a separate decision, not a freebie.
+- **Rivers.** Not this document's business, but the separate decision it called for **has
+  since been taken**: `09-selection-across-layers.md` schedules rivers as **WP-20**, and
+  sequences it *before* WP-19 — every transform is lossless on a river, so it is where the
+  two-model frame gets proved before it is spent on coastlines.
 - **Non-destructive transforms.** Would need a schema bump (C7).
 - **Selecting land and sprites together.** This document gives terrain its own selection on
   its own layer. Putting landmasses into the *same* selection as mountains and labels is
