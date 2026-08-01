@@ -206,7 +206,7 @@ it. So the resolver takes the **snapshot plus a described gesture** — `{move, 
 drag used, searching *t* instead of a vector. A rotation therefore walks its angle back to
 the last orientation that fit, which reads the same way.
 
-### Carve a strait — best-looking, most dangerous  *(WP-17)*
+### Carve a strait — best-looking, most dangerous  *(WP-17)*  — **built**
 ```
 dropped' = differenceLand(dropped, offsetGrow(other, gap))
 ```
@@ -223,6 +223,25 @@ Three hazards, each needing an explicit rule:
    coastline, which is the opposite of a natural coast. Re-roughening it (noise
    displacement along the cut, then re-simplify) is new code, not a parameter, and is the
    single largest piece of work in this document.
+
+> **As built (`engine/terrain/roughen.ts`).** The whole problem is knowing *which points are
+> new*, and the cheap answer turned out to be exact: the boolean copies surviving vertices
+> through verbatim and both sides pass through the same `SCALE` rounding, so an untouched
+> point matches its original bit for bit. Set membership, O(n) — where measuring distance to
+> the grown polygon would be O(n·m) and would still need a tolerance to guess with.
+>
+> Displacement is simplex noise along **arc length**, not vertex index, because the cut's
+> point spacing is not uniform. It is **tapered to zero at both joins** (`sin πu`), or the
+> displacement steps off a cliff where the cut meets the coast that was already there and
+> the join reads as a defect. Amplitude is `gap × 0.3` so a wiggle narrows the strait without
+> closing it — and an overlap check afterwards is what *guarantees* that rather than hopes,
+> falling back to the smooth cut if roughening nibbled into the neighbour.
+>
+> **The noise is sampled from a seeded phase, not from zero.** Simplex noise is exactly zero
+> at every lattice point, so starting each run at `travelled = 0` gives every cut an
+> accidental flat spot at its start — and, less obviously, makes a test of the taper unable
+> to fail, because both ends then read zero whether the taper exists or not. That is how it
+> was found.
 
 ### Where the choice is made — a radio, read before the drag
 

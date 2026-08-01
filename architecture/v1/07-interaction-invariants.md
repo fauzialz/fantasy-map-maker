@@ -32,6 +32,21 @@ equality instead of value comparison, a flipped undo/redo direction, a dropped l
 removed history cap, untouched layers rebuilt — each expected to fail one specific test, and
 each did. A suite that has never been observed failing is a suite of unknown value.
 
+> **WP-17 is the case for actually doing it.** Its roughener had three mutations aimed at it;
+> two failed a test immediately and the third — deleting the taper that blends the carved
+> edge into the coast — passed cleanly, twice, for two *different* reasons. First the test
+> asserted "the join moved by less than the amplitude", which permits exactly the step the
+> taper exists to prevent. Tightened to "the join did not move", it still passed: simplex
+> noise is exactly zero at every lattice point, and the fixture's run happened to start and
+> end on integers, so both ends read zero with or without the taper. Then it *still* passed,
+> because the fixture's cut coordinate collided with an existing vertex, leaving an unmoved
+> original point sitting exactly on the join being measured.
+>
+> Three separate ways for a test to be blind, in one assertion. Each was invisible while it
+> passed, and the second one was a real defect in the code as well — every cut had an
+> accidental flat spot at its start. **Mutate the code; a green suite proves nothing on its
+> own.**
+
 **Why headless screenshots aren't enough.** `chrome --headless --screenshot
 --virtual-time-budget=N` fast-forwards timers but never delivers a Web Worker's reply, so
 any capture of worker-derived output (coastal rings) shows a pending state no matter how

@@ -251,7 +251,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         <>
           <p className={panelTitle()}>On overlap</p>
           <div className={segment()}>
-            {(["apart", "merge"] as const).map((policy) => (
+            {(["apart", "merge", "carve"] as const).map((policy) => (
               <button
                 key={policy}
                 type="button"
@@ -259,7 +259,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
                 className={toolButton({ active: overlapPolicy === policy })}
                 onClick={() => setOverlapPolicy(policy)}
               >
-                {policy === "apart" ? "keep apart" : "merge"}
+                {policy === "apart" ? "keep apart" : policy}
               </button>
             ))}
           </div>
@@ -273,7 +273,9 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           <p className={hint()}>
             {overlapPolicy === "apart"
               ? "A drop that lands on other land slides back along the drag to where it last fit."
-              : "A drop that lands on other land fuses with it — the larger piece keeps its name."}
+              : overlapPolicy === "merge"
+                ? "A drop that lands on other land fuses with it — the larger piece keeps its name."
+                : "A drop that lands on other land bites a channel through itself. If that would leave almost nothing, it slides back instead."}
           </p>
         </>
       )}

@@ -3,9 +3,12 @@ import { rotateObjects, scaleObjects, translateObjects, type Origin } from "../.
 import type { Landmass, Point } from "../../scene/types";
 import { toIntMulti } from "../geometry/coords";
 import type { Rect } from "../geometry/types";
-import { unionLand, splitByComponents } from "./boolean";
+import { multiPolygonArea } from "../geometry/types";
+import { offsetGrow } from "../rings/rings";
+import { unionLand, differenceLand, splitByComponents } from "./boolean";
 import { landmassToPolygon } from "./assemble";
 import { rescaleCoast } from "./rescale";
+import { roughenCut } from "./roughen";
 
 /**
  * WP-15 — what happens when a dragged landmass lands on another one.
@@ -16,7 +19,7 @@ import { rescaleCoast } from "./rescale";
  * (`08` §3). Allow resting overlap and draw order, `z` and a topmost rule all return at
  * once. So a drop has to resolve, always.
  */
-export type OverlapPolicy = "apart" | "merge";
+export type OverlapPolicy = "apart" | "merge" | "carve";
 
 /**
  * The gesture, described rather than applied — so the resolver can replay it at any
@@ -39,6 +42,8 @@ export interface ResolveDrop {
   canvas: Rect;
   /** scene coastDetail, for re-detailing a scaled coast (WP-16) */
   coastDetail: number;
+  /** channel width for a carve, in map units — the scene's ringGap (WP-17) */
+  gap: number;
 }
 
 export interface DropResult {
@@ -48,6 +53,10 @@ export interface DropResult {
   fraction: number;
   /** true when a merge fused objects, so the caller can report the identity change */
   merged: boolean;
+  /** how many pieces a carve left the dragged land in; 1 unless it cut it apart */
+  pieces?: number;
+  /** a carve that would have annihilated the land, so it slid back instead */
+  refused?: boolean;
 }
 
 const overlaps = (a: Landmass[], b: Landmass[]): boolean => {
@@ -146,6 +155,51 @@ function reDetail(
   return overlaps(detailed, others) ? moved : detailed;
 }
 
+/**
+ * The third outcome: bite a channel through the dragged land where it met the other, then
+ * make the cut look like a coast rather than a machine pass.
+ *
+ * Two of `08` §5's three hazards are handled here; the third is `roughen.ts`.
+ *
+ * - **It can split the dragged landmass.** That falls out of `splitByComponents`, which
+ *   also settles identity by ADR-10 — the larger piece keeps the id and the name — but the
+ *   caller has to *say so*, hence `pieces`.
+ * - **It can annihilate it**, when the dragged land is smaller than the other's grown
+ *   footprint. Silently deleting what someone just dragged is not an acceptable outcome,
+ *   so a carve leaving less than a fifth of the original area **refuses** and the drop
+ *   falls back to sliding apart.
+ */
+const CARVE_MIN_AREA = 0.2;
+
+function carve(
+  moved: Landmass[],
+  others: Landmass[],
+  gap: number,
+  coastDetail: number,
+): { landmasses: Landmass[]; pieces: number } | null {
+  const movedPolys = moved.map(landmassToPolygon);
+  const grown = offsetGrow(others.map(landmassToPolygon), gap);
+  const cut = differenceLand(movedPolys, grown);
+
+  const before = multiPolygonArea(movedPolys);
+  if (before === 0 || multiPolygonArea(cut) < before * CARVE_MIN_AREA) return null;
+
+  const roughened = roughenCut(cut, movedPolys, {
+    // Comfortably under the channel width, so a wiggle narrows the strait without
+    // closing it — and the overlap check below is what guarantees that rather than hopes.
+    amplitude: gap * 0.3,
+    wavelength: gap * 3,
+    coastDetail,
+    seed: moved.map((landmass) => landmass.id).join("+"),
+  });
+
+  const pieces = splitByComponents(roughened, moved);
+  // Roughening pushes points both ways, so it can nibble back into the other coast.
+  // Same fallback shape as WP-16's re-detailing: keep the geometry known to be legal.
+  const safe = overlaps(pieces, others) ? splitByComponents(cut, moved) : pieces;
+  return { landmasses: [...others, ...safe], pieces: safe.length };
+}
+
 export function resolveDrop({
   snapshot,
   others,
@@ -153,6 +207,7 @@ export function resolveDrop({
   policy,
   canvas,
   coastDetail,
+  gap,
 }: ResolveDrop): DropResult {
   const dropped = at(snapshot, gesture, 1);
   if (dropped.length === 0 || (!overlaps(dropped, others) && onCanvas(dropped, canvas))) {
@@ -167,6 +222,19 @@ export function resolveDrop({
     const combined = unionLand(moved.map(landmassToPolygon), others.map(landmassToPolygon));
     const landmasses = splitByComponents(combined, [...others, ...moved]);
     return { landmasses, fraction: 1, merged: landmasses.length < others.length + moved.length };
+  }
+
+  if (policy === "carve") {
+    const result = carve(moved, others, gap, coastDetail);
+    if (result) return { ...result, fraction: 1, merged: false };
+    // Refused. Fall through to sliding apart — the outcome that cannot lose work.
+    const fallback = slideBack(snapshot, others, gesture, canvas);
+    return {
+      landmasses: [...others, ...at(snapshot, gesture, fallback)],
+      fraction: fallback,
+      merged: false,
+      refused: true,
+    };
   }
 
   const fraction = slideBack(snapshot, others, gesture, canvas);

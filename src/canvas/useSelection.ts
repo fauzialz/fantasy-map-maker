@@ -271,6 +271,9 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
           policy: state.overlapPolicy,
           canvas: { x: 0, y: 0, w: canvas.w, h: canvas.h },
           coastDetail: state.scene.settings.coastDetail,
+          // The channel is one ring wide, which is what makes the ring engine render it
+          // as a strait rather than as a scratch (`08` §5, the strait fixture).
+          gap: state.scene.settings.ringGap,
         });
         const store = useEditorStore.getState();
         store.setLandmasses(result.landmasses);
@@ -299,10 +302,18 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
           }
         }
 
-        if (result.merged)
-          useToastStore.getState().show("Landmasses merged — the larger piece kept its name");
-        else if (result.fraction < 1)
-          useToastStore.getState().show("Slid back to where it last fit");
+        const toast = useToastStore.getState();
+        if (result.merged) toast.show("Landmasses merged — the larger piece kept its name");
+        else if (result.refused)
+          toast.show("Carving would have erased it — slid back instead", () =>
+            useEditorStore.getState().undo(),
+          );
+        else if ((result.pieces ?? 1) > 1)
+          toast.show(
+            `Carved a strait — the landmass split into ${result.pieces}, the larger piece kept its name`,
+            () => useEditorStore.getState().undo(),
+          );
+        else if (result.fraction < 1) toast.show("Slid back to where it last fit");
       } catch (err) {
         useToastStore.getState().show(`Drop failed: ${(err as Error).message}`);
       } finally {

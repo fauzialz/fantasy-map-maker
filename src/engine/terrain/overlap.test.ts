@@ -6,7 +6,7 @@ import { resolveDrop, type ResolveDrop } from "./overlap";
 /** A canvas big enough that nothing in these fixtures leaves it, unless a test says so. */
 const CANVAS = { x: -5000, y: -5000, w: 10000, h: 10000 };
 const drop = (input: Pick<ResolveDrop, "snapshot" | "others" | "gesture"> & Partial<ResolveDrop>) =>
-  resolveDrop({ canvas: CANVAS, coastDetail: 0.5, policy: "apart", ...input });
+  resolveDrop({ canvas: CANVAS, coastDetail: 0.5, policy: "apart", gap: 14, ...input });
 
 /**
  * C1 — land never overlaps land at rest. These pin what a drop does about it, because the
@@ -267,5 +267,118 @@ describe("scale drops", () => {
     const width = Math.max(...a.path.map(([x]) => x)) - Math.min(...a.path.map(([x]) => x));
     expect(width).toBeGreaterThan(90);
     expect(width).toBeLessThan(140);
+  });
+});
+
+/**
+ * `08` §5's third outcome, and its two named hazards. The channel itself is the easy part;
+ * what needs pinning is what happens when the carve would destroy or divide the thing
+ * somebody just dragged.
+ */
+describe("carve a strait", () => {
+  it("bites a channel instead of sliding back", () => {
+    const result = drop({
+      snapshot: [box("a", 0, 0, 400)],
+      others: [box("b", 300, 0, 400)],
+      gesture: { kind: "move", delta: [0, 0] },
+      policy: "carve",
+      gap: 20,
+    });
+    expect(result.fraction).toBe(1);
+    expect(result.refused).toBeFalsy();
+    const a = result.landmasses.find((l) => l.id === "a")!;
+    // Its right edge has been eaten back clear of b's left edge, plus the gap.
+    expect(Math.max(...a.path.map(([x]) => x))).toBeLessThan(300);
+  });
+
+  it("leaves a gap the ring engine can fill", () => {
+    const gap = 30;
+    const result = drop({
+      snapshot: [box("a", 0, 0, 400)],
+      others: [box("b", 300, 0, 400)],
+      gesture: { kind: "move", delta: [0, 0] },
+      policy: "carve",
+      gap,
+    });
+    const a = result.landmasses.find((l) => l.id === "a")!;
+    const channel = 300 - Math.max(...a.path.map(([x]) => x));
+    // Roughening wiggles the edge, so the channel is not exactly `gap` — but it is open,
+    // and it is the right order of magnitude.
+    expect(channel).toBeGreaterThan(gap * 0.4);
+    expect(channel).toBeLessThan(gap * 2);
+  });
+
+  it("refuses rather than annihilating what was just dragged", () => {
+    // A small island dropped well inside a large landmass: carving would erase it.
+    const result = drop({
+      snapshot: [box("small", 400, 400, 60)],
+      others: [box("big", 0, 0, 1200)],
+      gesture: { kind: "move", delta: [300, 300] },
+      policy: "carve",
+      gap: 20,
+    });
+    expect(result.refused).toBe(true);
+    expect(result.landmasses.map((l) => l.id).sort()).toEqual(["big", "small"]);
+    expect(result.fraction).toBeLessThan(1);
+  });
+
+  it("reports how many pieces a carve left, so the toast can say so (ADR-10)", () => {
+    // A bar dropped across a tall obstacle: the cut severs it into two.
+    const bar: Landmass = {
+      id: "bar",
+      type: "landmass",
+      path: [
+        [0, 200],
+        [600, 200],
+        [600, 260],
+        [0, 260],
+      ],
+      holes: [],
+      biome: "grassland",
+    };
+    const wall: Landmass = {
+      id: "wall",
+      type: "landmass",
+      path: [
+        [280, 0],
+        [340, 0],
+        [340, 600],
+        [280, 600],
+      ],
+      holes: [],
+      biome: "grassland",
+    };
+    const result = drop({
+      snapshot: [bar],
+      others: [wall],
+      gesture: { kind: "move", delta: [0, 0] },
+      policy: "carve",
+      gap: 10,
+    });
+    expect(result.refused).toBeFalsy();
+    expect(result.pieces).toBe(2);
+    // ADR-10: the larger piece keeps the id. Both halves are here plus the wall.
+    expect(result.landmasses).toHaveLength(3);
+    expect(result.landmasses.some((l) => l.id === "bar")).toBe(true);
+  });
+
+  it("never leaves land overlapping, whatever the roughener did (C1)", () => {
+    const result = drop({
+      snapshot: [box("a", 0, 0, 400)],
+      others: [box("b", 300, 0, 400)],
+      gesture: { kind: "move", delta: [0, 0] },
+      policy: "carve",
+      gap: 20,
+    });
+    const a = result.landmasses.filter((l) => l.id !== "b");
+    const b = result.landmasses.filter((l) => l.id === "b");
+    const again = drop({
+      snapshot: a,
+      others: b,
+      gesture: { kind: "move", delta: [0, 0] },
+      policy: "apart",
+    });
+    // Feeding the carved result back in as a zero-move must be a no-op: it already fits.
+    expect(again.fraction).toBe(1);
   });
 });

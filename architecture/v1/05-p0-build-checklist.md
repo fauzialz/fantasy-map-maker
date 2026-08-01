@@ -88,8 +88,8 @@ Work order: **`prompts/phase-0.5-core-editor-improvement.md`** — a standing fi
 phase, and the home for every editor enhancement after P0. Packages continue this
 numbering; nothing here blocks P1–P3.
 
-**Batch 1 — terrain as objects.** Terrain stops being paint-only and becomes selectable,
-colourable and movable. Full design, constraints, acceptance criteria and fixtures in
+**Batch 1 — terrain as objects — complete (WP-14 … WP-17).** Terrain stops being paint-only
+and becomes selectable, colourable and movable. Full design, constraints, acceptance criteria and fixtures in
 `08-terrain-as-objects.md`; **ADR-25** records why it sits here rather than inside P0 (it
 needs WP-13's real UI, and it rewrites interaction invariant I9). **D1 is now settled — yes**
 (ADR-28), so WP-15 is unblocked; D4 and D6 are still open.
@@ -118,9 +118,13 @@ needs WP-13's real UI, and it rewrites interaction invariant I9). **D1 is now se
       (Chaikin, then simplify). Also closes the **off-canvas clamp** `08` §4 T2 asked for and
       WP-15 missed — folded into the same drop search, so "fits" means legal whatever made
       it illegal. 23 unit fixtures + driven input, 11 checks.
-- [ ] **WP-17 · Carve a strait** — the third overlap outcome: bite a channel, then roughen
+- [x] **WP-17 · Carve a strait** — the third overlap outcome: bite a channel, then roughen
       the machine-straight cut so it reads as coastline. Own package; needs the
-      ≥20%-area-remains guard so a small landmass is never erased.
+      ≥20%-area-remains guard so a small landmass is never erased. Roughening displaces the
+      **new points only** — identified by which vertices the boolean did not copy through
+      verbatim, which is exact and O(n) where distance-testing would be O(n·m) and still need
+      a tolerance. Tapered to zero at both joins, so the cut blends into the coast the user
+      drew. 28 unit fixtures + driven input, 9 checks. **Batch 1 complete.**
 
 **Batch 2 — selection across layers.** The Select tool stops being scoped to the active
 layer, the toolbar stops presenting a pointer mode as a peer of the six layers, and path-based
