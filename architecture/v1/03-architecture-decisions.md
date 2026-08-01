@@ -342,3 +342,34 @@ any; scaling points without `width` (a river scaled with the map around it comes
 thread); frame handles outranking control points (they collide precisely at the ends, because
 a river's endpoint is usually what defines the corner a handle sits on); and doing landmasses
 first, which spends the model's debugging budget on the expensive case.
+
+## ADR-30 — The drawn shape decides: precise picking, honest boxes, a guarded parser
+**Decision:** Sprites are picked by their **silhouette as a tie-break**, not by their
+bounding box alone: rbush narrows by box, a path containment test prefers a candidate whose
+artwork actually covers the point, and topmost-by-Y remains the fallback. **Labels are
+exempt** and keep box picking. `spriteExtent` stops scraping numbers with a regex and walks
+the path properly, **flattening curves** instead of counting control points as ink. An
+unsupported path command **fails loudly** instead of mis-measuring.
+**Why:** measured, not assumed — ink inside the selection box is **53%** for mountains,
+**50%** for trees, and **28–88%** across the icons. The mean hides the finding: castle is 88%
+and near-honest, but **compass is 28%**, worse than any mountain, because a four-armed star
+leaves everything between the arms empty. That is WP-20's diagonal-river problem on an
+object that is not a path. Precision is a tie-break rather than a filter because ambiguity
+between overlapping boxes is the only thing it actually resolves, while a full silhouette
+test would make an isolated tree — a few pixels at fit zoom — harder to hit for no gain.
+Labels are exempt because the gaps between words are part of the target.
+**Consequences:** the box stays — it is still the frame, the marquee target and the rbush key
+— but stops being the authority. Bounds must remain computable **without a canvas**, because
+they are unit-tested in Node (`07` §4), so flattening is arithmetic over the path string
+rather than a `Path2D` probe; the `Path2D` used for picking is a browser-side cache keyed
+like the raster cache. Boxes get tighter for free, since a quadratic never reaches the
+control point the old regex measured to. And the guard turns an asset swap from a silent
+mis-measure into a failing test — `07` §4 has warned about the narrow dialect since WP-8, but
+a warning in a document is weak protection for something that goes wrong months later with
+"selection feels off" as its only symptom. Authoring procedure in
+`HOW-TO-CHANGE-SPRITE-ART.md`.
+**Rejected:** full silhouette picking with no box fallback (breaks small targets, Fitts);
+silhouette-based marquee (neither meaningful nor affordable); precise picking for labels;
+flattening arcs so the dialect could accept them (disproportionate — every design tool can
+emit curves instead); and leaving the parser documented-but-unguarded, which is the status
+quo that prompted the question.

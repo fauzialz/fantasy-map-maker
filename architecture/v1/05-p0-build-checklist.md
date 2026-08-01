@@ -133,6 +133,18 @@ in **ADR-28** and **ADR-29**. Every decision it needed is taken.
       asymmetric on purpose; double-click a landmass to take its contents too. **The risk is one
       item**: overlap resolution runs first and its resolved delta goes to the whole drag.
 
+**Batch 3 — the drawn shape decides.** Sprites are picked by their bounding box, and the box
+is a poor stand-in for the shape: ink fills 53% of a mountain's, 50% of a tree's, and
+**28% of the compass's**. Design in `10-hit-testing-precision.md`, decided in **ADR-30**.
+Independent of Batches 1 and 2. Authoring side: `HOW-TO-CHANGE-SPRITE-ART.md`.
+
+- [ ] **WP-21 · Precise picking, honest boxes, a guarded parser** — silhouette as a
+  **tie-break** over the rbush candidates (not a filter — an isolated tree must still tolerate
+  a near-miss); **labels exempt**; `spriteExtent` walks and flattens the path instead of
+  scraping numbers, tightening every box for free; and an unsupported path command **fails a
+  test** instead of mis-measuring. **Item 4 ships alone if you want it sooner** — it is the
+  safety net for changing sprite art.
+
 ## Later phases (see the phase prompts)
 
 - [ ] **P1** — self-contained HTML embed export + `.map.json` import/export.

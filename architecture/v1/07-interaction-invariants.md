@@ -96,6 +96,12 @@ The sprite grid is 100×100 with the baseline at y=88, but no sprite fills it. M
 the grid instead of the path put visible slack above every object and mis-centred the
 ones whose art is off-centre. `spriteBounds` measures the path data (§4).
 
+> **A layer arrives beneath this with WP-21** (`10-hit-testing-precision.md`, ADR-30): the box
+> narrows the candidates, the **silhouette** decides between them. Measured, the box is a
+> loose stand-in — 53% ink for a mountain, 50% for a tree, **28% for the compass**. I2 still
+> holds and the box still exists; it stops being the last word. Labels stay box-picked on
+> purpose.
+
 ### I3 — Bounds follow rotation
 `objectBounds` returns the AABB of the *rotated* sprite. Skipping this makes the
 selection frame and every hit test describe a sprite that is no longer there — the object
@@ -222,6 +228,16 @@ there is no canvas, and a measurement taken from the artwork updates itself when
 artwork changes. It works because the paths use only absolute `M/L/Q/Z`, so every number
 is a coordinate. **If a sprite ever needs an arc or a relative command, that parser must
 be revisited** — it would silently mis-measure.
+
+> **This warning is being upgraded to a guard.** A note in a document is weak protection for
+> something that goes wrong months later, at asset-swap time, with "selection feels off" as
+> its only symptom — and the unsupported set (lowercase relatives, `A`, `H`/`V`) is precisely
+> what a design tool exports by default. WP-21 item 4 makes an unsupported command fail a
+> test instead. It ships alone if the rest of that package waits. Procedure and the
+> conversion step: `HOW-TO-CHANGE-SPRITE-ART.md`.
+>
+> The same regex is also why boxes are loose: it takes the min/max of *every* number,
+> **including Bézier control points**, and a quadratic never reaches its control point.
 
 An object's `x,y` anchors the **centre-line of the content at the baseline** — its feet.
 That is the same `y` the draw order sorts on (data model §5), so what you see matches

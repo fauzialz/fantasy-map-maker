@@ -224,6 +224,43 @@ every object in the drag, or the mountains end up off the land they were standin
 
 ---
 
+## Batch 3 — The drawn shape decides (WP-21)
+
+**Design:** `../10-hit-testing-precision.md`. **Decision:** ADR-30. **Prerequisite:** none —
+independent of Batches 1 and 2, and composes with WP-20 rather than competing.
+**Settle first:** nothing; `10` §6 records F1–F5.
+
+**What this batch is about.** Sprites are picked by their bounding rectangle, and the
+rectangle is a poor stand-in for the shape. Measured: ink fills **53%** of a mountain's box,
+**50%** of a tree's, and **28–88%** across the icons — **compass is 28%**, worse than any
+mountain, because a four-armed star is mostly the gaps between the arms. Same complaint
+WP-20 answers for rivers, on objects that are not paths.
+
+### WP-21 · Precise picking, honest boxes, a guarded parser
+Four items, in `10` §5. **Silhouette as a tie-break** — rbush narrows by box, a path
+containment test prefers the candidate whose artwork covers the point, topmost-by-Y stays the
+fallback. **Labels are exempt** and keep box picking, because the gaps between words are part
+of the target. **`spriteExtent` walks the path and flattens curves** instead of scraping
+numbers with a regex, which tightens every box for free — a quadratic never reaches the
+control point the regex measured to. **An unsupported path command fails loudly**, which is
+the safety net `../HOW-TO-CHANGE-SPRITE-ART.md` assumes.
+
+**Item 4 is independent and can ship alone, first.** It is five lines and it protects an
+asset swap, which is a thing that happens without warning.
+
+**Keep bounds canvas-free** (P4): they are unit-tested in Node, so flattening is arithmetic
+over the path string. Only the picking `Path2D` lives in the browser.
+
+- **Acceptance:** clicking inside a compass's box but between its arms selects nothing, and
+  clicking an arm selects it · two overlapping mountains, a point inside both boxes but one
+  silhouette, picks that one · an isolated tree still tolerates a near-miss · a label is
+  still picked from the gap between two words · marquee still selects by box · **re-run `10`
+  §2's fill measurement and record the tightened numbers beside the old** · an arc or a
+  relative command fails a test · driven input, reading `.mbf-stage` cursors so the pointer
+  agrees with the new precedence.
+
+---
+
 ## Adding a future batch
 
 Append it below Batch 1. A batch is admissible here when it (a) changes the **core editor**,

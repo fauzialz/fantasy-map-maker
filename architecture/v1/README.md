@@ -51,6 +51,14 @@ prompts** used to drive an AI coding agent through the build.
   Making landmasses selectable, colourable and transformable: the constraints it must
   satisfy, tiers split by which operations are lossless, the overlap policy (default **keep
   apart**), and a replacement for invariant I9. See ADR-25.
+- `10-hit-testing-precision.md` — **scheduled as WP-21.** Sprites are picked by their box,
+  and the box is a poor stand-in for the shape — measured at 53% ink for mountains and **28%
+  for the compass**. Silhouette tie-break, tighter boxes, and a parser that fails loudly.
+  See ADR-30.
+- `HOW-TO-CHANGE-SPRITE-ART.md` — **procedure for replacing or adding the map's artwork.**
+  What format the sprites are (SVG path `d` strings, not `.svg` files, and why the theme and
+  P1's offline embed both require that), the 100×100 grid with feet on the baseline, and the
+  path-dialect conversion step that currently fails silently.
 - `../DEBT.md` — **the debt ledger**, one level up because it tracks the codebase rather than
   this version's design. Deliberately the *last* of three destinations: shortcuts live as
   `ponytail:` comments in the code, debt with an owner lives in that work package's entry, and
