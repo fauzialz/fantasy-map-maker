@@ -1,0 +1,56 @@
+@import "tailwindcss" prefix(mbf);
+@import "./styles/tokens.css";
+
+/* Self-hosted, shipped with the app — never a font CDN (CSP + silent-fallback risk). */
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource/cinzel/400.css";
+@import "@fontsource/cinzel/600.css";
+
+/**
+ * `inline` keeps these as `var()` rather than resolving them at build time, which is what
+ * lets a runtime `[data-theme]` flip recolour every utility live.
+ */
+@theme inline {
+  --color-ground: var(--ground);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-sink: var(--sink);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-note: var(--note);
+  --color-danger: var(--danger);
+
+  --font-ui: "Inter Variable", Inter, system-ui, sans-serif;
+  --font-display: "Cinzel", "Iowan Old Style", Palatino, Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+}
+
+/* Colour flips via the tokens; this is for the few cases that are not a colour. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* The canvas owns the gesture; the browser must not pan or zoom the page under it. */
+  .mbf-stage {
+    touch-action: none;
+  }
+}

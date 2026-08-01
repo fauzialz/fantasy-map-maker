@@ -16,16 +16,13 @@ import { BASELINE, GRID, SPRITE_HEIGHT, SPRITES, spriteExtent, type SpriteKind }
  */
 const OVERSAMPLE = 2;
 
-const FILL: Record<SpriteKind, string> = {
-  mountain: "#B9AE93",
-  tree: "#6F7F55",
-  landmark: "#D8C9A4",
-};
-const STROKE: Record<SpriteKind, string> = {
-  mountain: PALETTE.ink,
-  tree: "#3E4A2E",
-  landmark: PALETTE.ink,
-};
+/**
+ * Read at raster time, not at import: `PALETTE` is refreshed in place when the theme
+ * changes (ADR-24), so a module-level snapshot would keep drawing the old ink.
+ */
+const fillFor = (kind: SpriteKind) =>
+  kind === "mountain" ? PALETTE.peak : kind === "tree" ? PALETTE.tree : PALETTE.landmark;
+const strokeFor = (kind: SpriteKind) => (kind === "tree" ? PALETTE.treeInk : PALETTE.ink);
 
 export interface RasterSprite {
   canvas: HTMLCanvasElement;
@@ -59,15 +56,15 @@ export function rasterSprite(kind: SpriteKind, variant: number): RasterSprite | 
   context.lineJoin = "round";
   context.lineCap = "round";
 
-  context.fillStyle = FILL[kind];
-  context.strokeStyle = STROKE[kind];
+  context.fillStyle = fillFor(kind);
+  context.strokeStyle = strokeFor(kind);
   context.lineWidth = 2.6;
   const body = new Path2D(sprite.body);
   context.fill(body);
   context.stroke(body);
 
   if (sprite.highlight) {
-    context.fillStyle = "#F2EFE6";
+    context.fillStyle = PALETTE.peakLit;
     context.fill(new Path2D(sprite.highlight));
   }
   if (sprite.detail) {
@@ -145,4 +142,9 @@ export function spriteBounds(kind: SpriteKind, variant: number, scale: number) {
       return (content.maxY - content.minY) * unit;
     },
   };
+}
+
+/** Sprite bitmaps carry the ink and fill colours, so a theme change invalidates them. */
+export function clearSpriteCache(): void {
+  cache.clear();
 }

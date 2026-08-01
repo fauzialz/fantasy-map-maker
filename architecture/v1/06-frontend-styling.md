@@ -9,6 +9,14 @@ is about everything that is HTML/CSS. Decision recorded in ADR-24.
 > per-layer imports when Preflight is split out (library build); (2) whether v4 supports
 > selector-scoped `important`. Neither is load-bearing — the isolation works without
 > them. Verify, don't assume.
+>
+> **WP-13 status (built on Tailwind 4.3):** neither ⚠️ was answered, because neither came
+> up — the app build uses the single `@import "tailwindcss" prefix(mbf)`, and nothing
+> needed `important`. They stay open for the P3 library build, which is where the split
+> import lives. What *was* verified, by driven input rather than by reading: `prefix(mbf)`
+> applies to every utility in the app build, and **`@theme inline` does keep `var()`** —
+> the compiled rule is `.mbf\:bg-panel{background-color:var(--panel)}`, so flipping
+> `[data-theme]` at runtime recolours utilities live with no rebuild.
 
 ## Stack
 
@@ -48,6 +56,19 @@ recolors everything). Starting palette = the ink-on-parchment identity from
   :root:not([data-theme="light"]){ /* same dark values as above */ }
 }
 ```
+
+**As built (`src/styles/tokens.css`), with two changes.** The canvas colours are
+namespaced **`--map-*`** and there are fifteen of them, not three: the renderer needs
+paper, paper-shade, sea, sea-deep, ring, ink, coast, river, a vignette triple, five biome
+fills and the sprite artwork colours. Having a bare `--sea` for the map next to `--panel`
+for the chrome read as one palette when they are two — the map is a drawn artefact, the
+chrome is furniture around it, and only the second should follow the room. The values are
+the ones WP-5 tuned by eye, not the sketch above. Dark keeps the map a parchment chart,
+dimmed and cooled so it does not glare out of a dark shell.
+
+`canvas/palette.ts` reads them (`refreshPalette()`) and `state/themeStore.ts` drops the
+caches that baked the old colours into pixels — the parchment and hatch tiles, and the
+sprite rasters. Anything that caches a colour has to be on that list.
 Semantic status colors (good / warning / critical) are a **separate** small set, not the
 accent.
 
@@ -153,9 +174,12 @@ Ship font files with the app/library; never link a font CDN (CSP + silent-fallba
 ## Pre-implementation checklist
 
 - [ ] Confirm the two ⚠️ v4 facts against the live docs (prefix on split imports;
-  scoped `important`).
-- [ ] Tokens defined once; `[data-theme]` + `prefers-color-scheme` both flip them.
-- [ ] `@theme inline` maps colors to the vars (utilities recolor at runtime).
-- [ ] `mbf:` prefix applied; component classes live in `tailwind-variants`.
-- [ ] Library build excludes `preflight.css`; editor wrapped in `.mbf-root`.
-- [ ] Fonts self-hosted; no CDN links anywhere.
+  scoped `important`). — **still open, and now P3's**: both are library-build concerns.
+- [x] Tokens defined once; `[data-theme]` + `prefers-color-scheme` both flip them.
+- [x] `@theme inline` maps colors to the vars (utilities recolor at runtime).
+- [x] `mbf:` prefix applied; component classes live in `tailwind-variants` (`ui/variants.ts`).
+- [ ] Library build excludes `preflight.css`; editor wrapped in `.mbf-root`. — **P3.**
+- [x] Fonts self-hosted; no CDN links anywhere (`@fontsource*`, bundled as content-hashed
+  `.woff2`). Canvas text does not wait for a webfont, so `main.tsx` forces one redraw on
+  `document.fonts.ready` — otherwise the first labels are drawn, and *measured*, in the
+  fallback face.

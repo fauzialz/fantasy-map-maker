@@ -109,3 +109,12 @@ export function hatchTile(): HTMLCanvasElement {
  */
 export const asPatternImage = (canvas: HTMLCanvasElement): HTMLImageElement =>
   canvas as unknown as HTMLImageElement;
+
+/**
+ * Both tiles bake `PALETTE` colours into pixels, so a theme change has to throw them away
+ * — the palette refreshing underneath them would otherwise leave the old paper on screen.
+ */
+export function clearTextureCache(): void {
+  parchment = undefined;
+  hatch = undefined;
+}

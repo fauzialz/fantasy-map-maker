@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Line, Stage } from "react-konva";
 import { LAYER_OBJECT, selectLandmasses, useEditorStore } from "../state/editorStore";
-import { LAYER_ORDER, type LayerId, type Point } from "../scene/types";
+import { useThemeStore } from "../state/themeStore";
+import { LAYER_ORDER, type Label, type LayerId, type Point } from "../scene/types";
+import { LabelEditor } from "../ui/LabelEditor";
+import { statusBar } from "../ui/variants";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { RingsLayer } from "./RingsLayer";
 import { RiverOverlay } from "./RiverOverlay";
@@ -10,7 +13,7 @@ import { SemanticLayer } from "./SemanticLayer";
 import { useCoastalRings } from "./useCoastalRings";
 import { PALETTE } from "./palette";
 import { SelectionOverlay } from "./SelectionOverlay";
-import { useObjectBrush } from "./useObjectBrush";
+import { createLabel, useObjectBrush } from "./useObjectBrush";
 import { useRiverTool } from "./useRiverTool";
 import { useSelection } from "./useSelection";
 import { useTerrainBrush } from "./useTerrainBrush";
@@ -31,7 +34,15 @@ import {
 /** Extra margin cached around the visible rect so small pans don't force a re-cache. */
 const CACHE_PAD = 0.25;
 
-export function MapStage() {
+/** An open inline label editor: where it sits, and which label it is rewriting (if any). */
+interface LabelDraft {
+  at: Point;
+  screen: { x: number; y: number };
+  id?: string;
+  text: string;
+}
+
+export function MapStage({ editing }: { editing?: Label }) {
   const scene = useEditorStore((s) => s.scene);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const map = useMemo<Size>(
@@ -45,6 +56,22 @@ export function MapStage() {
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [panning, setPanning] = useState(false);
   const [bytes, setBytes] = useState<Partial<Record<LayerId, number>>>({});
+  const [cursor, setCursor] = useState<Point | null>(null);
+  const [draft, setDraft] = useState<LabelDraft | null>(null);
+
+  /**
+   * Rebuilds every Konva node when the drawn colours change (ADR-24). A theme flip
+   * refreshes `PALETTE` in place and drops the texture and sprite caches, but the nodes
+   * already on the stage were built from the old values, so they have to be rebuilt.
+   * The viewport survives because it is state *here*, not inside the stage.
+   *
+   * ponytail: a whole-stage remount, not a per-layer colour dependency threaded through
+   * six components. Measured at **190 ms** click-to-painted-frame on a generated world of
+   * 1 085 objects at fit zoom — a visible hitch, but this fires when someone changes theme
+   * and at no other time. If it ever fires often, the upgrade is invalidating only the
+   * layers whose colours actually moved (see DEBT Q-01, which wants the same split).
+   */
+  const themeRevision = useThemeStore((s) => s.revision);
 
   // Mirror of the viewport, so screen→map conversion stays a stable callback.
   const vpRef = useRef<Viewport | null>(null);
@@ -110,11 +137,33 @@ export function MapStage() {
     ];
   }, []);
 
+  /** Map space → a position inside the stage container, for DOM overlaid on the canvas. */
+  const toScreen = useCallback(([x, y]: Point) => {
+    const current = vpRef.current;
+    return current
+      ? { x: x * current.scale + current.x, y: y * current.scale + current.y }
+      : { x: 0, y: 0 };
+  }, []);
+
+  const openLabelDraft = useCallback(
+    (at: Point, label?: Label) =>
+      setDraft({ at, screen: toScreen(at), id: label?.id, text: label?.text ?? "" }),
+    [toScreen],
+  );
+
+  // The rail's rename button reaches the same editor, so there is one way to type a name.
+  useEffect(() => {
+    if (editing) openLabelDraft([editing.x, editing.y], editing);
+  }, [editing, openLabelDraft]);
+
   const brushSize = useEditorStore((s) => s.brushSize);
   const terrainTool = useEditorStore((s) => s.terrainTool);
   const rings = useCoastalRings(map);
+  /** A locked layer accepts no tool at all — that is the whole of what the lock means. */
+  const unlocked = !scene.layers.find((l) => l.id === activeLayerId)?.locked;
+  const live = unlocked && !spaceHeld && !draft;
   const brush = useTerrainBrush({
-    enabled: activeLayerId === "terrain" && !spaceHeld,
+    enabled: activeLayerId === "terrain" && live,
     map,
     toMapPoint,
   });
@@ -122,19 +171,20 @@ export function MapStage() {
   const onObjectLayer = LAYER_OBJECT[activeLayerId] !== undefined;
   const objects = useObjectBrush({
     activeLayerId,
-    enabled: onObjectLayer && objectTool !== "select" && !spaceHeld,
+    enabled: onObjectLayer && objectTool !== "select" && live,
     toMapPoint,
+    onPlaceLabel: openLabelDraft,
   });
   const selection = useSelection({
     activeLayerId,
-    enabled: onObjectLayer && objectTool === "select" && !spaceHeld,
+    enabled: onObjectLayer && objectTool === "select" && live,
     scale: vp?.scale ?? 1,
     toMapPoint,
   });
   // Rivers are path-based, so they sit outside the anchor-based selection stack and drive
   // their own tool (ADR-14) — drawn point by point, reshaped by their control points.
   const river = useRiverTool({
-    enabled: activeLayerId === "rivers" && !spaceHeld,
+    enabled: activeLayerId === "rivers" && live,
     scale: vp?.scale ?? 1,
     toMapPoint,
   });
@@ -212,19 +262,20 @@ export function MapStage() {
     0,
   );
   const totalBytes = Object.values(bytes).reduce((a, b) => a + b, 0) + ringBytes;
-  const fullMapBytes = map.w * map.h * 4 * LAYER_ORDER.length;
   const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
   // Panning and the space-drag override everything; otherwise whichever tool owns the
   // layer supplies its own handle-aware cursor, and a painting tool falls back to a
   // crosshair. Same precedence as onMouseDown, so the pointer promises what a press does.
-  const cursor = panning
+  const pointerCursor = panning
     ? "grabbing"
     : spaceHeld
       ? "grab"
-      : (selection.cursor ??
-        river.cursor ??
-        (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId] ? "crosshair" : "default"));
+      : !unlocked
+        ? "not-allowed"
+        : (selection.cursor ??
+          river.cursor ??
+          (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId] ? "crosshair" : "default"));
 
   /** The live, uncached layer draws whatever the active tool is in the middle of. */
   const overlayFor = (id: LayerId, scale: number) => {
@@ -248,20 +299,49 @@ export function MapStage() {
     return undefined;
   };
 
+  const commitDraft = (text: string) => {
+    const state = useEditorStore.getState();
+    if (draft?.id) {
+      const id = draft.id;
+      state.record("rename label", () => state.patchObject<Label>("labels", id, { text }));
+    } else if (draft) {
+      state.record("place label", () => state.addObjects("labels", [createLabel(draft.at, text)]));
+    }
+    setDraft(null);
+  };
+
   return (
     <div
       ref={containerRef}
-      className="stage"
+      className="mbf-stage mbf:relative mbf:min-w-0 mbf:grow mbf:overflow-hidden"
       onMouseDown={onMouseDown}
       onMouseMove={(e) => {
         selection.hover(e.clientX, e.clientY);
         river.hover(e.clientX, e.clientY);
+        setCursor(toMapPoint(e.clientX, e.clientY));
       }}
-      onDoubleClick={river.finish}
-      style={{ cursor }}
+      onMouseLeave={() => setCursor(null)}
+      onDoubleClick={() => {
+        if (activeLayerId === "rivers") return river.finish();
+        // A double-click's first press has already selected the label under the pointer.
+        const selected = useEditorStore.getState().selection;
+        const label = scene.layers
+          .find((l) => l.id === "labels")
+          ?.objects.find((o) => o.id === selected[0] && o.type === "label") as Label | undefined;
+        if (label) openLabelDraft([label.x, label.y], label);
+      }}
+      style={{ cursor: pointerCursor }}
     >
       {view && vp && cache && (
-        <Stage width={view.w} height={view.h} scaleX={vp.scale} scaleY={vp.scale} x={vp.x} y={vp.y}>
+        <Stage
+          key={themeRevision}
+          width={view.w}
+          height={view.h}
+          scaleX={vp.scale}
+          scaleY={vp.scale}
+          x={vp.x}
+          y={vp.y}
+        >
           <BackgroundLayer map={map} parchment={scene.settings.parchment} />
           <RingsLayer
             bands={rings.bands}
@@ -283,18 +363,39 @@ export function MapStage() {
           {scene.settings.parchment && <VignetteLayer map={map} />}
         </Stage>
       )}
-      <p className="hud">
-        zoom {vp ? Math.round(vp.scale * 100) : 0}% · active <b>{activeLayerId}</b> (live) ·{" "}
-        {LAYER_ORDER.length - 1} cached = {mb(totalBytes)} · full-map would be {mb(fullMapBytes)} ·{" "}
-        {landCount} landmass{landCount === 1 ? "" : "es"}
-        {rings.bands.length > 0 && ` · ${rings.bands.length} rings`}
-        {objectCount > 0 && ` · ${objectCount} objects`}
-        {selection.count > 0 && ` · ${selection.count} selected`}
-        {undoDepth > 0 && ` · ${undoDepth} undo`}
-        {brush.committing && " · vectorising…"}
-        {rings.deriving && " · deriving rings…"}
-        {brush.error && ` · ${brush.error}`}
-        {rings.error && ` · rings failed: ${rings.error}`}
+
+      {draft && (
+        <LabelEditor
+          at={draft.screen}
+          value={draft.text}
+          onCommit={commitDraft}
+          onCancel={() => setDraft(null)}
+        />
+      )}
+
+      {/*
+        Keeps the `hud` class and its counts: `07-interaction-invariants.md` §1 asks for a
+        surface a driver can assert against, and every driver written so far reads this one.
+      */}
+      <p className={`hud ${statusBar()}`}>
+        <span>zoom {vp ? Math.round(vp.scale * 100) : 0}%</span>
+        <span>{cursor ? `x ${Math.round(cursor[0])} · y ${Math.round(cursor[1])}` : "—"}</span>
+        <span>
+          active <b className="mbf:text-ink">{activeLayerId}</b> (live) · {LAYER_ORDER.length - 1}{" "}
+          cached = {mb(totalBytes)}
+        </span>
+        <span>
+          {landCount} landmass{landCount === 1 ? "" : "es"}
+        </span>
+        {rings.bands.length > 0 && <span>{rings.bands.length} rings</span>}
+        {objectCount > 0 && <span>{objectCount} objects</span>}
+        {selection.count > 0 && <span>{selection.count} selected</span>}
+        {undoDepth > 0 && <span>{undoDepth} undo</span>}
+        {!unlocked && <span className="mbf:text-note">{activeLayerId} locked</span>}
+        {brush.committing && <span>vectorising…</span>}
+        {rings.deriving && <span>deriving rings…</span>}
+        {brush.error && <span className="mbf:text-danger">{brush.error}</span>}
+        {rings.error && <span className="mbf:text-danger">rings failed: {rings.error}</span>}
       </p>
     </div>
   );

@@ -12,10 +12,13 @@ import type { Label } from "../scene/types";
 
 /**
  * The scene stores `label.font` as a key ("fantasy-serif"), and v1 defines exactly one
- * face, so the key resolves here rather than in the object.
+ * face, so the key resolves here rather than in the object. Cinzel is self-hosted and
+ * bundled (`index.css`) — never a CDN, which would be a CSP problem and would fall back
+ * silently when it failed. A second face means turning this into a lookup on that key.
  *
- * ponytail: a system stack, not a webfont — WP-13 self-hosts the real face
- * (`06-frontend-styling.md`). A second face means turning this into a lookup on that key.
+ * The stack behind it still matters: canvas text does not wait for a webfont, so a label
+ * drawn before Cinzel loads uses the next entry. `main.tsx` redraws once `document.fonts`
+ * settles, which is also when the measurements below stop being estimates.
  */
 const FAMILY = '"Cinzel", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif';
 
@@ -85,4 +88,12 @@ export function drawLabel(context: CanvasRenderingContext2D, label: Label): void
   context.fillStyle = PALETTE.ink;
   context.fillText(label.text, 0, 0);
   context.restore();
+}
+
+/**
+ * Advance widths belong to a face, so they are wrong until the real one has loaded — and
+ * `textBounds` feeds the selection frame and hit-testing, not just the draw (invariant I2).
+ */
+export function clearTextMetrics(): void {
+  widths.clear();
 }

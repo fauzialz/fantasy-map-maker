@@ -41,11 +41,10 @@ the next free number in the series; never renumber an existing row.
 | | Where it lives |
 |---|---|
 | Deliberate shortcuts and ceilings in code | `grep -rn "ponytail:" src/` — each names its own ceiling and upgrade trigger |
-| WP-13's five stand-ins (placeholder rail, `window.prompt`, `window.confirm`, `palette.ts` constants, system font stack) | WP-13's entry in `v1/05-p0-build-checklist.md` and `v1/prompts/phase-0-core-editor.md`, whose acceptance includes *no `ponytail:` marker still names WP-13* |
-| Missing driven-input evidence for WP-9 and WP-10 | WP-13's entry — it builds the one driver that covers all three. Narrative in `v1/07-interaction-invariants.md` §5 |
 | Open design decisions (D1, D4, D6) | `v1/08-terrain-as-objects.md` §8 — decisions gate work rather than sit inside it |
 | Features deferred from v1 | `v1/01-system-design.md` §15. Absence of a feature is not debt |
-| Unbuilt work packages (WP-12…WP-17) | `v1/05-p0-build-checklist.md` |
+| Unbuilt work packages (WP-14…WP-17) | `v1/05-p0-build-checklist.md` |
+| Deploying the built SPA | WP-13's entry — the bundle is static and the README documents the host requirements; picking a host is the owner's call, not debt |
 
 ---
 

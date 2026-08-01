@@ -121,6 +121,8 @@ P0 alone is a complete portfolio piece.
 ## Status
 
 - **v1 design: complete.** All load-bearing decisions locked (see the ADR log).
+- **Phase 0: built.** WP-0 … WP-13 all pass their acceptance criteria; the one part not
+  done is the deploy itself, which needs a host and a domain. See the tracker.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
   first-class water bodies/canals, auto-generated rivers, rich blended biome
   transitions, tile-render export, WebGL renderer.

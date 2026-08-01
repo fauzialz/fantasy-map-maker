@@ -57,14 +57,16 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   the interval. Verified by driven input, 14 checks.
 
 ## Ship
-- [ ] **WP-13 · UI polish & deploy** — toolbar, layer panel, settings, generator panel,
-  export dialog, confirm modal, toasts; deploy static SPA. A newcomer makes + exports a
-  good-looking map in minutes. **Also retires the P0 stand-ins that name it** — the
-  placeholder left rail, `window.prompt` for label text, `window.confirm` for the generate
-  confirm, `palette.ts`'s hardcoded canvas colours, and the system font stack.
-  `grep -rn "ponytail:" src/` is the list. **Also builds the one driven-input driver** (`07`
-  §1) covering undo/redo, the generate confirm and this package's chrome — which is what
-  retires WP-9's and WP-10's missing interaction evidence.
+- [x] **WP-13 · UI polish** — Tailwind v4 (`prefix(mbf)`, `@theme inline`), tokens,
+  `tailwind-variants`, Radix, Lucide, self-hosted fonts. Toolbar, contextual tool rail,
+  layer panel with visibility + lock, map settings, generator panel, export dialog,
+  confirm dialog, toasts, light/dark. **All five stand-ins retired**; `grep -rn "ponytail:"
+  src/` no longer names WP-13, and no native prompt or confirm remains. **The driver is
+  built**: 29 checks covering undo, redo, the generate confirm and this package's chrome,
+  which closes WP-9's and WP-10's missing interaction evidence too.
+  **Deploy is the one part not done** — `npm run build` emits a static `dist/` and the
+  README documents the two host requirements, but nothing is hosted yet: it needs a host
+  and a domain, which are the owner's to choose.
 
 ---
 

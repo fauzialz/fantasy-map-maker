@@ -5,7 +5,7 @@ import { inDrawOrder } from "../scene/order";
 import type { Landmass, Ring, River, SceneObject } from "../scene/types";
 import { drawSprite } from "../sprites/raster";
 import { drawLabel } from "../sprites/text";
-import { BIOME_FILL, LAND_OPACITY, PALETTE, RIVER_FILL, SEA_OPACITY } from "./palette";
+import { BIOME_FILL, LAND_OPACITY, PALETTE, SEA_OPACITY } from "./palette";
 import { hatchTile, parchmentTile } from "./textures";
 import type { Size } from "./viewport";
 
@@ -95,7 +95,7 @@ export function drawLandmass(ctx: DrawContext, landmass: Landmass): void {
 /**
  * A river is a filled ribbon rather than a stroked line, because the taper is geometry —
  * see `engine/river.ts`. Flat, opaque and unstroked, so two overlapping ribbons paint the
- * same colour twice and a confluence is seamless (`RIVER_FILL`).
+ * same colour twice and a confluence is seamless (`PALETTE.river`).
  */
 export function drawRiver(ctx: DrawContext, river: River): void {
   const ribbon = riverRibbon(river);
@@ -103,7 +103,7 @@ export function drawRiver(ctx: DrawContext, river: River): void {
   ctx.save();
   ctx.beginPath();
   trace(ctx, ribbon);
-  ctx.fillStyle = RIVER_FILL;
+  ctx.fillStyle = PALETTE.river;
   ctx.fill();
   ctx.restore();
 }
@@ -152,8 +152,10 @@ export function drawVignette(ctx: DrawContext, map: Size): void {
     map.h / 2,
     radius,
   );
-  gradient.addColorStop(0, "rgba(58,46,31,0)");
-  gradient.addColorStop(1, "rgba(58,46,31,0.16)");
+  // Both stops are the same ink so the fade is pure alpha; interpolating to `transparent`
+  // would run through transparent *black* and leave a grey cast on a warm page.
+  gradient.addColorStop(0, `rgb(${PALETTE.vignette} / 0)`);
+  gradient.addColorStop(1, `rgb(${PALETTE.vignette} / 0.16)`);
 
   ctx.save();
   ctx.fillStyle = gradient;

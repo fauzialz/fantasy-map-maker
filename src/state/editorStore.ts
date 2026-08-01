@@ -90,6 +90,12 @@ interface EditorState {
   /** Replace one object in place — a dragged river point, an edited label. */
   patchObject: <T extends SceneObject>(layerId: LayerId, id: string, patch: Partial<T>) => void;
   setSettings: (patch: Partial<SceneSettings>) => void;
+  /**
+   * Layer visibility and lock. Not undoable, deliberately: `diffScene` watches objects and
+   * settings, and hiding a layer changes what you are looking at rather than what the map
+   * is. Undo after a hide should reverse your last *edit*, not un-hide.
+   */
+  setLayerFlags: (layerId: LayerId, patch: { visible?: boolean; locked?: boolean }) => void;
   setLandmasses: (landmasses: Landmass[]) => void;
   /**
    * Close one undo step: everything that changed between `before` and the scene as it
@@ -220,6 +226,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSettings: (patch) =>
     set((state) => ({
       scene: { ...state.scene, settings: { ...state.scene.settings, ...patch } },
+    })),
+
+  setLayerFlags: (layerId, patch) =>
+    set((state) => ({
+      scene: {
+        ...state.scene,
+        layers: state.scene.layers.map((layer) =>
+          layer.id === layerId ? { ...layer, ...patch } : layer,
+        ),
+      },
     })),
 
   setLandmasses: (landmasses) =>

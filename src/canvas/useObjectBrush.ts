@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LayerId, Point, Scene, SceneObject } from "../scene/types";
+import type { Label, LayerId, Point, Scene, SceneObject } from "../scene/types";
 import { variantCount } from "../sprites/registry";
 import { isUnderBrush } from "./objectHit";
 import { LAYER_OBJECT, useEditorStore } from "../state/editorStore";
@@ -8,42 +8,47 @@ interface Options {
   activeLayerId: LayerId;
   enabled: boolean;
   toMapPoint: (clientX: number, clientY: number) => Point;
+  /**
+   * Labels are the one type that cannot be placed by the pointer alone — they need their
+   * text first. The brush hands the point up and the stage opens its inline editor there.
+   */
+  onPlaceLabel: (at: Point) => void;
 }
 
 const jitter = (spread: number) => (Math.random() - 0.5) * 2 * spread;
 
-/**
- * @returns the new object, or undefined when the user backed out of naming a label —
- * placing an empty label would leave an invisible, unclickable object on the map.
- */
-function makeObject(
-  kind: NonNullable<(typeof LAYER_OBJECT)[LayerId]>,
-  [x, y]: Point,
-  scatter: boolean,
-): SceneObject | undefined {
-  const base = {
-    id: crypto.randomUUID(),
-    x,
-    y,
-    // Map sprites read as drawn-in-place; a few degrees keeps a range from looking stamped.
-    rotation: scatter ? jitter(5) : 0,
-    scale: scatter ? 1 + jitter(0.28) : 1,
-    z: 0,
-  };
+const anchorAt = ([x, y]: Point, scatter: boolean) => ({
+  id: crypto.randomUUID(),
+  x,
+  y,
+  // Map sprites read as drawn-in-place; a few degrees keeps a range from looking stamped.
+  rotation: scatter ? jitter(5) : 0,
+  scale: scatter ? 1 + jitter(0.28) : 1,
+  z: 0,
+});
 
-  if (kind === "label") {
-    // ponytail: a native prompt is the whole text-entry UI for now. WP-13 replaces it with
-    // an inline editor on the canvas; until then this is one line and works everywhere.
-    const text = window.prompt("Label text")?.trim();
-    if (!text) return undefined;
-    const { labelSize } = useEditorStore.getState();
-    return { ...base, type: "label", text, font: "fantasy-serif", size: labelSize, pathId: null };
-  }
+/** Everything the pointer can place on its own — labels go through `createLabel`. */
+function makeObject(
+  kind: Exclude<NonNullable<(typeof LAYER_OBJECT)[LayerId]>, "label">,
+  point: Point,
+  scatter: boolean,
+): SceneObject {
+  const base = anchorAt(point, scatter);
   if (kind === "landmark") {
     return { ...base, type: "landmark", kind: useEditorStore.getState().iconKind };
   }
   return { ...base, type: kind, variant: Math.floor(Math.random() * variantCount(kind)) };
 }
+
+/** Built once the inline editor has a name for it (`ui/LabelEditor.tsx`). */
+export const createLabel = (point: Point, text: string): Label => ({
+  ...anchorAt(point, false),
+  type: "label",
+  text,
+  font: "fantasy-serif",
+  size: useEditorStore.getState().labelSize,
+  pathId: null,
+});
 
 /**
  * The three placement modes, shared by every object layer (ADR-18: what "erase" does
@@ -53,7 +58,7 @@ function makeObject(
  * - **place**  — one object per click
  * - **erase**  — remove objects under the drag
  */
-export function useObjectBrush({ activeLayerId, enabled, toMapPoint }: Options) {
+export function useObjectBrush({ activeLayerId, enabled, toMapPoint, onPlaceLabel }: Options) {
   const [stroking, setStroking] = useState(false);
   const last = useRef<Point | null>(null);
   /** The scene as the drag began, and what to call the step it becomes on mouse-up. */
@@ -63,10 +68,10 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint }: Options) 
   const scatterAt = useCallback(
     (point: Point) => {
       const { brushSize, addObjects } = useEditorStore.getState();
-      if (!kind) return;
+      if (!kind || kind === "label") return;
       const spread = brushSize / 2;
       const placed = makeObject(kind, [point[0] + jitter(spread), point[1] + jitter(spread)], true);
-      if (placed) addObjects(activeLayerId, [placed]);
+      addObjects(activeLayerId, [placed]);
     },
     [activeLayerId, kind],
   );
@@ -102,8 +107,8 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint }: Options) 
       }
       if (objectTool === "place") {
         if (!first || !kind) return;
-        const placed = makeObject(kind, point, false);
-        if (placed) useEditorStore.getState().addObjects(activeLayerId, [placed]);
+        if (kind === "label") onPlaceLabel(point);
+        else useEditorStore.getState().addObjects(activeLayerId, [makeObject(kind, point, false)]);
         return;
       }
 
@@ -117,7 +122,7 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint }: Options) 
         last.current = point;
       }
     },
-    [activeLayerId, eraseAt, kind, scatterAt],
+    [activeLayerId, eraseAt, kind, onPlaceLabel, scatterAt],
   );
 
   const begin = useCallback(

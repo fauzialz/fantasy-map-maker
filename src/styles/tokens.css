@@ -1,0 +1,125 @@
+/**
+ * Design tokens — `06-frontend-styling.md`, decided in ADR-24.
+ *
+ * Defined once, flipped by `[data-theme]` and by OS preference, and consumed by both the
+ * Tailwind chrome (via `@theme inline`) and the Konva canvas (via `canvas/palette.ts`,
+ * which reads these properties). One switch recolours the DOM and the map together — that
+ * is the whole reason the palette module exists.
+ *
+ * The `--map-*` set is namespaced apart from the chrome tokens because it is not chrome:
+ * these are the cartography colours WP-5 tuned by eye, and the sea/land relationship in
+ * particular is a balance the chrome palette has no say in.
+ */
+
+:root {
+  --ground: #eef1ec;
+  --panel: #fbfcfa;
+  --panel-2: #f2f5f0;
+  --sink: #e7ece5;
+  --ink: #1c2a27;
+  --muted: #5e6d68;
+  --line: #d6ddd6;
+  --line-strong: #c3ccc3;
+  --accent: #22685b;
+  --accent-ink: #164439;
+  --note: #9c6414;
+  --danger: #9b2c2c;
+
+  /* canvas — WP-5's tuned parchment chart */
+  --map-paper: #ede3c6;
+  --map-paper-shade: #c0ae84;
+  --map-sea: #417a82;
+  --map-sea-deep: #2c555c;
+  --map-ring: #1e5147;
+  --map-ink: #3a2e1f;
+  --map-coast: #43341f;
+  --map-river: #85a296;
+  --map-vignette: 58 46 31;
+  --map-grassland: #e4d8b0;
+  --map-forest: #cbd0a2;
+  --map-desert: #f0e0b4;
+  --map-snow: #f2f2ea;
+  --map-swamp: #c0c69c;
+  --map-peak: #b9ae93;
+  --map-peak-lit: #f2efe6;
+  --map-tree: #6f7f55;
+  --map-tree-ink: #3e4a2e;
+  --map-landmark: #d8c9a4;
+}
+
+/**
+ * Dark keeps the map a parchment chart — it is the artefact on the table, not a surface
+ * that follows the room. It is dimmed and cooled so it does not glare out of a dark shell,
+ * and the sea darkens further so land still separates from water at the reduced contrast.
+ */
+:root[data-theme="dark"] {
+  --ground: #0f1618;
+  --panel: #18201f;
+  --panel-2: #1d2624;
+  --sink: #131a19;
+  --ink: #e6ece9;
+  --muted: #94a29d;
+  --line: #2a3533;
+  --line-strong: #37433f;
+  --accent: #54b49c;
+  --accent-ink: #9fe3d0;
+  --note: #d2a24e;
+  --danger: #e08585;
+
+  --map-paper: #cdc2a2;
+  --map-paper-shade: #9a8a68;
+  --map-sea: #2b565d;
+  --map-sea-deep: #1f4249;
+  --map-ring: #16413a;
+  --map-ink: #2b2317;
+  --map-coast: #332815;
+  --map-river: #6b8479;
+  --map-vignette: 20 16 10;
+  --map-grassland: #c6bb95;
+  --map-forest: #b0b489;
+  --map-desert: #d2c39a;
+  --map-snow: #d5d5cd;
+  --map-swamp: #a6ab83;
+  --map-peak: #9c927a;
+  --map-peak-lit: #d3cfc4;
+  --map-tree: #5a6845;
+  --map-tree-ink: #313b25;
+  --map-landmark: #b8ab89;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0f1618;
+    --panel: #18201f;
+    --panel-2: #1d2624;
+    --sink: #131a19;
+    --ink: #e6ece9;
+    --muted: #94a29d;
+    --line: #2a3533;
+    --line-strong: #37433f;
+    --accent: #54b49c;
+    --accent-ink: #9fe3d0;
+    --note: #d2a24e;
+    --danger: #e08585;
+
+    --map-paper: #cdc2a2;
+    --map-paper-shade: #9a8a68;
+    --map-sea: #2b565d;
+    --map-sea-deep: #1f4249;
+    --map-ring: #16413a;
+    --map-ink: #2b2317;
+    --map-coast: #332815;
+    --map-river: #6b8479;
+    --map-vignette: 20 16 10;
+    --map-grassland: #c6bb95;
+    --map-forest: #b0b489;
+    --map-desert: #d2c39a;
+    --map-snow: #d5d5cd;
+    --map-swamp: #a6ab83;
+    --map-peak: #9c927a;
+    --map-peak-lit: #d3cfc4;
+    --map-tree: #5a6845;
+    --map-tree-ink: #313b25;
+    --map-landmark: #b8ab89;
+  }
+}

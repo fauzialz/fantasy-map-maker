@@ -1,4 +1,6 @@
+import { X } from "lucide-react";
 import { useToastStore } from "../state/toastStore";
+import { button, iconButton, toast } from "./variants";
 
 export function Toasts() {
   const toasts = useToastStore((s) => s.toasts);
@@ -7,16 +9,21 @@ export function Toasts() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="toasts" role="status" aria-live="polite">
-      {toasts.map((toast) => (
-        <div key={toast.id} className="toast">
-          <span>{toast.message}</span>
-          {toast.undo && (
+    <div
+      className="toasts mbf:pointer-events-none mbf:fixed mbf:bottom-10 mbf:left-1/2 mbf:z-50 mbf:flex mbf:-translate-x-1/2 mbf:flex-col mbf:gap-2"
+      role="status"
+      aria-live="polite"
+    >
+      {toasts.map((entry) => (
+        <div key={entry.id} className={`toast ${toast()}`}>
+          <span>{entry.message}</span>
+          {entry.undo && (
             <button
               type="button"
+              className={button({ tone: "ghost" })}
               onClick={() => {
-                toast.undo?.();
-                dismiss(toast.id);
+                entry.undo?.();
+                dismiss(entry.id);
               }}
             >
               Undo
@@ -24,11 +31,11 @@ export function Toasts() {
           )}
           <button
             type="button"
-            className="close"
+            className={`close ${iconButton()}`}
             aria-label="Dismiss"
-            onClick={() => dismiss(toast.id)}
+            onClick={() => dismiss(entry.id)}
           >
-            ×
+            <X size={13} />
           </button>
         </div>
       ))}

@@ -246,12 +246,22 @@ refresh. The first version *did* earn its keep, though: it found a real bug on t
 unguarded `loadLatestScene().then` that StrictMode's second mount let apply after cleanup,
 so the restored draft was written straight back and started the throttle.
 
-**Not done, and known: WP-9 and WP-10 have no driven-input evidence.** Undo/redo (keyboard and
-button) and the generator (a click, and a confirm dialog) were verified by hand at a real
-browser and by unit tests, which is not what §1 asks for. By this document's own rule their
-interaction is unverified. One driver covering undo, the generate confirm and WP-13's chrome
-would close all three at once. Two details worth reusing —
-`Page.javascriptDialogOpening` + `Page.handleJavaScriptDialog` drives the label's `prompt`
-without stubbing it out, and the driver must `location.reload()` first or it inherits
-whatever the last run left on the canvas. Still worth doing again for WP-10 (the generate
-confirm flow) and WP-13.
+**Closed by WP-13.** Undo/redo and the generator were shipped verified by hand, which this
+document's own rule says is not evidence. WP-13's driver closes all three: 29 checks over the
+toolbar Undo/Redo buttons *and* Ctrl+Z / Ctrl+Shift+Z, the generate confirm through both
+Cancel and Replace, the inline label editor, layer lock, the theme switch and the export
+dialog. Three techniques from it are worth keeping:
+
+- **Subscribe to `Page.javascriptDialogOpening` and assert it never fires.** WP-13's whole
+  claim is that the native prompt and confirm are gone; a listener that stays silent for the
+  entire run is a stronger statement than any grep, because it also covers dialogs opened by
+  code paths the driver did not think to name.
+- **Assert undo *depth*, not object counts, when checking that an action is one step.** The
+  generate check compared object counts and passed by coincidence — the generated world had
+  the same 1 086 objects as the map it replaced. Undo depth is exact and cannot collide.
+- **Never wait on a condition that is already true.** `until(objects > 50)` returned
+  instantly because the canvas was already populated, so the driver measured the state it
+  was meant to be replacing and then blamed undo. Wait for the *completion* signal — here
+  the "Generated N landmasses" toast. This is the same failure WP-12's driver hit from the
+  other direction; between them the rule is: **a driver that races the thing it measures
+  tests the race.**

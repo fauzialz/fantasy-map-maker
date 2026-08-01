@@ -20,12 +20,32 @@ npm run lint     # oxlint
 npm run build    # typecheck + production bundle
 ```
 
+## Deploying
+
+`npm run build` emits a completely static `dist/` — no server, no API, no environment
+variables, and a single route, so it needs no SPA rewrite rules. Upload `dist/` to any
+static host or CDN (Netlify, Cloudflare Pages, GitHub Pages, S3+CloudFront):
+
+```sh
+npm run build
+npx serve dist        # or any static server, to check the bundle before shipping
+```
+
+Two things the host must get right: serve `.woff2` with a long cache lifetime (the fonts
+are content-hashed and self-hosted — there is no CDN fallback), and do not add a
+Content-Security-Policy that blocks `worker-src blob:`, which the geometry worker needs.
+
 ## Layout
 
 ```
 src/
-  scene/     scene types (the hard contract), createEmptyScene, migrate, (de)serialize
-  engine/    geometry pipeline + the Web Worker that hosts it
+  scene/        scene types (the hard contract), createEmptyScene, migrate, (de)serialize
+  engine/       geometry pipeline + the Web Worker that hosts it
+  canvas/       Konva stage, layers, viewport, and draw.ts — every mark on the map
+  ui/           the chrome: toolbar, rails, dialogs, and the tailwind-variants styles
+  export/       PNG/JPG/WebP export with the resolution clamp
+  persistence/  IndexedDB autosave and restore
+  styles/       design tokens, light and dark
 ```
 
 The scene JSON in [`02-scene-data-model.md`](architecture/v1/02-scene-data-model.md) is a
