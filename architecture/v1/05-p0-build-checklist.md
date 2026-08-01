@@ -49,8 +49,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   export cannot drift from the screen. Clamped on **both** side (16 384 px) and total
   pixels (64 MP) — the second is what actually stops a blank export. Verified by driven
   input, 14 checks.
-- [ ] **WP-12 · Local-first persistence** — IndexedDB autosave/restore; maps carry
-  `meta.id`; survives refresh; no scene data in localStorage.
+- [x] **WP-12 · Local-first persistence** — IndexedDB autosave/restore; maps carry
+  `meta.id`; survives refresh; no scene data in localStorage. Raw IDB, no wrapper: one
+  store keyed on `meta.id`, an `updatedAt` index so startup restores the newest with one
+  reverse cursor, values written by `serialize()` so a restore cannot skip `migrate()`.
+  **Throttled, not debounced** — an isolated edit lands in ~20 ms instead of waiting out
+  the interval. Verified by driven input, 14 checks.
 
 ## Ship
 - [ ] **WP-13 · UI polish & deploy** — toolbar, layer panel, settings, generator panel,

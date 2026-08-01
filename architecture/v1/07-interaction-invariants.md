@@ -235,6 +235,17 @@ export writes the same filename, so the driver has to move each one aside before
 Reading back what shipped is how "exports are correct at each scale" stops being the app's
 own word for it.
 
+WP-12's driver is the other half of that lesson, and cost two false starts worth recording.
+"Work survives a refresh" needs a real `Page.navigate`, and its first version asserted the
+wrong thing: it clicked Re-roll and navigated immediately, which failed three runs running.
+The cause was not the feature — a probe that polled IndexedDB without navigating showed the
+write committing in **~20 ms** — but the navigation aborting a transaction that had already
+started. **A driver that races the thing it measures tests the race.** The check became a
+measurement (poll until the value reaches disk, assert the latency) plus an unhurried
+refresh. The first version *did* earn its keep, though: it found a real bug on the way, an
+unguarded `loadLatestScene().then` that StrictMode's second mount let apply after cleanup,
+so the restored draft was written straight back and started the throttle.
+
 **Not done, and known: WP-9 and WP-10 have no driven-input evidence.** Undo/redo (keyboard and
 button) and the generator (a click, and a confirm dialog) were verified by hand at a real
 browser and by unit tests, which is not what §1 asks for. By this document's own rule their

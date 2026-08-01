@@ -11,6 +11,7 @@ import {
   toBlob,
   type Format,
 } from "./export/image";
+import { useAutosave, type SaveStatus } from "./persistence/useAutosave";
 import { restack } from "./scene/transform";
 import { ICON_KINDS } from "./sprites/registry";
 import type { CanvasPreset, Label, LayerId, WorldType } from "./scene/types";
@@ -30,6 +31,15 @@ const EXPORT_SCALES = [1, 2, 4];
 
 const fileSize = (bytes: number) =>
   bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+
+const SAVE_LABEL: Record<SaveStatus, string> = {
+  loading: "opening your last map…",
+  new: "new map · saves as you work",
+  restored: "restored your last map",
+  saving: "saving…",
+  saved: "saved",
+  failed: "not saved",
+};
 
 /** "place" means something different with a spline in your hand than with a stamp. */
 const TOOL_LABEL: Partial<Record<LayerId, Partial<Record<ObjectTool, string>>>> = {
@@ -99,6 +109,7 @@ export default function App() {
   const setAdvanced = useEditorStore((s) => s.setAdvanced);
   const [worker, setWorker] = useState("checking…");
   const [generating, setGenerating] = useState(false);
+  const saveStatus = useAutosave();
 
   /**
    * 10h — generate the world in the worker, then apply the whole replace as one command.
@@ -210,6 +221,9 @@ export default function App() {
     <main>
       <aside className="rail">
         <h1>map.byfauzi.com</h1>
+        <p className="status" data-autosave>
+          {SAVE_LABEL[saveStatus]}
+        </p>
 
         <div className="tools">
           <button type="button" disabled={past.length === 0} onClick={undo}>

@@ -266,6 +266,14 @@ instead — one renderer, so the file and the screen cannot disagree.
   local drafts by their client UUID (idempotent — no duplicates if they log in
   mid-session). Cloud autosave **debounced**; **optimistic version check** on `PUT`
   (`updated_at`) to avoid two-tab clobber.
+- **What P0 built (`persistence/`):** one IDB store `scenes`, keyed on `meta.id` — the
+  claim handle above is the primary key, so P2 inherits the collection rather than
+  migrating to one. An `updatedAt` index makes startup a single reverse cursor instead of
+  a read of every draft. Values are `serialize()` output, so `deserialize()` — and with it
+  `migrate()` — is the only way back in. **Autosave throttles rather than debounces:** a
+  debounce leaves an isolated edit unwritten for the whole interval and a continuous drag
+  unwritten entirely, where a leading-edge save is on disk in ~20 ms. That latency, not the
+  interval, is the loss window, and it is why hiding the page also flushes.
 - **Security:** the SSR share page injects user-supplied title/description into HTML
   `<meta>` — **escape it** (OG/HTML injection). Canvas-rendered labels are safe since
   Konva draws text to canvas, not the DOM.
