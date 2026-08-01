@@ -110,6 +110,24 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
   const selectedLandmasses = useMemo(() => landmassesIn(selected), [selected]);
 
   /**
+   * Whether the frame's interior may claim a press at this point (`09` S8, E14).
+   *
+   * A sprite's box hugs its artwork, and the gaps between sprites in a group are still
+   * part of "the group" — pressing there to drag them all is exactly right, so a selection
+   * holding any footprint object keeps the interior live. A **land-only** selection is the
+   * other case: a crescent continent's box is mostly open sea (C4), so the interior only
+   * counts where the coastline actually is. Press the water and it deselects, as pressing
+   * water always has.
+   */
+  const frameInteriorAt = useCallback(
+    (point: Point) =>
+      selected.length === 0 ||
+      selected.some(hasFootprint) ||
+      landmassAt(selectedLandmasses, point[0], point[1]) !== undefined,
+    [selected, selectedLandmasses],
+  );
+
+  /**
    * A transform can now span layers, so the write-back does too — one `setLayerObjects`
    * per layer the drag actually touched. History needs nothing for this: a `Step` already
    * carries a `LayerDiff[]`, so the whole cross-layer drag is still one undo step.
@@ -142,6 +160,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
         overObject: hit !== undefined,
         shift,
         scale,
+        frameInterior: frameInteriorAt(point),
       });
 
       if (gesture.kind === "scale" || gesture.kind === "rotate") {
@@ -178,7 +197,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       setDragging(true);
       return true;
     },
-    [frame, enabled, groupRotation, index, objects, scale, selected, selection, toMapPoint],
+    [frame, enabled, frameInteriorAt, groupRotation, index, objects, scale, selected, selection, toMapPoint],
   );
 
   /**
@@ -196,9 +215,17 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       // stayed invisible.
       const over =
         index.hit(point[0], point[1]) ?? landmassAt(landmassesIn(objects), point[0], point[1]);
-      setHoverCursor(cursorForHover({ point, frame, overObject: over !== undefined, scale }));
+      setHoverCursor(
+        cursorForHover({
+          point,
+          frame,
+          overObject: over !== undefined,
+          scale,
+          frameInterior: frameInteriorAt(point),
+        }),
+      );
     },
-    [frame, enabled, index, objects, scale, toMapPoint],
+    [frame, enabled, frameInteriorAt, index, objects, scale, toMapPoint],
   );
 
   /**

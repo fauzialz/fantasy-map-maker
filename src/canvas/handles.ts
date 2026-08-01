@@ -78,6 +78,8 @@ interface HoverInput {
   frame?: Frame;
   overObject: boolean;
   scale: number;
+  /** see `resolveGesture` — false when the frame's empty interior must not claim a press */
+  frameInterior?: boolean;
 }
 
 /**
@@ -89,11 +91,15 @@ export function cursorForHover({
   frame,
   overObject,
   scale,
+  frameInterior = true,
 }: HoverInput): string | undefined {
   if (frame) {
     const handle = handleAt(frame, point, scale);
     if (handle) return cursorForHandle(handle, frame.rotation);
-    if (frameContains(frame, point)) return "move";
+    // Mirrors `resolveGesture` exactly, `frameInterior` included (I4). A pointer offering
+    // "move" over water where the press would start a marquee is bug #2 with the parts
+    // swapped — the whole reason that bug stayed invisible.
+    if (frameInterior && frameContains(frame, point)) return "move";
   }
   return overObject ? "pointer" : undefined;
 }

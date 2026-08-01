@@ -33,6 +33,8 @@ Two rules follow from that ordering:
 |---|---|---|---|
 | **Q-01** | Every scene change re-caches all five inactive layers. After a generate that is ~1 200 sprites redrawn per layer, for a scene that just replaced everything — a contributor to the hitch you feel on generate. Genuinely cross-cutting: the cache strategy (`canvas/useLayerCache.ts`), the layer list (`canvas/MapStage.tsx`) and the generate apply path (`state/editorStore.ts`) each own a piece, so no single line owns it | 4000×3000 landscape, generated world of ~1 180 objects across six layers | Someone measures it as the dominant post-generate cost and re-caches only the layers whose contents actually changed. **WP-18 is the natural moment** — it is already rewriting which layers are live, and carries a frame-time measurement of its own |
 
+| **V-01** | An intermittent `TypeError: Cannot read properties of null (reading 'getSnapshot')` — React's `useSyncExternalStore`, so a store read reaching a torn-down fiber. Seen twice while driving WP-15's terrain drags, **and reproduced on the pre-change code**, so it predates that work; four later runs of the same driver did not fire it, and no stack was captured. No line owns it because nothing points at the culprit yet | headless Chrome at dpr 1, dev server; sequence: new square canvas → paint a stroke → select land → drag. Roughly 2 of 6 runs | Someone catches it with a stack (`Runtime.exceptionThrown` prints the full description) and fixes the subscription that outlives its component — or six consecutive clean runs of `drive-inert` retire it as fixed by something since |
+
 Series: **Q-** measurements · **V-** absences with no owner · **D-** doc/contract drift. Take
 the next free number in the series; never renumber an existing row.
 

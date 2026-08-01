@@ -17,6 +17,16 @@ interface Input {
   overObject: boolean;
   shift: boolean;
   scale: number;
+  /**
+   * Whether the frame's *interior* may claim this press.
+   *
+   * False when the selection is path-based and the point is not actually over it. A box
+   * is a fair stand-in for where a sprite is — it hugs the artwork, and the gaps inside a
+   * group of them are still "the group". It is a poor one for a crescent continent, whose
+   * AABB is mostly open sea (`08` C4): pressing that water is pressing nothing, and
+   * letting the box claim it is the box *picking*, which is what `09` S8 forbids.
+   */
+  frameInterior?: boolean;
 }
 
 /**
@@ -28,11 +38,20 @@ interface Input {
  * that, shift-clicking an already-selected object lands inside the selection frame and
  * starts a drag instead of deselecting it.
  */
-export function resolveGesture({ point, frame, overObject, shift, scale }: Input): Gesture {
+export function resolveGesture({
+  point,
+  frame,
+  overObject,
+  shift,
+  scale,
+  frameInterior = true,
+}: Input): Gesture {
   if (!shift && frame) {
+    // Handles stay live either way — they are small, deliberate targets sitting on the
+    // frame itself, not in the empty space it encloses.
     const handle = handleAt(frame, point, scale);
     if (handle) return { kind: handleKind(handle), handle };
-    if (frameContains(frame, point)) return { kind: "move" };
+    if (frameInterior && frameContains(frame, point)) return { kind: "move" };
   }
   if (overObject) return { kind: "pick", additive: shift };
   return { kind: "marquee", additive: shift };

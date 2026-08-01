@@ -79,3 +79,57 @@ describe("resolveGesture", () => {
     });
   });
 });
+
+/**
+ * `09` S8 / E14 — the frame draws the selection but must never *pick* it, and that
+ * includes the interior rung. A sprite's box hugs its artwork so the interior is a fair
+ * stand-in; a crescent continent's box is mostly open sea (C4), so it is not.
+ */
+describe("an inert frame interior", () => {
+  const frame = { cx: 100, cy: 100, width: 200, height: 200, rotation: 0 };
+
+  it("still moves the selection when the interior is live", () => {
+    expect(
+      resolveGesture({ point: [100, 100], frame, overObject: false, shift: false, scale: 1 }).kind,
+    ).toBe("move");
+  });
+
+  it("falls through to a marquee when the interior is inert and nothing is under the point", () => {
+    expect(
+      resolveGesture({
+        point: [100, 100],
+        frame,
+        overObject: false,
+        shift: false,
+        scale: 1,
+        frameInterior: false,
+      }).kind,
+    ).toBe("marquee");
+  });
+
+  it("still picks an object inside an inert interior", () => {
+    expect(
+      resolveGesture({
+        point: [100, 100],
+        frame,
+        overObject: true,
+        shift: false,
+        scale: 1,
+        frameInterior: false,
+      }).kind,
+    ).toBe("pick");
+  });
+
+  it("keeps the handles live regardless — they sit on the frame, not inside it", () => {
+    const corner = { x: 0, y: 0 };
+    const onHandle = resolveGesture({
+      point: [corner.x, corner.y],
+      frame,
+      overObject: false,
+      shift: false,
+      scale: 1,
+      frameInterior: false,
+    });
+    expect(onHandle.kind).toBe("scale");
+  });
+});

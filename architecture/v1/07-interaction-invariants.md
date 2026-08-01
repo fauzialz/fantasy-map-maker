@@ -184,10 +184,11 @@ this predicate it falls on.
 > built first, so land, not rivers, is where the model got debugged.
 >
 > **Rules still waiting in `09-selection-across-layers.md`:** a river's control points outrank
-> the frame's handles; the box takes *no* press, including I5's frame-interior rung; the cursor
-> resolves that identical precedence; and the marquee is intersection for footprint and
-> containment for land — **that last one has now shipped** with WP-14. They graduate into this
-> list once WP-20 and WP-19 have earned them.
+> the frame's handles, and a drag applies one resolved delta to the whole selection. Two have
+> already shipped ahead of WP-20 — the marquee is intersection for footprint and containment
+> for land (WP-14), and **the box takes no press, including I5's frame-interior rung, with the
+> cursor resolving the identical precedence** (WP-15's follow-up, for land). Both graduate into
+> this list once WP-19 has exercised them across models.
 
 ---
 
