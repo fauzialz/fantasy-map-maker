@@ -45,7 +45,7 @@ the next free number in the series; never renumber an existing row.
 | Deliberate shortcuts and ceilings in code | `grep -rn "ponytail:" src/` — each names its own ceiling and upgrade trigger |
 | Open design decisions (D4, D6) | `v1/08-terrain-as-objects.md` §8 — decisions gate work rather than sit inside it. D1 was settled by ADR-28 |
 | Features deferred from v1 | `v1/01-system-design.md` §15. Absence of a feature is not debt |
-| Unbuilt work packages (WP-19, WP-20, WP-21) | `v1/05-p0-build-checklist.md` |
+| Unbuilt work packages (WP-19, WP-21) | `v1/05-p0-build-checklist.md` |
 | Deploying the built SPA | WP-13's entry — the bundle is static and the README documents the host requirements; picking a host is the owner's call, not debt |
 
 ---

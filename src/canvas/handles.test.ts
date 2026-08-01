@@ -65,4 +65,30 @@ describe("cursors", () => {
       "nwse-resize",
     );
   });
+
+  /**
+   * I4, on the rung WP-20 added. The pointer has to resolve the *same* ladder the press
+   * does — a corner that shows "nwse-resize" while the press reshapes a river is bug #2
+   * with the parts swapped, and that is the whole reason bug #2 stayed invisible.
+   */
+  describe("over a control point", () => {
+    const hover = (point: [number, number], extra = {}) =>
+      cursorForHover({ point, frame, overObject: false, scale: 1, ...extra });
+
+    it("shows its own cursor, not the handle's, where the two collide", () => {
+      expect(hover([100, 100])).toBe("nwse-resize");
+      expect(hover([100, 100], { overControlPoint: true })).toBe("grab");
+    });
+
+    it("outranks the frame interior, exactly as the press does", () => {
+      expect(hover([200, 200])).toBe("move");
+      expect(hover([200, 200], { overControlPoint: true })).toBe("grab");
+    });
+
+    it("says nothing about the empty interior of a path-only selection", () => {
+      // The pair `useSelection` actually produces for a river: the box is inert, so the
+      // water inside it must read as a marquee (undefined) and not as a move.
+      expect(hover([200, 200], { frameInterior: false })).toBeUndefined();
+    });
+  });
 });

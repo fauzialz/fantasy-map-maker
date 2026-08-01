@@ -308,9 +308,17 @@ export function MapStage({ editing }: { editing?: Label }) {
   const totalBytes = Object.values(bytes).reduce((a, b) => a + b, 0) + ringBytes;
   const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
-  // Panning and the space-drag override everything; otherwise whichever tool owns the
-  // layer supplies its own handle-aware cursor, and a painting tool falls back to a
-  // crosshair. Same precedence as onMouseDown, so the pointer promises what a press does.
+  /**
+   * Panning and the space-drag override everything; otherwise whichever tool owns the layer
+   * supplies its own handle-aware cursor, and a painting tool falls back to a crosshair.
+   * Same precedence as `onMouseDown`, so the pointer promises what a press does (I4).
+   *
+   * **The fallback has to know Select is on.** A create tool's crosshair is the cursor for
+   * "a press here makes something", and while Select is the mode a press on empty space
+   * starts a marquee instead — so offering a crosshair there is the pointer lying about the
+   * gesture, one layer above the ladder rather than inside it. Shipped in WP-18 and found by
+   * WP-20's driver, which read `crosshair` where it expected the marquee cursor.
+   */
   const pointerCursor = panning
     ? "grabbing"
     : spaceHeld
@@ -319,7 +327,9 @@ export function MapStage({ editing }: { editing?: Label }) {
         ? "not-allowed"
         : (selection.cursor ??
           river.cursor ??
-          (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId] ? "crosshair" : "default"));
+          (!selecting && (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId])
+            ? "crosshair"
+            : "default"));
 
   /** The live, uncached layer draws whatever the active tool is in the middle of. */
   /**
@@ -416,10 +426,10 @@ export function MapStage({ editing }: { editing?: Label }) {
             (WP-18) the frame could be drawn into `terrain` — the bottom of the stack — and
             buried under 890 trees. A frame you cannot see is the same defect as no frame.
 
-            Both can be live at once and should be: on the rivers layer in edit mode the
-            river draws its control points, while the selection overlay still renders the
-            marquee. The frame stays empty there because a river has no footprint, so it
-            never enters the selection pool.
+            Both can be live at once and should be: a selected river draws the ordinary
+            frame *and* its own control points (WP-20), because the frame moves and turns
+            the whole river while the points reshape it. The points are drawn last so they
+            sit above the handles they outrank.
           */}
           <Layer listening={false}>
             {selecting && (
@@ -430,9 +440,10 @@ export function MapStage({ editing }: { editing?: Label }) {
                   marquee={selection.marquee}
                   scale={vp.scale}
                 />
+                <RiverOverlay preview={null} points={selection.riverPoints} scale={vp.scale} />
               </>
             )}
-            {activeLayerId === "rivers" && river.active && (
+            {river.active && (
               <RiverOverlay preview={river.preview} points={river.points} scale={vp.scale} />
             )}
           </Layer>

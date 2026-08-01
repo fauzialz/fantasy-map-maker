@@ -1,4 +1,4 @@
-import type { Landmass, Ring, SceneObject } from "./types";
+import type { Landmass, Point, River, SceneObject } from "./types";
 
 /**
  * Multi-object transforms. Every one takes the objects as they were when the drag began
@@ -7,28 +7,32 @@ import type { Landmass, Ring, SceneObject } from "./types";
  * "restore the snapshot".
  *
  * **Two models, since WP-15** (the I9 rewrite). An object with an anchor moves by its
- * anchor and records its own `rotation`. A landmass has neither: its geometry is absolute
- * (C5), so a transform has nowhere to record itself and **bakes into the points** — which
- * is exactly why only the rigid ones live here. Translation and rotation move every point
- * and degrade nothing; scale does not, because coastline detail is baked in map units at a
- * simplification epsilon chosen at commit time (C3), so a scaled coast has to be
- * re-simplified. That is WP-16's job, and `scaleObjects` still refuses land until then —
- * the guard this file has always carried, now narrowed to the one operation that needs it.
+ * anchor and records its own `rotation`. A path-based object has neither: its geometry is
+ * absolute (C5), so a transform has nowhere to record itself and **bakes into the points**.
  *
- * Rivers stay untouched by all three until WP-20.
+ * **Both path types are here since WP-20**, and they cost the transforms different things.
+ * A landmass's coastline detail is baked in map units at a simplification epsilon chosen at
+ * commit time (C3), so a scaled coast comes back coarser and has to be re-detailed — once,
+ * on drop, in `engine/terrain/rescale.ts`. A river's points are the user's own control
+ * points, Chaikin-smoothed at draw time, so all three transforms are **lossless** on it.
+ * That is why rivers were the right place to prove this model rather than coastlines.
  */
 
 const isPlaced = (object: SceneObject): object is Extract<SceneObject, { x: number; y: number }> =>
   "x" in object && "y" in object;
 
-const isLand = (object: SceneObject): object is Landmass => object.type === "landmass";
+/** The other model: absolute geometry, no anchor and no `rotation` to record against. */
+const isPath = (object: SceneObject): object is Landmass | River => !isPlaced(object);
 
-/** Apply a point map to a landmass's coastline and every lake in it. */
-const remapLand = (landmass: Landmass, move: (point: Ring[number]) => Ring[number]): Landmass => ({
-  ...landmass,
-  path: landmass.path.map(move),
-  holes: landmass.holes.map((hole) => hole.map(move)),
-});
+/** Apply a point map to a coastline and every lake in it, or to a river's control points. */
+const remapPath = (object: Landmass | River, move: (point: Point) => Point): Landmass | River =>
+  object.type === "landmass"
+    ? {
+        ...object,
+        path: object.path.map(move),
+        holes: object.holes.map((hole) => hole.map(move)),
+      }
+    : { ...object, points: object.points.map(move) };
 
 export interface Origin {
   x: number;
@@ -38,7 +42,7 @@ export interface Origin {
 export function translateObjects<T extends SceneObject>(objects: T[], dx: number, dy: number): T[] {
   return objects.map((object) => {
     if (isPlaced(object)) return { ...object, x: object.x + dx, y: object.y + dy } as T;
-    if (isLand(object)) return remapLand(object, ([x, y]) => [x + dx, y + dy]) as unknown as T;
+    if (isPath(object)) return remapPath(object, ([x, y]) => [x + dx, y + dy]) as unknown as T;
     return object;
   });
 }
@@ -56,11 +60,21 @@ export function scaleObjects<T extends SceneObject>(
    * drop, in the worker, not on every frame of a drag. `engine/terrain/rescale.ts`.
    */
   return objects.map((object) => {
-    if (isLand(object))
-      return remapLand(object, ([x, y]) => [
+    if (isPath(object)) {
+      const moved = remapPath(object, ([x, y]) => [
         origin.x + (x - origin.x) * safe,
         origin.y + (y - origin.y) * safe,
-      ]) as unknown as T;
+      ]);
+      /**
+       * A river keeps its width as a number rather than in its geometry, so scaling the
+       * points alone leaves a river stretched to twice the length and still drawn at the
+       * old width — a thread. `taper` needs nothing: it is a fraction along the path, and
+       * every transform here preserves that.
+       */
+      return (moved.type === "river"
+        ? { ...moved, width: moved.width * safe }
+        : moved) as unknown as T;
+    }
     if (!isPlaced(object)) return object;
     return {
       ...object,
@@ -80,16 +94,16 @@ export function rotateObjects<T extends SceneObject>(
   const radians = (degrees * Math.PI) / 180;
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
-  const spin = ([x, y]: Ring[number]): Ring[number] => {
+  const spin = ([x, y]: Point): Point => {
     const dx = x - origin.x;
     const dy = y - origin.y;
     return [origin.x + dx * cos - dy * sin, origin.y + dx * sin + dy * cos];
   };
 
   return objects.map((object) => {
-    // A landmass turns by its points alone — there is no `rotation` field to add to, and
+    // A path object turns by its points alone — there is no `rotation` field to add to, and
     // the renderer draws absolute geometry, so the points *are* the orientation.
-    if (isLand(object)) return remapLand(object, spin) as unknown as T;
+    if (isPath(object)) return remapPath(object, spin) as unknown as T;
     if (!isPlaced(object)) return object;
     const [x, y] = spin([object.x, object.y]);
     return { ...object, x, y, rotation: object.rotation + degrees } as T;

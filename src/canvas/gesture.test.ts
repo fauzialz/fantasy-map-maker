@@ -81,6 +81,44 @@ describe("resolveGesture", () => {
 });
 
 /**
+ * WP-20 — a control point outranks everything, because on a river the two genuinely
+ * collide: an endpoint is usually *at* a frame corner, since it is the point that defines
+ * that corner. `frame` here is the one at the top of the file, whose "nw" handle sits at
+ * (100, 100).
+ */
+describe("control points, the top rung", () => {
+  it("beats a frame handle sitting on the same pixel", () => {
+    expect(resolveGesture({ ...base, point: [100, 100] }).kind).toBe("scale");
+    expect(resolveGesture({ ...base, point: [100, 100], overControlPoint: true })).toEqual({
+      kind: "reshape",
+    });
+  });
+
+  it("beats the frame interior and the object under it", () => {
+    expect(
+      resolveGesture({ ...base, point: [200, 200], overObject: true, overControlPoint: true }).kind,
+    ).toBe("reshape");
+  });
+
+  /**
+   * I5's escape applies to every shortcut, not just the ones that existed when it was
+   * written: shift means "change the selection", so it must still reach the river under
+   * the point rather than starting a reshape it can never get out of.
+   */
+  it("still lets shift through to change the selection", () => {
+    expect(
+      resolveGesture({
+        ...base,
+        point: [200, 200],
+        overObject: true,
+        overControlPoint: true,
+        shift: true,
+      }),
+    ).toEqual({ kind: "pick", additive: true });
+  });
+});
+
+/**
  * `09` S8 / E14 — the frame draws the selection but must never *pick* it, and that
  * includes the interior rung. A sprite's box hugs its artwork so the interior is a fair
  * stand-in; a crescent continent's box is mostly open sea (C4), so it is not.

@@ -5,6 +5,8 @@ import { handleAt, handleKind, type Handle } from "./handles";
 export type Gesture =
   /** carries the specific handle, so the drag can keep showing that corner's cursor */
   | { kind: "scale" | "rotate"; handle: Handle }
+  /** drag one control point of a selected path object, leaving the rest where it is */
+  | { kind: "reshape" }
   | { kind: "move" }
   | { kind: "pick"; additive: boolean }
   | { kind: "marquee"; additive: boolean };
@@ -27,16 +29,23 @@ interface Input {
    * letting the box claim it is the box *picking*, which is what `09` S8 forbids.
    */
   frameInterior?: boolean;
+  /**
+   * Whether a control point of a selected path object is under the pointer (WP-20).
+   *
+   * The caller resolves *which* one — it has the selection; this file only needs to know
+   * that the top rung is claimed.
+   */
+  overControlPoint?: boolean;
 }
 
 /**
  * What a mousedown means, resolved in one place.
  *
- * The order matters and is easy to get subtly wrong: handles beat the frame, the frame
- * beats objects, objects beat empty space. The catch is **shift**, which means "change
- * the selection" — so it has to skip the handle and frame shortcuts entirely. Without
- * that, shift-clicking an already-selected object lands inside the selection frame and
- * starts a drag instead of deselecting it.
+ * The order matters and is easy to get subtly wrong: control points beat handles, handles
+ * beat the frame, the frame beats objects, objects beat empty space. The catch is
+ * **shift**, which means "change the selection" — so it has to skip every one of those
+ * shortcuts. Without that, shift-clicking an already-selected object lands inside the
+ * selection frame and starts a drag instead of deselecting it.
  */
 export function resolveGesture({
   point,
@@ -45,13 +54,23 @@ export function resolveGesture({
   shift,
   scale,
   frameInterior = true,
+  overControlPoint = false,
 }: Input): Gesture {
-  if (!shift && frame) {
-    // Handles stay live either way — they are small, deliberate targets sitting on the
-    // frame itself, not in the empty space it encloses.
-    const handle = handleAt(frame, point, scale);
-    if (handle) return { kind: handleKind(handle), handle };
-    if (frameInterior && frameContains(frame, point)) return { kind: "move" };
+  if (!shift) {
+    /**
+     * Above everything, because they genuinely collide (WP-20): a river's endpoint is
+     * usually *at* a corner of the frame, since it is the point that defines that corner.
+     * Lose this rung and grabbing the end of a river scales the whole thing instead of
+     * moving the point you aimed at.
+     */
+    if (overControlPoint) return { kind: "reshape" };
+    if (frame) {
+      // Handles stay live either way — they are small, deliberate targets sitting on the
+      // frame itself, not in the empty space it encloses.
+      const handle = handleAt(frame, point, scale);
+      if (handle) return { kind: handleKind(handle), handle };
+      if (frameInterior && frameContains(frame, point)) return { kind: "move" };
+    }
   }
   if (overObject) return { kind: "pick", additive: shift };
   return { kind: "marquee", additive: shift };

@@ -335,10 +335,21 @@ their own spline tool for drawing and point editing; this only adds a second way
 whole thing.
 **Superseded in part, by events:** WP-15 (terrain move & rotate) was built before WP-20, so
 **land, not rivers, is where the two-model frame got debugged**. The reasoning above still
-holds and is still why WP-20 is cheap — every transform is lossless on a river — but it is no
+holds and is still why WP-20 was cheap — every transform is lossless on a river — but it is no
 longer the pilot. What WP-15 proved carries over: the frame generalises over both models, and
 overlap resolution had to be generalised from "the drag vector" to "the gesture" so rotation
 resolves too.
+**Built, WP-20**, with two corrections to the consequences above. **`objectBounds` did not
+grow a path branch and must not**: it feeds the rbush index, and `index.hit` picks by box, so
+widening it would have handed rivers exactly the box-picking this ADR forbids. The frame's
+needs were met by `worldCorners` (control points inflated by half the maximum width) and the
+marquee's by a separate `pathBounds`, which also absorbed `landmassBounds` — one containment
+branch now serves both path types. And **ADR-14's spline tool kept only its drawing half**:
+leaving its select mode in place would have meant two hit-tests, two Delete handlers and two
+undo paths for one gesture, plus control points that worked only while the rivers layer was
+active — the layer-scoped selection ADR-28 exists to remove. Picking, reshaping and deleting
+a river are `useSelection`'s now; drawing one is still the tool's, and rivers still never
+touch the boolean engine.
 **Rejected:** picking a river by its bounding box (C4's mistake, on an object whose AABB is
 almost all water); **letting the frame interior claim presses for a path-only selection** —
 drafted first as ordinary vector-editor behaviour with shift as the escape, and rejected on

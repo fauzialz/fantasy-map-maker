@@ -1,38 +1,75 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { callGeometry } from "../engine/worker/client";
+import { isOnRiver } from "../engine/river";
 import type { DropGesture } from "../engine/terrain/overlap";
-import { hasFootprint, landmassAt, landmassBounds, type Bounds } from "../scene/bounds";
+import { hasFootprint, landmassAt, pathBounds, type Bounds } from "../scene/bounds";
 import { frameOf } from "../scene/frame";
 import { rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
-import type { Landmass, Layer as SceneLayer, Point, Scene, SceneObject } from "../scene/types";
+import type {
+  Landmass,
+  Layer as SceneLayer,
+  Point,
+  River,
+  Scene,
+  SceneObject,
+} from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 import { useToastStore } from "../state/toastStore";
 import { resolveGesture } from "./gesture";
-import { cursorForHandle, cursorForHover, type Handle } from "./handles";
+import { cursorForHandle, cursorForHover, HANDLE_PX, type Handle } from "./handles";
 import { SpatialIndex } from "./spatialIndex";
 
 /**
- * Everything a selection may touch, wherever it lives (WP-18, ADR-28) — and since WP-14,
- * that includes landmasses, hit-tested by their path rather than by a box.
+ * Everything a selection may touch, wherever it lives (WP-18, ADR-28) — footprint objects,
+ * landmasses since WP-14, and rivers since WP-20. Both path types are hit-tested by their
+ * geometry rather than by a box.
  *
  * Membership is not decided by layer: hidden and locked layers contribute nothing, which is
  * what keeps a marquee over a forest from taking 200 trees when you wanted three castles.
  *
- * Rivers stay out until WP-20. Landmasses are in the pool but **not in the index** —
- * `SpatialIndex` skips anything `objectBounds` will not measure, and `objectBounds` stays
- * undefined for a path object on purpose. That single fact is what gives WP-14 "selected,
- * but no handles": `frameOf` filters the same way, so a terrain selection cannot grow a
- * frame whose handles would do nothing (I9).
+ * Path objects are in the pool but **not in the index** — `SpatialIndex` skips anything
+ * `objectBounds` will not measure, and `objectBounds` stays undefined for a path object on
+ * purpose. That is `09` S8 enforced by construction rather than by remembering: the box
+ * draws the selection, and there is no code path by which it can pick one.
  */
 const selectablePool = (layers: SceneLayer[]): SceneObject[] =>
   layers
     .filter((layer) => layer.visible && !layer.locked)
     .flatMap((layer) =>
-      layer.objects.filter((object) => hasFootprint(object) || object.type === "landmass"),
+      layer.objects.filter(
+        (object) => hasFootprint(object) || object.type === "landmass" || object.type === "river",
+      ),
     );
 
 const landmassesIn = (objects: SceneObject[]): Landmass[] =>
   objects.filter((object): object is Landmass => object.type === "landmass");
+
+const riversIn = (objects: SceneObject[]): River[] =>
+  objects.filter((object): object is River => object.type === "river");
+
+/**
+ * Which river's **water** covers the point — never its box (`09` S8, item 4). Last drawn
+ * is topmost, so a click at a confluence picks the river you can see.
+ */
+const riverAt = (rivers: River[], [x, y]: Point, slack: number): River | undefined => {
+  for (let i = rivers.length - 1; i >= 0; i--) {
+    if (isOnRiver(rivers[i], [x, y], slack)) return rivers[i];
+  }
+  return undefined;
+};
+
+/** Which control point of a selected river the pointer is on, if any. */
+const controlPointAt = (
+  rivers: River[],
+  [x, y]: Point,
+  slack: number,
+): { river: River; index: number } | undefined => {
+  for (const river of rivers) {
+    const index = river.points.findIndex(([px, py]) => Math.hypot(px - x, py - y) <= slack);
+    if (index >= 0) return { river, index };
+  }
+  return undefined;
+};
 
 /** Which layers hold any of these ids — the write-back set for a cross-layer edit. */
 const layersHolding = (layers: SceneLayer[], ids: Set<string>) =>
@@ -40,6 +77,8 @@ const layersHolding = (layers: SceneLayer[], ids: Set<string>) =>
 
 type Drag =
   | { kind: "move"; start: Point; snapshot: SceneObject[]; gesture?: DropGesture }
+  /** one control point of one river, against the river as it was when it was grabbed (I6) */
+  | { kind: "reshape"; index: number; snapshot: River }
   | {
       kind: "scale" | "rotate";
       /** the handle the drag started on, so its cursor survives the whole drag */
@@ -108,23 +147,47 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
 
   const frame = useMemo(() => frameOf(selected, groupRotation), [selected, groupRotation]);
   const selectedLandmasses = useMemo(() => landmassesIn(selected), [selected]);
+  const selectedRivers = useMemo(() => riversIn(selected), [selected]);
+  const riverPoints = useMemo(
+    () => selectedRivers.flatMap((river) => river.points),
+    [selectedRivers],
+  );
+  /** Grab radii are screen-constant, so they convert to map units at the current zoom (I8). */
+  const grab = HANDLE_PX / scale;
+
+  /**
+   * What lies under the point, in the order the map is drawn (I4 — the press and the
+   * cursor both come here, so the pointer promises what a press does).
+   *
+   * Footprint first, then rivers, then land: a mountain standing on a river bank wins the
+   * click because it is what you see, and a river crossing a continent wins over the
+   * continent for the same reason. Each path type answers by its own geometry.
+   */
+  const objectAt = useCallback(
+    (point: Point) =>
+      index.hit(point[0], point[1]) ??
+      riverAt(riversIn(objects), point, grab) ??
+      landmassAt(landmassesIn(objects), point[0], point[1]),
+    [grab, index, objects],
+  );
 
   /**
    * Whether the frame's interior may claim a press at this point (`09` S8, E14).
    *
    * A sprite's box hugs its artwork, and the gaps between sprites in a group are still
    * part of "the group" — pressing there to drag them all is exactly right, so a selection
-   * holding any footprint object keeps the interior live. A **land-only** selection is the
-   * other case: a crescent continent's box is mostly open sea (C4), so the interior only
-   * counts where the coastline actually is. Press the water and it deselects, as pressing
-   * water always has.
+   * holding any footprint object keeps the interior live. A **path-only** selection is the
+   * other case: a crescent continent's box is mostly open sea and a corner-to-corner
+   * river's is ~95% of it (C4), so the interior only counts where the coastline or the
+   * water actually is. Press the empty part and it marquees, as pressing water always has.
    */
   const frameInteriorAt = useCallback(
     (point: Point) =>
       selected.length === 0 ||
       selected.some(hasFootprint) ||
-      landmassAt(selectedLandmasses, point[0], point[1]) !== undefined,
-    [selected, selectedLandmasses],
+      landmassAt(selectedLandmasses, point[0], point[1]) !== undefined ||
+      riverAt(selectedRivers, point, grab) !== undefined,
+    [grab, selected, selectedLandmasses, selectedRivers],
   );
 
   /**
@@ -150,10 +213,11 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       const store = useEditorStore.getState();
       pending.current = store.scene;
 
-      // Footprint first, land as the fallback: a mountain standing on a coast wins the
-      // click, because it is what you see and what is on top.
-      const hit =
-        index.hit(point[0], point[1]) ?? landmassAt(landmassesIn(objects), point[0], point[1]);
+      const hit = objectAt(point);
+      // Resolved here rather than inside `resolveGesture`, which has no selection to read.
+      // One lookup: the gesture only needs to know the rung is claimed, the drag needs the
+      // point itself.
+      const control = controlPointAt(selectedRivers, point, grab);
       const gesture = resolveGesture({
         point,
         frame,
@@ -161,9 +225,12 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
         shift,
         scale,
         frameInterior: frameInteriorAt(point),
+        overControlPoint: control !== undefined,
       });
 
-      if (gesture.kind === "scale" || gesture.kind === "rotate") {
+      if (gesture.kind === "reshape" && control) {
+        drag.current = { kind: "reshape", index: control.index, snapshot: control.river };
+      } else if (gesture.kind === "scale" || gesture.kind === "rotate") {
         drag.current = {
           kind: gesture.kind,
           handle: gesture.handle,
@@ -201,11 +268,13 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       frame,
       enabled,
       frameInteriorAt,
+      grab,
       groupRotation,
-      index,
+      objectAt,
       objects,
       scale,
       selected,
+      selectedRivers,
       selection,
       toMapPoint,
     ],
@@ -222,21 +291,20 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
         return;
       }
       const point = toMapPoint(clientX, clientY);
-      // Same precedence the press resolves, land included — I4, and the reason bug #2
-      // stayed invisible.
-      const over =
-        index.hit(point[0], point[1]) ?? landmassAt(landmassesIn(objects), point[0], point[1]);
+      // Same precedence the press resolves, control points and land included — I4, and the
+      // reason bug #2 stayed invisible.
       setHoverCursor(
         cursorForHover({
           point,
           frame,
-          overObject: over !== undefined,
+          overObject: objectAt(point) !== undefined,
           scale,
           frameInterior: frameInteriorAt(point),
+          overControlPoint: controlPointAt(selectedRivers, point, grab) !== undefined,
         }),
       );
     },
-    [frame, enabled, frameInteriorAt, index, objects, scale, toMapPoint],
+    [frame, enabled, frameInteriorAt, grab, objectAt, scale, selectedRivers, toMapPoint],
   );
 
   /**
@@ -343,6 +411,19 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
         return;
       }
 
+      if (current.kind === "reshape") {
+        // Rewrites one point against the snapshot, so the ribbon re-derives from it and
+        // the whole reshape is still one undo step.
+        const river = current.snapshot;
+        apply([
+          {
+            ...river,
+            points: river.points.map((point, i) => (i === current.index ? [x, y] : point)),
+          },
+        ]);
+        return;
+      }
+
       if (current.kind === "move") {
         const dx = x - current.start[0];
         const dy = y - current.start[1];
@@ -379,13 +460,15 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
     const stop = () => {
       const current = drag.current;
       if (current?.kind === "marquee" && marquee) {
-        // Deliberately asymmetric: footprint objects by intersection (rbush), land by
-        // **containment**. Clipping one bay of a crescent continent should take the trees
-        // in that bay, not the continent.
-        const contained = landmassesIn(objects).filter((landmass) => {
-          const box = landmassBounds(landmass);
+        // Deliberately asymmetric: footprint objects by intersection (rbush), **path
+        // objects by containment**. Clipping one bay of a crescent continent should take
+        // the trees in that bay, not the continent — and clipping a corner of the map
+        // should not take the river that happens to run diagonally across it.
+        const contained = objects.filter((object) => {
+          if (hasFootprint(object)) return false;
+          const box = pathBounds(object);
           return (
-            box &&
+            box !== undefined &&
             box.minX >= marquee.minX &&
             box.minY >= marquee.minY &&
             box.maxX <= marquee.maxX &&
@@ -402,9 +485,19 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       // nothing to diff and commits no step.
       const before = pending.current;
       pending.current = null;
-      const label = current?.kind === "marquee" ? "select" : (current?.kind ?? "move");
-      // A marquee has no gesture and no snapshot; only a move or a transform can move land.
-      const transform = current && current.kind !== "marquee" ? current : undefined;
+      const label =
+        current?.kind === "marquee"
+          ? "select"
+          : current?.kind === "reshape"
+            ? "reshape river"
+            : (current?.kind ?? "move");
+      // A marquee has no gesture, and a reshape moves one river's point rather than a
+      // selection — only a move or a transform of the whole frame can carry land.
+      const transform =
+        current &&
+        (current.kind === "move" || current.kind === "scale" || current.kind === "rotate")
+          ? current
+          : undefined;
       const movedLand = transform?.gesture ? landmassesIn(transform.snapshot) : [];
 
       if (before && transform?.gesture && movedLand.length > 0) {
@@ -462,9 +555,11 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
   const dragCursor =
     active?.kind === "move"
       ? "move"
-      : active?.kind === "scale" || active?.kind === "rotate"
-        ? cursorForHandle(active.handle, frame?.rotation ?? 0)
-        : undefined;
+      : active?.kind === "reshape"
+        ? "grabbing"
+        : active?.kind === "scale" || active?.kind === "rotate"
+          ? cursorForHandle(active.handle, frame?.rotation ?? 0)
+          : undefined;
 
   return {
     begin,
@@ -474,6 +569,11 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
     selection,
     /** Selected landmasses, which draw as an outline rather than entering the frame. */
     landmasses: selectedLandmasses,
+    /**
+     * Control points of every selected river, drawn *in addition to* the frame — they are
+     * the finer tool, and they outrank the handles they sit on top of.
+     */
+    riverPoints,
     /** True while land is being dragged — rings suspend and fade for the duration (C2). */
     movingLand: transforming && selectedLandmasses.length > 0,
     count: selected.length,

@@ -43,10 +43,10 @@ prompts** used to drive an AI coding agent through the build.
   driving real pointer input. Written because a screenshot of seeded state proved nothing
   about interaction.
 - `09-selection-across-layers.md` — **scheduled as WP-18 → WP-20 → WP-19** (that order, not
-  the numeric one). One Select tool over every layer instead of one at a time, the toolbar
-  split so a pointer mode stops looking like a peer of the six layers, and then the same frame
-  extended to path-based objects: **rivers first**, because every transform is lossless on a
-  river, then land. See ADR-28 and ADR-29.
+  the numeric one); **WP-18 and WP-20 are built, WP-19 is next.** One Select tool over every
+  layer instead of one at a time, the toolbar split so a pointer mode stops looking like a
+  peer of the six layers, and then the same frame extended to path-based objects: **rivers
+  first**, because every transform is lossless on a river, then land. See ADR-28 and ADR-29.
 - `08-terrain-as-objects.md` — **scheduled as WP-14 → WP-17, the first work after P0.**
   Making landmasses selectable, colourable and transformable: the constraints it must
   satisfy, tiers split by which operations are lossless, the overlap policy (default **keep

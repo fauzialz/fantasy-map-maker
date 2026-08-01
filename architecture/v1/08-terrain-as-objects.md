@@ -271,9 +271,9 @@ prompt in either direction.
 
 - **Sub-landmass biomes.** One biome per landmass (C8). Two colours means two landmasses.
 - **Rivers.** Not this document's business, but the separate decision it called for **has
-  since been taken**: `09-selection-across-layers.md` schedules rivers as **WP-20**, and
-  sequences it *before* WP-19 — every transform is lossless on a river, so it is where the
-  two-model frame gets proved before it is spent on coastlines.
+  since been taken and built**: `09-selection-across-layers.md` scheduled rivers as **WP-20**,
+  *before* WP-19 — every transform is lossless on a river. In the event WP-15 got there first,
+  so the two-model frame was debugged on coastlines and rivers then cost about half of it.
 - **Non-destructive transforms.** Would need a schema bump (C7).
 - **Selecting land and sprites together.** This document gives terrain its own selection on
   its own layer. Putting landmasses into the *same* selection as mountains and labels is

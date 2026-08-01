@@ -94,6 +94,21 @@ Two things make this work well here:
   selecting a tree, and every check downstream then tested an empty land selection. A
   `data-land-count` attribute on the rail made the question exact. If an assertion can be
   satisfied by the wrong thing, it is not yet an assertion.
+- **A cursor sweep finds the edge of a box, not the thing's anchor.** WP-20's driver locates a
+  scattered mountain by sweeping for `pointer`, then drags it and checks the old spot is
+  clear. The point it finds is wherever the sweep first entered the sprite's box, so a
+  displacement smaller than the box leaves that point still covered: 286 map units against a
+  190-unit mountain passed one run and failed the next on identical code. **Move by more than
+  the thing you are moving**, or the probe is measuring the sprite's size.
+- **A cursor probe outside the stage returns the previous answer, not no answer.** WP-20's
+  driver reads `.mbf-stage` `style.cursor` at predicted map points. The stage is 1088 px wide
+  and the map does not fit inside it, so points past its right edge never receive the
+  `mouseMoved` at all — and `style.cursor` keeps whatever the *previous* probe set. A check
+  that scaled a river 2× and probed its new mouth at map x 3900, some 120 px off the edge,
+  reported a confident cursor value that belonged to the probe before it. It failed on
+  correct code, which is the only reason it was caught; had it been the other way round it
+  would have read as a pass forever. **Assert your probe is inside the element you are
+  reading from**, or site the fixture so it cannot leave.
 - **Let the driver discover geometry by probing the app's own cursors.** Sprite variants
   are random and each has its own extent, so a driver cannot predict where a handle is.
   Sweeping the pointer and reading `document.querySelector(".stage").style.cursor` finds
@@ -139,10 +154,16 @@ promise exactly what a press will do; the two drifting apart is precisely how bu
 stayed invisible (hover said one thing, the press did another).
 
 ### I5 — Gesture precedence, and shift escapes it
-Handles → frame interior → object → empty space. **Shift skips the handle and frame
-shortcuts entirely**, because shift means "change the selection". Without that escape, a
+**Control point → handles → frame interior → object → empty space.** **Shift skips every
+one of those shortcuts**, because shift means "change the selection". Without that escape, a
 shift-click on an already-selected object lands inside the frame and starts a drag, so it
 can never be deselected.
+
+> **The top rung arrived with WP-20**, and it is not a courtesy: a river's control point is
+> always offset from the frame corner by exactly half its width, which at any ordinary river
+> width is *inside* the 9 px handle reach. Without the rung, grabbing the end of a river
+> scales the whole thing. Deleting it in the driver produced precisely that — the press
+> became a corner scale, and the mouth moved along with the source.
 
 ### I6 — A drag transforms the snapshot, not the previous frame
 Every transform runs against the objects as they were when the drag began, applying an
@@ -160,8 +181,10 @@ group turns (for a group wider than tall, the union gets **narrower** at 40°, n
 Handles are 9 screen px. [SelectionOverlay.tsx](../../src/canvas/SelectionOverlay.tsx)
 and [handles.ts](../../src/canvas/handles.ts) each divide by the current scale, and must
 keep using the same constants, or what you see stops matching what you can grab.
-[RiverOverlay.tsx](../../src/canvas/RiverOverlay.tsx) and
-[useRiverTool.ts](../../src/canvas/useRiverTool.ts) share `HANDLE_PX` for the same reason.
+[RiverOverlay.tsx](../../src/canvas/RiverOverlay.tsx) draws a river's control points at
+`HANDLE_PX` and [useSelection.ts](../../src/canvas/useSelection.ts) grabs them at the same
+radius, for the same reason — **it also decides picking**, since `riverAt` passes that radius
+to `isOnRiver` as slack so a thin river stays clickable when zoomed out.
 
 ### I9 — One predicate decides what is interactive: `hasFootprint`
 _Added by WP-8._ Selection, the rbush index, the selection frame, the eraser and the
@@ -189,21 +212,26 @@ this predicate it falls on.
 > > a drag the transform refuses is the defect this invariant exists to prevent. When adding an
 > > object type, decide which model it uses before drawing anything.
 >
-> **Landmasses are on the second model; rivers are still on neither** — they are selectable but
-> have no transform until WP-20, so they get no frame. `scaleObjects` still refuses land, which
-> is the invariant doing its job: scaling a coast invalidates the epsilon it was simplified at
-> (C3), so the handle stays inert until WP-16 makes it honest.
+> **Both path types are now on the second model** — landmasses since WP-15, rivers since
+> WP-20. `transform.ts` no longer refuses anything: `isPath` and `remapPath` replaced the
+> landmass-only pair, so translate and rotate are one branch for both, and scale is the same
+> branch plus the one thing a river keeps *outside* its geometry, its `width`.
 >
 > **ADR-29 planned rivers as the pilot for this**, on the grounds that every transform is
-> lossless on a river. That is still true and still the reason WP-20 is cheap — but WP-15 was
-> built first, so land, not rivers, is where the model got debugged.
+> lossless on a river. That was true and it is still why WP-20 was cheap — but WP-15 was built
+> first, so land, not rivers, is where the model got debugged. Rivers then cost about half of
+> WP-15, exactly as `09` estimated.
 >
-> **Rules still waiting in `09-selection-across-layers.md`:** a river's control points outrank
-> the frame's handles, and a drag applies one resolved delta to the whole selection. Two have
-> already shipped ahead of WP-20 — the marquee is intersection for footprint and containment
-> for land (WP-14), and **the box takes no press, including I5's frame-interior rung, with the
-> cursor resolving the identical precedence** (WP-15's follow-up, for land). Both graduate into
-> this list once WP-19 has exercised them across models.
+> **Rules from `09-selection-across-layers.md`, all four now shipped:** the marquee is
+> intersection for footprint objects and **containment for path objects** (WP-14 for land,
+> WP-20 generalised it — `landmassBounds` became `pathBounds` over `worldCorners`, and the
+> containment branch stopped naming a type); **the box takes no press, including I5's
+> frame-interior rung, with the cursor resolving the identical precedence** (WP-15 for land,
+> WP-20 for rivers, reusing the same `frameInterior` flag rather than inventing a second one);
+> **a river's control points outrank the frame's handles** (WP-20, now I5's top rung); and a
+> drag applies one resolved delta to the whole selection — the only one still owed, and it is
+> WP-19's single riskiest item. The first three graduate into this list once WP-19 has
+> exercised them across models.
 
 ---
 

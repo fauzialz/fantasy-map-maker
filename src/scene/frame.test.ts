@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { objectBounds } from "./bounds";
 import { frameContains, frameCorners, frameOf, toFrameLocal } from "./frame";
 import { rotateObjects } from "./transform";
-import type { Mountain, SceneObject, Tree } from "./types";
+import type { Mountain, River, SceneObject, Tree } from "./types";
 
 const tree = (id: string, x: number, y: number, rotation = 0, scale = 1): Tree => ({
   id,
@@ -119,21 +119,39 @@ describe("frameOf", () => {
     biome: "grassland",
   };
 
+  const river: River = {
+    id: "r",
+    type: "river",
+    points: [
+      [0, 0],
+      [100, 0],
+    ],
+    width: 20,
+    taper: false,
+    z: 0,
+  };
+
   it("has no frame without selectable objects", () => {
     expect(frameOf([])).toBeUndefined();
-    // A river is still frameless — it has no transform behind the handles until WP-20.
-    const river: SceneObject = {
-      id: "r",
-      type: "river",
-      points: [
-        [0, 0],
-        [5, 5],
-      ],
-      width: 8,
-      taper: false,
-      z: 0,
-    };
-    expect(frameOf([river])).toBeUndefined();
+  });
+
+  /**
+   * WP-20 — the same precondition as the landmass below, met for a different reason. Land
+   * had to wait for the transforms behind the handles to move geometry; a river's are
+   * lossless the moment they exist, which is why it was the right pilot.
+   */
+  it("frames a river over its ribbon, not its centreline", () => {
+    const frame = frameOf([river])!;
+    // The ribbon is 20 wide, so a frame measuring only the control points would be a line
+    // of zero height and half the handles would sit on the water.
+    expect(frame.height).toBe(20);
+    expect(frame.width).toBe(120);
+    expect([frame.cx, frame.cy]).toEqual([50, 0]);
+  });
+
+  it("widens a river's frame with its width — the box follows what is drawn", () => {
+    const wide = frameOf([{ ...river, width: 60 }])!;
+    expect(wide.height).toBe(60);
   });
 
   /**

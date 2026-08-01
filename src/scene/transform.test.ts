@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { boundsOf, objectBounds } from "./bounds";
 import { SPRITE_HEIGHT } from "../sprites/registry";
 import { restack, rotateObjects, scaleObjects, translateObjects } from "./transform";
-import type { Landmass, Mountain, SceneObject, Tree } from "./types";
+import type { Landmass, Mountain, River, SceneObject, Tree } from "./types";
 
 const tree = (id: string, x: number, y: number, scale = 1, z = 0): Tree => ({
   id,
@@ -13,6 +13,20 @@ const tree = (id: string, x: number, y: number, scale = 1, z = 0): Tree => ({
   scale,
   z,
   variant: 0,
+});
+
+/** A straight river running 200 units east, 20 wide. */
+const river = (): River => ({
+  id: "r",
+  type: "river",
+  points: [
+    [0, 0],
+    [100, 0],
+    [200, 0],
+  ],
+  width: 20,
+  taper: true,
+  z: 0,
 });
 
 const land: Landmass = {
@@ -37,29 +51,15 @@ describe("translateObjects", () => {
   });
 
   /**
-   * This used to assert that *every* path-based object came back untouched, which was
-   * invariant I9's original rule. WP-15 replaced it (decision D1): a landmass now bakes a
-   * translation into its points. Rivers keep the old behaviour until WP-20 — so the rule
-   * narrows from "path objects never move" to "path objects move only once something can
-   * actually move them", which is what I9 was protecting all along.
+   * This file used to assert that *every* path-based object came back untouched — invariant
+   * I9's original rule, and the right one while nothing could move them. WP-15 retired it
+   * for landmasses and **WP-20 for rivers**, so the rule has narrowed all the way down to
+   * what it was really protecting: a frame must never promise a drag the transform refuses.
    */
-  it("still leaves rivers alone — they have no transform until WP-20", () => {
-    const river: SceneObject = {
-      id: "r",
-      type: "river",
-      points: [
-        [0, 0],
-        [10, 10],
-      ],
-      width: 10,
-      taper: true,
-      z: 0,
-    };
-    expect(translateObjects([river], 50, 50)[0]).toBe(river);
-  });
-
-  it("no longer leaves landmasses alone — that is the point of WP-15", () => {
+  it("no longer leaves path objects alone — that is the point of WP-15 and WP-20", () => {
+    const stream = river();
     expect(translateObjects([land], 50, 50)[0]).not.toBe(land);
+    expect(translateObjects([stream], 50, 50)[0]).not.toBe(stream);
   });
 });
 
@@ -311,6 +311,94 @@ describe("path-based transforms", () => {
     const before = square();
     const [after] = scaleObjects([before], { x: 0, y: 0 }, 4) as Landmass[];
     expect(after.path).toHaveLength(before.path.length);
+  });
+
+  /**
+   * WP-20 — the same model on the object type where it costs nothing. A river's points are
+   * the user's own control points, so nothing is baked at a tolerance and every transform
+   * is reversible. The one thing that is *not* in the geometry is `width`, and that is
+   * exactly where this can go wrong quietly.
+   */
+  describe("a river", () => {
+    const polylineLength = (points: [number, number][]) => {
+      let total = 0;
+      for (let i = 0; i + 1 < points.length; i++) {
+        total += Math.hypot(points[i + 1][0] - points[i][0], points[i + 1][1] - points[i][1]);
+      }
+      return total;
+    };
+
+    it("translates every control point", () => {
+      const [moved] = translateObjects([river()], 40, -25) as River[];
+      expect(moved.points).toEqual([
+        [40, -25],
+        [140, -25],
+        [240, -25],
+      ]);
+    });
+
+    it("round-trips a 360° rotation", () => {
+      const before = river();
+      const [after] = rotateObjects([before], { x: 173, y: 241 }, 360) as River[];
+      for (const [i, [x, y]] of after.points.entries()) {
+        expect(x).toBeCloseTo(before.points[i][0], 6);
+        expect(y).toBeCloseTo(before.points[i][1], 6);
+      }
+    });
+
+    it("keeps its width through a rotation — turning a river does not thin it", () => {
+      const [after] = rotateObjects([river()], { x: 0, y: 0 }, 90) as River[];
+      expect(after.width).toBe(20);
+      expect(after.points[2]).toEqual([expect.closeTo(0, 6), expect.closeTo(200, 6)]);
+    });
+
+    /**
+     * The assertion this describe block exists for. Scaling the points alone leaves a
+     * river twice as long and still drawn at the old width — a thread across the map, and
+     * a silent one: every other property survives, the geometry is right, and it simply
+     * stops reading as the same river.
+     */
+    it("scales its width along with its length", () => {
+      const before = river();
+      const [after] = scaleObjects([before], { x: 0, y: 0 }, 2) as River[];
+      expect(after.width).toBe(40);
+      expect(polylineLength(after.points)).toBeCloseTo(polylineLength(before.points) * 2, 6);
+    });
+
+    it("holds the ratio of width to length at any factor — the shape is the invariant", () => {
+      const before = river();
+      const ratio = before.width / polylineLength(before.points);
+      for (const factor of [0.3, 1, 2.5, 7]) {
+        const [after] = scaleObjects([before], { x: 500, y: 500 }, factor) as River[];
+        expect(after.width / polylineLength(after.points)).toBeCloseTo(ratio, 6);
+      }
+    });
+
+    it("carries taper through untouched — it is a fraction along the path", () => {
+      const [after] = scaleObjects([river()], { x: 0, y: 0 }, 3) as River[];
+      expect(after.taper).toBe(true);
+    });
+
+    it("moves alongside a landmass and a mountain in one call", () => {
+      const mountain = {
+        id: "m",
+        type: "mountain" as const,
+        x: 10,
+        y: 20,
+        rotation: 0,
+        scale: 1,
+        z: 0,
+        variant: 0,
+      };
+      const [stream, coast, peak] = translateObjects([river(), square(), mountain], 5, 5) as [
+        River,
+        Landmass,
+        typeof mountain,
+      ];
+      expect(stream.points[0]).toEqual([5, 5]);
+      expect(coast.path[0]).toEqual([105, 105]);
+      expect([peak.x, peak.y]).toEqual([15, 25]);
+    });
   });
 
   it("moves a landmass and a mountain by the same delta in one call", () => {

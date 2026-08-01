@@ -339,7 +339,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           <p className={hint()}>
             {objectTool === "place"
               ? "Click from source to sea. Double-click or Enter finishes, Escape cancels."
-              : "Click a river to select it, drag its points to reshape, Delete removes it."}
+              : "Select works on rivers from any layer — click the water to pick one, drag its points to reshape."}
           </p>
         </>
       )}

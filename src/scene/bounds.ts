@@ -132,13 +132,30 @@ export function worldCorners(object: SceneObject): [number, number][] {
       return [object.x + dx, object.y + dy];
     });
   }
+  /**
+   * A river contributes its **control points, each grown by half the maximum width**
+   * (WP-20). Chaikin keeps the drawn centreline inside the convex hull of its inputs and
+   * the ribbon within a half-width of that line, so this is a correct superset of the
+   * ribbon in any basis — including the rotated one a group frame measures in. Slightly
+   * looser than the drawn ribbon at a tapered source; memoising `riverRibbon` is the
+   * upgrade if that slack ever shows.
+   */
+  if (object.type === "river") {
+    const half = object.width / 2;
+    return object.points.flatMap(([x, y]): [number, number][] => [
+      [x - half, y - half],
+      [x + half, y - half],
+      [x + half, y + half],
+      [x - half, y + half],
+    ]);
+  }
   // Holes are inside the outer ring by construction, so they cannot widen the box.
   return object.type === "landmass" ? object.path : [];
 }
 
 /** Anything a selection frame can be drawn around — the union of both models. */
 export const isFramed = (object: SceneObject): boolean =>
-  hasFootprint(object) || object.type === "landmass";
+  hasFootprint(object) || object.type === "landmass" || object.type === "river";
 
 /**
  * Which landmass covers this point, if any — the path-based half of the two interaction
@@ -153,27 +170,24 @@ export const landmassAt = (landmasses: Landmass[], x: number, y: number): Landma
   landmasses.find((landmass) => pointInPolygon(landmassToPolygon(landmass), [x, y]));
 
 /**
- * A landmass's axis-aligned box.
+ * A path-based object's axis-aligned box — a landmass's coastline, or a river's ribbon.
  *
  * Deliberately **not** part of `objectBounds`, which stays undefined for path objects. That
- * is what keeps landmasses out of the rbush index and out of `frameOf`, so WP-14 gets
- * "selected, but no handles" by construction rather than by remembering to suppress them —
- * a frame whose handles do nothing is the exact failure I9 describes. WP-19 is what widens
- * `objectBounds`, once the transforms behind those handles actually move geometry.
- *
- * Used only for marquee containment, where a box is the right question.
+ * is what keeps them out of the rbush index, and so out of `index.hit`, where a box would
+ * pick a crescent continent by its open sea and a corner-to-corner river by empty water
+ * (`09` S8). Picking goes through the path; only **marquee containment** goes through the
+ * box, because there a box is the right question.
  */
-export function landmassBounds(landmass: Landmass): Bounds | undefined {
-  if (landmass.path.length === 0) return undefined;
+export function pathBounds(object: SceneObject): Bounds | undefined {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const [x, y] of landmass.path) {
+  for (const [x, y] of worldCorners(object)) {
     minX = Math.min(minX, x);
     maxX = Math.max(maxX, x);
     minY = Math.min(minY, y);
     maxY = Math.max(maxY, y);
   }
-  return { minX, minY, maxX, maxY };
+  return minX === Infinity ? undefined : { minX, minY, maxX, maxY };
 }

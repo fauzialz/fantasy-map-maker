@@ -180,6 +180,47 @@ prove the two-model frame before spending it on coastlines.
   driven input, and the driver sweeps the pointer to read `.mbf-stage` cursors the way `07` §1
   describes, because the cursor is half of what is being asserted.
 
+#### As built
+
+Close to the plan, with one thing the plan did not ask for and one it under-described.
+
+- **The river tool lost its select mode entirely, rather than gaining a peer.** Item 1 said
+  three predicates widen; it did not say what happens to the *existing* per-layer pointer
+  mode. Leaving it would have meant two hit-tests, two Delete handlers and two undo paths
+  for the same gesture, and control points that only worked while the rivers layer was
+  active — which is exactly the layer-scoped selection ADR-28 removed. So `useRiverTool` is
+  now drawing only, and picking, reshaping and deleting a river all belong to `useSelection`.
+  `useRiverTool` lost 142 lines and gained 24; the acceptance "a river and the mountains
+  along it move together" became true as a side effect rather than as extra work.
+- **`objectBounds` did *not* widen** — item 1 named it, but widening it would have put rivers
+  in rbush, where `index.hit` picks by box, which is the very thing item 4 forbids. What the
+  frame actually needed was `worldCorners`, and what the marquee needed was a separate
+  `pathBounds`. So `landmassBounds` became `pathBounds` over `worldCorners` and the
+  containment branch stopped naming a type: land and rivers now share it. `objectBounds`
+  stays undefined for both, which is S8 held by construction rather than by remembering.
+- **The frame's height is the width, and that is what proves the width scaled.** Item 3's
+  inflation by half the maximum width turned out to be the only *drivable* evidence for
+  "scaling 2× doubles the drawn width": a point-on-river test is scale-invariant when the
+  width scales correctly, so it cannot distinguish the two cases at any offset. The frame
+  corner can — it lands half a width further out — and that is exact arithmetic with no
+  spline and no grab slack in it.
+- **`taper` needed nothing, as predicted.** `isOnRiver` compares against the *maximum* half
+  width rather than the tapered one, so picking near a tapered source is generous by design
+  and unaffected either way.
+
+**Verified by 21 driven checks and seven mutations.** Each mutation was aimed at one decision
+and caught by the check written for it: width stops scaling · the control-point rung leaves
+`resolveGesture` · the frame interior stops asking where the water is · rivers leave the
+selectable pool · the interior claims every press · rivers stop being framed · the cursor
+stops mirroring the control-point rung. The last is I4's own guard and it fails four checks —
+a cursor that stops agreeing with the press is not a cosmetic defect.
+
+**And the driver found a bug WP-18 shipped**, one layer above the ladder: with Select on and
+an object layer active, empty space still showed the *create* tool's crosshair, promising a
+press that would place a mountain where a press actually starts a marquee. `MapStage`'s
+cursor fallback now checks `selecting` first. I4 again, and it took a probe that expected a
+specific cursor rather than merely "not the wrong one" to see it.
+
 ### WP-19 · Terrain joins the selection
 
 **Prerequisite: WP-17 and WP-18.** Available a package earlier in principle — the §7
