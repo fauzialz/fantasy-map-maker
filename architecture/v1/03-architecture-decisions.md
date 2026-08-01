@@ -312,7 +312,9 @@ rotate stalk sprites have — and their transforms **bake into their points**. *
 first (WP-20), before landmasses (WP-19).** Scaling a river multiplies its `width` as well as
 its points. The frame is **feedback only**: picking stays path-based (`distanceToRiver`,
 point-in-polygon for land), because an AABB over a meandering path is mostly empty space. A
-river's **control points outrank the frame's handles** when the two collide.
+river's **control points outrank the frame's handles** when the two collide, and the frame's
+**interior is inert** for a path-only selection — the box draws the selection and takes no
+press at all, with the cursor resolving the identical precedence.
 **Why:** this is the D1 two-model rewrite, and it has to happen somewhere. Rivers are the
 cheapest possible place: every constraint that makes landmass transforms hard is absent —
 rivers overlap deliberately (so no overlap policy and **no shared-delta problem**, WP-19's
@@ -326,13 +328,17 @@ wrong, rather than a ruined coastline and a saturated worker.
 [transform.ts:9](../../src/scene/transform.ts#L9)'s blanket refusal to move path objects is
 retired for rivers — that refusal was the guard standing in for the frame not existing yet.
 The gesture ladder gains a rung above handles. **Frame shape and hit shape become separate
-concepts** (S8), which WP-19 inherits rather than rediscovers. One behaviour regresses
-slightly and knowingly: a press inside a thin diagonal river's mostly-empty box now moves it
-instead of starting a marquee, with shift as the escape (I5). ADR-14 is untouched — rivers
-keep their own spline tool for drawing and point editing; this only adds a second way to
-move the whole thing.
+concepts** (S8), which WP-19 inherits rather than rediscovers — and "hit" includes I5's
+frame-interior move rung, which is where the distinction is easiest to lose. Nothing existing
+is traded away: the box is added and takes nothing over. ADR-14 is untouched — rivers keep
+their own spline tool for drawing and point editing; this only adds a second way to move the
+whole thing.
 **Rejected:** picking a river by its bounding box (C4's mistake, on an object whose AABB is
-almost all water); scaling points without `width` (a river scaled with the map around it
-comes out a thread); frame handles outranking control points (they collide precisely at the
-ends, because a river's endpoint is usually what defines the corner a handle sits on); and
-doing landmasses first, which spends the model's debugging budget on the expensive case.
+almost all water); **letting the frame interior claim presses for a path-only selection** —
+drafted first as ordinary vector-editor behaviour with shift as the escape, and rejected on
+review because it is S8 being broken by the decision that states S8: on a corner-to-corner
+river the box is ~95% open water, so it would hand you a river drag hundreds of pixels from
+any; scaling points without `width` (a river scaled with the map around it comes out a
+thread); frame handles outranking control points (they collide precisely at the ends, because
+a river's endpoint is usually what defines the corner a handle sits on); and doing landmasses
+first, which spends the model's debugging budget on the expensive case.

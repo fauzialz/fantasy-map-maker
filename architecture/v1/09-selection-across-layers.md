@@ -61,7 +61,8 @@ Four things make WP-18 small:
 | **S5** | Land never overlaps land, so a drop can resolve to a **different delta than the one dragged** — "keep apart" slides the landmass back along the drag path. | ADR-10/11, `08` C1 |
 | **S6** | The pointer must promise exactly what the press will do. A frame with handles that move only part of the selection is the defect I9 exists to prevent. | I4, I9, `08` C6 |
 | **S7** | `translateObjects` and friends deliberately return path-based objects **untouched** — "so a selection can never silently deform terrain". **WP-20 is what replaces this**, for rivers first; until then a path object in a selection is one that will not move. | [transform.ts:9](../../src/scene/transform.ts#L9) |
-| **S8** | A frame's shape and an object's hit shape are **different things**. An AABB over a meandering path is mostly empty space, so a box may draw the selection but must never pick it. | `08` C4, WP-20 |
+| **S8** | A frame's shape and an object's hit shape are **different things**. An AABB over a meandering path is mostly empty space, so a box may draw the selection but must never pick it — and **"pick" includes the frame-interior move rung**, which is the easy place to break this without noticing. | `08` C4, WP-20 |
+| **S9** | The cursor resolves the **same** precedence as the press, always. Changing what a gesture does without changing `cursorForHover` in the same breath is how bug #2 stayed invisible. | I4, §3 bug #2 |
 
 ## 4. The packages
 
@@ -118,9 +119,12 @@ Move, rotate **and** scale are therefore all lossless for a river. It is the onl
 type in the scene for which that is true, which is exactly what makes it the right place to
 prove the two-model frame before spending it on coastlines.
 
-1. **`objectBounds` and `frameOf` gain a path branch.** Both currently gate on
-   `hasFootprint` and then read `object.x` / `object.rotation`, which a river does not have.
-   This is D1's rewrite, and it is the bulk of the package.
+1. **Three predicates widen, not one.** `objectBounds` and `frameOf` both gate on
+   `hasFootprint` and then read `object.x` / `object.rotation`, which a river does not have —
+   each needs a path branch. **And so does `selectablePool` in `useSelection`**, which WP-18
+   built on the same predicate and which would otherwise keep rivers out of the selection
+   entirely. Widening two of the three and not the third produces a river that frames but
+   cannot be picked. This is D1's rewrite, and it is the bulk of the package.
 2. **`transform.ts` stops refusing.** [Line 9](../../src/scene/transform.ts#L9) is explicit —
    path-based objects come back untouched "so a selection can never silently deform terrain".
    Translate and rotate become a map over `points`. **Scale maps the points *and* multiplies
@@ -130,28 +134,51 @@ prove the two-model frame before spending it on coastlines.
    the convex hull of its inputs, so `AABB(points)` inflated by half the maximum width is a
    correct superset and costs nothing. Slightly looser than the drawn ribbon; memoising
    `riverRibbon` is the upgrade if the slack ever shows.
-4. **The frame is feedback; the hit-test stays path-based.** Keep `distanceToRiver`. A
-   meandering river's AABB covers a great deal of open water, and picking by box would be
-   wrong in exactly the way C4 says it is wrong for a crescent continent. **Frame shape and
-   hit shape are different things** — this is the first place that becomes explicit, and
-   WP-19 inherits it.
+4. **The frame is feedback. Nothing about it is a hit target — not even its interior.**
+   Keep `distanceToRiver` for picking: a meandering river's AABB covers a great deal of open
+   water, and picking by box is wrong in exactly the way C4 says it is wrong for a crescent
+   continent.
+
+   The same applies to the **move** gesture, which is the part easy to get wrong. I5's ladder
+   has a "frame interior" rung — press inside the frame and you drag what is selected. For a
+   mountain that is right, because its box hugs its artwork. For a river running corner to
+   corner the box is ~95% open water, so that rung would hand you a river drag when you meant
+   to marquee, hundreds of pixels from any water. Letting the box claim the press *is the box
+   picking*, which is precisely what this constraint forbids (S8).
+
+   **So the interior rung claims a press only when the selection contains at least one
+   footprint object, or the press is within grab distance of a selected path.** A path-only
+   selection therefore has an **inert interior**: handles and stalk stay live, the water stays
+   live, and the empty space inside the rectangle falls through to the marquee.
+
+   *ponytail: a mixed selection — one river plus one distant mountain — still has a claiming
+   box, because the rule asks "does this selection contain a footprint object" and not "is
+   this press over any of them". Retire it when someone actually hits it; the general form
+   costs a per-object test on every press and changes group-drag for sprites, where pressing
+   the gap between two selected mountains should keep working.*
 5. **Control points beat frame handles.** They genuinely collide: a river's endpoint is
    often precisely *at* an AABB corner, because it is what defines that corner. The ladder
    gains a rung above everything else — control point → frame handle → frame interior →
    object → empty space — and shift still escapes the shortcuts (I5).
-6. **Nothing existing is lost.** Point-dragging, click-to-select and Delete all stay. The one
-   behaviour that changes: a press inside the frame but away from the water now moves the
-   river instead of starting a marquee. That is ordinary vector-editor behaviour and shift is
-   the escape, but on a thin diagonal river the frame is mostly empty space, so it is the
-   real cost of the box.
+6. **The cursor mirrors all of it — I4, and the whole reason bug #2 stayed invisible.**
+   `cursorForHover` and `resolveGesture` must resolve the *same* precedence, so the move
+   cursor appears over the river's body and **not** over the empty interior of its box, the
+   resize cursors appear only on the handles, and the reshape cursor only on a control point.
+   A frame whose interior shows "move" while a press there starts a marquee is the same
+   defect as the old behaviour, just moved into the pointer.
+7. **Nothing existing is lost.** Point-dragging, click-to-select and Delete all stay, and
+   with item 4 there is no longer a behaviour to trade away: the box is added, and it takes
+   nothing over.
 
 - **Acceptance:** a selected river draws a frame **and** its control points, and dragging a
-  control point still reshapes it rather than moving the whole thing · dragging inside the
-  frame moves the river rigidly, and one drag is one undo step · a 360° rotation
-  round-trips · scaling 2× doubles the drawn width as well as the length, so the river still
-  reads as the same river · a river and the mountains along it can be selected together and
-  move together (WP-18) · a click on open water inside the frame's box still starts a
-  marquee when shift is held · driven input, not a screenshot.
+  control point still reshapes it rather than moving the whole thing · dragging the river's
+  **body** moves it rigidly, and one drag is one undo step · **pressing open water inside the
+  frame starts a marquee, with no modifier held** · **the cursor over that same open water is
+  the marquee cursor, not the move cursor** (I4) · a 360° rotation round-trips · scaling 2×
+  doubles the drawn width as well as the length, so the river still reads as the same river ·
+  a river and the mountains along it can be selected together and move together (WP-18) ·
+  driven input, and the driver sweeps the pointer to read `.mbf-stage` cursors the way `07` §1
+  describes, because the cursor is half of what is being asserted.
 
 ### WP-19 · Terrain joins the selection
 
@@ -225,6 +252,8 @@ several were close calls.
 | **E9** | Do rivers get a frame too? | **Yes**, WP-20. They are the only path-based type for which all three transforms are lossless, so the two-model frame can be proved there first. |
 | **E10** | Does scaling a river change its `width`? | **Yes.** Points alone would leave a river scaled with the map around it drawn as a thread. `taper` needs nothing — it is a fraction along the path. |
 | **E11** | Does a framed river get picked by its box? | **No — by path**, as now (`distanceToRiver`). The box is feedback only. A meandering river's AABB is mostly open water; picking by box is C4's mistake. **Frame shape ≠ hit shape**, and WP-19 inherits the rule. |
+| **E14** | Does the frame's *interior* claim a press for a path-only selection? | **No — inert interior.** First drafted as "yes, standard vector-editor behaviour, shift escapes", and recorded as a knowing regression. That was wrong: it is S8 being violated by the document that states S8, because the interior rung is the box picking. Handles and stalk stay live; the empty space falls through to the marquee. The regression disappears rather than being documented. |
+| **E15** | And the cursor? | **Mirrors it exactly** (S9). The move cursor appears over the river's body and nowhere else inside the box. Raised in review, and it is the half that would have been forgotten — a pointer promising a move where a press marquees is bug #2 with the parts swapped. |
 | **E12** | Control points or frame handles, when they collide? | **Control points win.** They collide often, not rarely: a river's endpoint is usually what defines the AABB corner a handle sits on. |
 | **E13** | Rivers before or after landmasses? | **Before.** Same machinery, none of C1/C2/C3, and a bug costs a misplaced river rather than a re-simplified coastline and a 488 ms ring derivation. WP-20 de-risks WP-19. |
 

@@ -156,12 +156,15 @@ this predicate it falls on.
 > debugged where a mistake costs a misplaced river.
 >
 > **Rules waiting in `09-selection-across-layers.md`, not added here yet:** a river's control
-> points outrank the frame's handles; **frame shape is not hit shape** (the box draws the
-> selection, the path picks it); footprint wins a click over land; the marquee is intersection
-> for footprint and containment for land; and a drag applies **one resolved delta** to the
-> whole selection, because "keep apart" can move a landmass less far than it was dragged. They
-> live there rather than here because this file records rules **proven by a bug or a driver** —
-> they graduate into this list once WP-20 and WP-19 have earned them.
+> points outrank the frame's handles; **frame shape is not hit shape** — the box draws the
+> selection and takes *no* press, which includes I5's frame-interior move rung, so a
+> corner-to-corner river's mostly-empty box never steals a marquee; the cursor resolves that
+> identical precedence, because a pointer promising a move where a press marquees is **bug #2
+> with the parts swapped**; footprint wins a click over land; the marquee is intersection for
+> footprint and containment for land; and a drag applies **one resolved delta** to the whole
+> selection, because "keep apart" can move a landmass less far than it was dragged. They live
+> there rather than here because this file records rules **proven by a bug or a driver** — they
+> graduate into this list once WP-20 and WP-19 have earned them.
 
 ---
 

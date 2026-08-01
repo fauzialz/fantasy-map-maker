@@ -177,10 +177,17 @@ object**; Erase keeps its behaviour and relabels itself **"Sea brush"** on Terra
   driven input, not a screenshot.
 
 ### WP-20 · Rivers gain a frame — *the two-model pilot, build before WP-19*
-A selected river draws the ordinary frame **and** keeps its control points. `objectBounds`
-and `frameOf` grow a path branch; `transform.ts` stops returning path objects untouched;
-**scale multiplies `width`** as well as the points. Picking stays path-based — the box is
-feedback, never a hit target (S8).
+A selected river draws the ordinary frame **and** keeps its control points. `objectBounds`,
+`frameOf` **and `selectablePool`** grow a path branch — widen two of the three and you get a
+river that frames but cannot be picked. `transform.ts` stops returning path objects untouched;
+**scale multiplies `width`** as well as the points.
+
+**The box is feedback and takes no press at all** (S8). Picking stays path-based, *and so does
+the move*: I5's frame-interior rung is inert for a path-only selection, because on a
+corner-to-corner river that box is ~95% open water. Handles and stalk stay live, the water
+stays live, the empty interior falls through to the marquee. **The cursor resolves the same
+precedence** (S9, I4) — a pointer showing "move" where a press marquees is bug #2 with the
+parts swapped.
 
 **Why this one first.** Every constraint that makes WP-19 hard is absent: rivers overlap
 deliberately (no overlap policy, so **no shared-delta problem**), never get rings (nothing to
@@ -194,8 +201,10 @@ collide at the ends, because an endpoint is usually what defines the corner a ha
 - **Acceptance:** a selected river shows a frame *and* its points, and dragging a point still
   reshapes rather than moves · dragging inside the frame moves it rigidly as one undo step ·
   a 360° rotation round-trips · scaling 2× doubles the drawn width as well as the length · a
-  river and the mountains along it select and move together · shift still starts a marquee
-  inside the frame's box · driven input.
+  river and the mountains along it select and move together · **pressing open water inside the
+  frame starts a marquee with no modifier held, and the cursor there says so** · driven input,
+  sweeping the pointer to read `.mbf-stage` cursors (`07` §1) because the cursor is half of
+  what is asserted.
 
 ### WP-19 · Terrain joins the selection
 One frame over land and sprites, which is only honest once WP-16 makes every handle move
