@@ -110,8 +110,14 @@ needs WP-13's real UI, and it rewrites interaction invariant I9). **D1 is now se
       `08` §5's formulation to cover **rotation** as well as translation, because C1 does
       not care which gesture broke it. 21 unit fixtures + driven input, 15 checks.
       **Carve** is absent from the radio rather than disabled — it arrives with WP-17.
-- [ ] **WP-16 · Terrain resize** (T3) — scale, then **re-simplify** at the scene's
+- [x] **WP-16 · Terrain resize** (T3) — scale, then **re-detail** at the scene's
       `coastDetail` so a scaled coast keeps the point density of a hand-painted one.
+      **D4 settled: yes**, `ringGap` stays global — rings derive from the union, so there is
+      no per-landmass gap to scale. Building it corrected the design: re-simplifying alone
+      only fixes scaling *down*; scaling *up* has nothing to remove and must **resample**
+      (Chaikin, then simplify). Also closes the **off-canvas clamp** `08` §4 T2 asked for and
+      WP-15 missed — folded into the same drop search, so "fits" means legal whatever made
+      it illegal. 23 unit fixtures + driven input, 11 checks.
 - [ ] **WP-17 · Carve a strait** — the third overlap outcome: bite a channel, then roughen
       the machine-straight cut so it reads as coastline. Own package; needs the
       ≥20%-area-remains guard so a small landmass is never erased.

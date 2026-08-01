@@ -143,7 +143,7 @@ all three return. The worker runs exactly one derivation per drop, not per frame
 a rotation by 360° round-trips within tolerance · lakes translate with their parent · a
 drag that ends off-canvas is clamped.
 
-### T3 · WP-16 — Scale  *(destructive; needs re-simplification)*
+### T3 · WP-16 — Scale  *(destructive; needs re-simplification)*  — **built**
 
 **Scope.** Scale handles become live.
 
@@ -153,6 +153,23 @@ drag that ends off-canvas is clamped.
   end up 4× coarser than every other coast on the map (C3). Scaling *down* re-simplifies
   too, shedding points the new size cannot show.
 - Re-simplification runs in the worker on drop, not per frame.
+
+> **Correction, from building it: simplification alone only fixes one direction.** ε is a
+> tolerance in map units, so scaling *down* leaves points closer together than ε and
+> Douglas–Peucker sheds them — exactly as written above. Scaling *up* is the opposite: the
+> points are already further apart than ε, so there is nothing to remove, and no amount of
+> simplification invents detail that was never recorded. The count would stay put while the
+> coastline got four times longer, which is precisely the "4× coarser" this bullet set out
+> to prevent.
+>
+> So scale-up **resamples**: Chaikin first — the same S3 the brush uses to turn a traced
+> contour into a coastline, and it rounds exactly the long straight runs that scaling made
+> visible — then simplify at ε to trim what the new size still cannot show, which is what
+> keeps repeated scale cycles from growing the point count without bound. Passes are
+> `log2(factor)`, capped at 3. `engine/terrain/rescale.ts`.
+>
+> Measured end to end on a scaled island: perimeter 1 311 → 3 287 map units, points 18 → 30,
+> **density 13.7 → 9.1 per 1 000 units** where stretching alone would have left 5.5.
 - **Open question (D4):** whether `ringGap` scales with the landmass. It cannot, per
   landmass — `ringGap` is a global setting and rings derive from the union, so a scaled
   landmass simply gets proportionally tighter banding.
@@ -262,7 +279,7 @@ prompt in either direction.
 | **D1** | Rewrite I9 to admit two interaction models? | **Settled: yes**, per §7 — decided alongside Batch 2 (`09-selection-across-layers.md`, **ADR-28**), because a shared frame over land and sprites is exactly what two models licenses. **WP-15 is unblocked.** |
 | **D2** | Ship in tiers, or all at once? | **Settled: tiers**, scheduled WP-14 → WP-17 after P0. |
 | **D3** | Overlap policy: setting or modal? | **Settled: radio group in the terrain panel, default "keep apart"** (ADR-25). |
-| **D4** | Does `ringGap` stay global when land is scaled? | **Open.** Recommended yes — rings derive from the union, so a per-landmass gap is not expressible. Decide inside WP-16. |
+| **D4** | Does `ringGap` stay global when land is scaled? | **Settled: yes**, in WP-16. It could not be otherwise without changing what rings are: they derive from the **union** of all land (ADR-13), so there is no per-landmass gap to scale. A scaled landmass simply gets proportionally tighter banding, which reads as a bigger island rather than a differently-drawn one. |
 | **D5** | Is "carve a strait" in T2 or its own package? | **Settled: its own, WP-17.** Roughening the cut edge is larger than the rest of T2 combined. |
 | **D6** | Does the brush paint the chosen biome directly? | **Settled: yes**, shipped in WP-14. `TerrainCommit` carries a `biome`, and `splitByComponents` already took one — existing landmasses keep their own, only new components take the brush's. The palette does double duty: it recolours a selection, or sets what the brush paints next. |
 

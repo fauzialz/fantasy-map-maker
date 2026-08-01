@@ -293,10 +293,24 @@ describe("path-based transforms", () => {
     expect(after.holes[0][0][1]).toBeCloseTo(150, 6);
   });
 
-  it("still refuses to scale a landmass — that is WP-16, and it is destructive", () => {
+  it("scales a landmass about the origin — WP-16", () => {
     const before = square();
     const [after] = scaleObjects([before], { x: 0, y: 0 }, 2) as Landmass[];
-    expect(after.path).toEqual(before.path);
+    expect(after.path).toEqual([
+      [200, 200],
+      [600, 200],
+      [600, 600],
+      [200, 600],
+    ]);
+    expect(after.holes[0][0]).toEqual([300, 300]);
+  });
+
+  it("scales the points only — re-detailing happens on drop, in the worker (C3)", () => {
+    // `scaleObjects` runs per frame; `rescaleCoast` runs once. Point count is untouched
+    // here, which is what keeps a scale drag cheap.
+    const before = square();
+    const [after] = scaleObjects([before], { x: 0, y: 0 }, 4) as Landmass[];
+    expect(after.path).toHaveLength(before.path.length);
   });
 
   it("moves a landmass and a mountain by the same delta in one call", () => {

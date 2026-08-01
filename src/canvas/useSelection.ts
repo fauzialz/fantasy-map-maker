@@ -197,7 +197,18 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       setDragging(true);
       return true;
     },
-    [frame, enabled, frameInteriorAt, groupRotation, index, objects, scale, selected, selection, toMapPoint],
+    [
+      frame,
+      enabled,
+      frameInteriorAt,
+      groupRotation,
+      index,
+      objects,
+      scale,
+      selected,
+      selection,
+      toMapPoint,
+    ],
   );
 
   /**
@@ -252,11 +263,14 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       ).filter((landmass) => !movedIds.has(landmass.id));
 
       try {
+        const { canvas } = state.scene.meta;
         const result = await callGeometry("resolveDrop", {
           snapshot: movedLand,
           others,
           gesture,
           policy: state.overlapPolicy,
+          canvas: { x: 0, y: 0, w: canvas.w, h: canvas.h },
+          coastDetail: state.scene.settings.coastDetail,
         });
         const store = useEditorStore.getState();
         store.setLandmasses(result.landmasses);
@@ -272,7 +286,9 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
                     gesture.delta[0] * result.fraction,
                     gesture.delta[1] * result.fraction,
                   )
-                : rotateObjects(rest, gesture.origin, gesture.degrees * result.fraction);
+                : gesture.kind === "rotate"
+                  ? rotateObjects(rest, gesture.origin, gesture.degrees * result.fraction)
+                  : scaleObjects(rest, gesture.origin, 1 + (gesture.factor - 1) * result.fraction);
             const patched = new Map(scaled.map((object) => [object.id, object]));
             for (const layer of layersHolding(store.scene.layers, new Set(patched.keys()))) {
               store.setLayerObjects(
@@ -331,7 +347,10 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
         const from = Math.hypot(current.start[0] - ox, current.start[1] - oy);
         const to = Math.hypot(x - ox, y - oy);
         if (from > 1 && to !== from) setTransforming(true);
-        if (from > 1) apply(scaleObjects(current.snapshot, { x: ox, y: oy }, to / from));
+        if (from > 1) {
+          current.gesture = { kind: "scale", origin: { x: ox, y: oy }, factor: to / from };
+          apply(scaleObjects(current.snapshot, { x: ox, y: oy }, to / from));
+        }
         return;
       }
 

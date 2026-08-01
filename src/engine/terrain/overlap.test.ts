@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { ringArea } from "../geometry/types";
-import { resolveDrop } from "./overlap";
 import type { Landmass } from "../../scene/types";
+import { resolveDrop, type ResolveDrop } from "./overlap";
+
+/** A canvas big enough that nothing in these fixtures leaves it, unless a test says so. */
+const CANVAS = { x: -5000, y: -5000, w: 10000, h: 10000 };
+const drop = (input: Pick<ResolveDrop, "snapshot" | "others" | "gesture"> & Partial<ResolveDrop>) =>
+  resolveDrop({ canvas: CANVAS, coastDetail: 0.5, policy: "apart", ...input });
 
 /**
  * C1 — land never overlaps land at rest. These pin what a drop does about it, because the
@@ -23,7 +28,7 @@ const box = (id: string, x: number, y: number, size = 100): Landmass => ({
 
 describe("resolveDrop", () => {
   it("leaves a drop that touches nothing exactly where it was dropped", () => {
-    const result = resolveDrop({
+    const result = drop({
       snapshot: [box("a", 0, 0)],
       others: [box("b", 0, 0)],
       gesture: { kind: "move", delta: [500, 0] },
@@ -37,7 +42,7 @@ describe("resolveDrop", () => {
   describe("keep apart", () => {
     it("slides back along the drag path until it fits", () => {
       // b sits at x=200. Dragging a from x=0 by 250 would bury it inside b.
-      const result = resolveDrop({
+      const result = drop({
         snapshot: [box("a", 0, 0)],
         others: [box("b", 200, 0)],
         gesture: { kind: "move", delta: [250, 0] },
@@ -53,14 +58,14 @@ describe("resolveDrop", () => {
     });
 
     it("resolves to a position that genuinely does not overlap", () => {
-      const result = resolveDrop({
+      const result = drop({
         snapshot: [box("a", 0, 0)],
         others: [box("b", 120, 0)],
         gesture: { kind: "move", delta: [150, 30] },
         policy: "apart",
       });
       const a = result.landmasses.find((l) => l.id === "a")!;
-      const again = resolveDrop({
+      const again = drop({
         snapshot: [a],
         others: [box("b", 120, 0)],
         gesture: { kind: "move", delta: [0, 0] },
@@ -71,7 +76,7 @@ describe("resolveDrop", () => {
     });
 
     it("keeps every landmass — sliding back changes a position, never an object", () => {
-      const result = resolveDrop({
+      const result = drop({
         snapshot: [box("a", 0, 0)],
         others: [box("b", 200, 0), box("c", 900, 900)],
         gesture: { kind: "move", delta: [250, 0] },
@@ -82,7 +87,7 @@ describe("resolveDrop", () => {
 
     it("preserves the dragged shape exactly — this is a translation, not a deformation", () => {
       const original = box("a", 0, 0);
-      const result = resolveDrop({
+      const result = drop({
         snapshot: [original],
         others: [box("b", 200, 0)],
         gesture: { kind: "move", delta: [250, 0] },
@@ -95,7 +100,7 @@ describe("resolveDrop", () => {
 
   describe("merge", () => {
     it("fuses overlapping land into one object", () => {
-      const result = resolveDrop({
+      const result = drop({
         snapshot: [box("a", 0, 0)],
         others: [box("b", 0, 0)],
         gesture: { kind: "move", delta: [50, 0] },
@@ -106,7 +111,7 @@ describe("resolveDrop", () => {
     });
 
     it("gives the fused object the larger piece's id — ADR-10", () => {
-      const result = resolveDrop({
+      const result = drop({
         snapshot: [box("small", 0, 0, 60)],
         others: [box("big", 0, 0, 200)],
         gesture: { kind: "move", delta: [40, 0] },
@@ -117,7 +122,7 @@ describe("resolveDrop", () => {
     });
 
     it("does not report a merge when nothing actually fused", () => {
-      const result = resolveDrop({
+      const result = drop({
         snapshot: [box("a", 0, 0)],
         others: [box("b", 0, 0)],
         gesture: { kind: "move", delta: [900, 0] },
@@ -148,7 +153,7 @@ describe("rotation resolves too", () => {
   it("walks the angle back to the last orientation that fit", () => {
     // A 300-long bar pinned at the origin, pointing along +x. Rotating 90° about the
     // origin maps (x,y) → (-y,x), so its far end swings to (0,300) — straight through b.
-    const result = resolveDrop({
+    const result = drop({
       snapshot: [bar("a", 0, -10, 300, 20)],
       others: [bar("b", -40, 240, 80, 80)],
       gesture: { kind: "rotate", origin: { x: 0, y: 0 }, degrees: 90 },
@@ -157,7 +162,7 @@ describe("rotation resolves too", () => {
     expect(result.fraction).toBeLessThan(1);
     expect(result.fraction).toBeGreaterThan(0);
     const a = result.landmasses.find((l) => l.id === "a")!;
-    const again = resolveDrop({
+    const again = drop({
       snapshot: [a],
       others: [bar("b", -40, 240, 80, 80)],
       gesture: { kind: "rotate", origin: { x: 0, y: 0 }, degrees: 0 },
@@ -167,12 +172,100 @@ describe("rotation resolves too", () => {
   });
 
   it("leaves a rotation that hits nothing at full angle", () => {
-    const result = resolveDrop({
+    const result = drop({
       snapshot: [bar("a", 0, -10, 100, 20)],
       others: [bar("b", 900, 900, 50, 50)],
       gesture: { kind: "rotate", origin: { x: 0, y: 0 }, degrees: 90 },
       policy: "apart",
     });
     expect(result.fraction).toBe(1);
+  });
+});
+
+/**
+ * `08` §4 T2 asked for this and WP-15 did not deliver it: a landmass may hang off the edge
+ * (the canvas is bounded and rings clip to it) but may not leave entirely, or a drag puts
+ * it somewhere unreachable. Folded into the same search as overlap — "fits" means legal,
+ * whatever made it illegal.
+ */
+describe("the canvas clamp", () => {
+  const small = { x: 0, y: 0, w: 1000, h: 1000 };
+
+  it("lets a landmass hang off the edge", () => {
+    const result = drop({
+      snapshot: [box("a", 400, 400)],
+      others: [],
+      gesture: { kind: "move", delta: [550, 0] },
+      canvas: small,
+    });
+    expect(result.fraction).toBe(1);
+    const a = result.landmasses[0];
+    expect(Math.max(...a.path.map(([x]) => x))).toBeGreaterThan(small.w);
+  });
+
+  it("stops it leaving the canvas entirely", () => {
+    const result = drop({
+      snapshot: [box("a", 400, 400)],
+      others: [],
+      gesture: { kind: "move", delta: [5000, 0] },
+      canvas: small,
+    });
+    expect(result.fraction).toBeLessThan(1);
+    const a = result.landmasses[0];
+    expect(Math.min(...a.path.map(([x]) => x))).toBeLessThan(small.w);
+  });
+});
+
+describe("scale drops", () => {
+  it("re-details the coast on drop, not during the drag", () => {
+    const ring = [];
+    for (let i = 0; i < 40; i++) {
+      const t = (i / 40) * Math.PI * 2;
+      ring.push([500 + Math.cos(t) * 100, 500 + Math.sin(t) * 100] as [number, number]);
+    }
+    const island: Landmass = {
+      id: "a",
+      type: "landmass",
+      path: ring,
+      holes: [],
+      biome: "grassland",
+    };
+    const result = drop({
+      snapshot: [island],
+      others: [],
+      gesture: { kind: "scale", origin: { x: 500, y: 500 }, factor: 4 },
+    });
+    expect(result.fraction).toBe(1);
+    // Whether the count goes up or down depends on how detailed the input already was
+    // for its size — that judgement belongs to `rescale.test.ts`, which measures density
+    // against a freshly committed coast. What this asserts is narrower and is the thing
+    // the drop is responsible for: the geometry is **not** merely the scaled input, so
+    // re-detailing ran here rather than being left to the per-frame transform.
+    const naive = ring.map(([x, y]) => [500 + (x - 500) * 4, 500 + (y - 500) * 4]);
+    expect(result.landmasses[0].path).not.toEqual(naive);
+    expect(result.landmasses[0].path.length).not.toBe(naive.length);
+  });
+
+  it("still keeps land apart when a scale-up would swallow a neighbour", () => {
+    const result = drop({
+      snapshot: [box("a", 400, 400, 100)],
+      others: [box("b", 560, 400, 100)],
+      gesture: { kind: "scale", origin: { x: 450, y: 450 }, factor: 4 },
+    });
+    expect(result.fraction).toBeLessThan(1);
+    expect(result.landmasses).toHaveLength(2);
+  });
+
+  it("interpolates scale from 1, so t=0 means unchanged", () => {
+    // A factor that instantly overlaps: the search must be able to reach "no change".
+    const result = drop({
+      snapshot: [box("a", 400, 400, 100)],
+      others: [box("b", 501, 400, 100)],
+      gesture: { kind: "scale", origin: { x: 450, y: 450 }, factor: 9 },
+    });
+    const a = result.landmasses.find((l) => l.id === "a")!;
+    const width = Math.max(...a.path.map(([x]) => x)) - Math.min(...a.path.map(([x]) => x));
+    expect(width).toBeGreaterThan(90);
+    expect(width).toBeLessThan(140);
   });
 });

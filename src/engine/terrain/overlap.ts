@@ -1,9 +1,11 @@
 import polygonClipping from "polygon-clipping";
-import { rotateObjects, translateObjects, type Origin } from "../../scene/transform";
+import { rotateObjects, scaleObjects, translateObjects, type Origin } from "../../scene/transform";
 import type { Landmass, Point } from "../../scene/types";
 import { toIntMulti } from "../geometry/coords";
+import type { Rect } from "../geometry/types";
 import { unionLand, splitByComponents } from "./boolean";
 import { landmassToPolygon } from "./assemble";
+import { rescaleCoast } from "./rescale";
 
 /**
  * WP-15 — what happens when a dragged landmass lands on another one.
@@ -22,7 +24,9 @@ export type OverlapPolicy = "apart" | "merge";
  * its neighbour just as easily as sliding it, and C1 does not care which gesture broke it.
  */
 export type DropGesture =
-  { kind: "move"; delta: Point } | { kind: "rotate"; origin: Origin; degrees: number };
+  | { kind: "move"; delta: Point }
+  | { kind: "rotate"; origin: Origin; degrees: number }
+  | { kind: "scale"; origin: Origin; factor: number };
 
 export interface ResolveDrop {
   /** the landmasses **as they were when the drag began** (I6) */
@@ -31,6 +35,10 @@ export interface ResolveDrop {
   others: Landmass[];
   gesture: DropGesture;
   policy: OverlapPolicy;
+  /** the map rect — a drop must leave the landmass at least touching it */
+  canvas: Rect;
+  /** scene coastDetail, for re-detailing a scaled coast (WP-16) */
+  coastDetail: number;
 }
 
 export interface DropResult {
@@ -54,10 +62,37 @@ const overlaps = (a: Landmass[], b: Landmass[]): boolean => {
  * `t = 1` is where it was released. Reuses the very transforms the drag itself used, so
  * the resolved position is one the drag could have produced, not an approximation of one.
  */
-const at = (snapshot: Landmass[], gesture: DropGesture, t: number): Landmass[] =>
-  gesture.kind === "move"
-    ? translateObjects(snapshot, gesture.delta[0] * t, gesture.delta[1] * t)
-    : rotateObjects(snapshot, gesture.origin, gesture.degrees * t);
+const at = (snapshot: Landmass[], gesture: DropGesture, t: number): Landmass[] => {
+  if (gesture.kind === "move")
+    return translateObjects(snapshot, gesture.delta[0] * t, gesture.delta[1] * t);
+  if (gesture.kind === "rotate")
+    return rotateObjects(snapshot, gesture.origin, gesture.degrees * t);
+  // Scale interpolates from 1, not from 0: t = 0 has to mean "as it was".
+  return scaleObjects(snapshot, gesture.origin, 1 + (gesture.factor - 1) * t);
+};
+
+/**
+ * A landmass may hang off the edge — the canvas is bounded (ADR-02) and rings clip to it —
+ * but it may not leave entirely, or a drag would put it somewhere unreachable with no way
+ * back except undo. Folded into the same predicate as overlap so one search satisfies both:
+ * "fits" means legal, whatever made it illegal.
+ */
+const onCanvas = (landmasses: Landmass[], canvas: Rect): boolean =>
+  landmasses.every((landmass) => {
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const [x, y] of landmass.path) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    return (
+      minX < canvas.x + canvas.w && maxX > canvas.x && minY < canvas.y + canvas.h && maxY > canvas.y
+    );
+  });
 
 /**
  * How many halvings to spend finding the last position that fit. Ten gets within ~0.1% of
@@ -74,23 +109,57 @@ const SEARCH_STEPS = 10;
  * vector for the largest fraction that still fits. Deterministic, convergent, and it reads
  * as "it slid back to where it last fit".
  */
-function slideBack(snapshot: Landmass[], others: Landmass[], gesture: DropGesture): number {
-  // t = 0 is where the drag began, which by C1 was already free.
+function slideBack(
+  snapshot: Landmass[],
+  others: Landmass[],
+  gesture: DropGesture,
+  canvas: Rect,
+): number {
+  // t = 0 is where the drag began, which by C1 was already free and on the canvas.
   let lo = 0;
   let hi = 1;
   for (let i = 0; i < SEARCH_STEPS; i++) {
     const mid = (lo + hi) / 2;
-    if (overlaps(at(snapshot, gesture, mid), others)) hi = mid;
+    const candidate = at(snapshot, gesture, mid);
+    if (overlaps(candidate, others) || !onCanvas(candidate, canvas)) hi = mid;
     else lo = mid;
   }
   return lo;
 }
 
-export function resolveDrop({ snapshot, others, gesture, policy }: ResolveDrop): DropResult {
-  const moved = at(snapshot, gesture, 1);
-  if (moved.length === 0 || !overlaps(moved, others)) {
+/**
+ * Put a scaled coast back at the map's level of detail (WP-16). Done **once**, at the end,
+ * on the resolved geometry — never inside the search, which would run it ten times.
+ *
+ * Re-detailing moves the boundary by up to ε, and the slide-back deliberately stops just
+ * shy of touching, so it can introduce a sliver of overlap. One check afterwards is enough:
+ * if it does, keep the geometry that was known to fit. Coarser, but C1 holds.
+ */
+function reDetail(
+  moved: Landmass[],
+  others: Landmass[],
+  gesture: DropGesture,
+  coastDetail: number,
+): Landmass[] {
+  if (gesture.kind !== "scale") return moved;
+  const detailed = moved.map((landmass) => rescaleCoast(landmass, gesture.factor, coastDetail));
+  return overlaps(detailed, others) ? moved : detailed;
+}
+
+export function resolveDrop({
+  snapshot,
+  others,
+  gesture,
+  policy,
+  canvas,
+  coastDetail,
+}: ResolveDrop): DropResult {
+  const dropped = at(snapshot, gesture, 1);
+  if (dropped.length === 0 || (!overlaps(dropped, others) && onCanvas(dropped, canvas))) {
+    const moved = reDetail(dropped, others, gesture, coastDetail);
     return { landmasses: [...others, ...moved], fraction: 1, merged: false };
   }
+  const moved = dropped;
 
   if (policy === "merge") {
     // Exactly what the brush does on every stroke (S7 + S9), so identity follows ADR-10's
@@ -100,6 +169,7 @@ export function resolveDrop({ snapshot, others, gesture, policy }: ResolveDrop):
     return { landmasses, fraction: 1, merged: landmasses.length < others.length + moved.length };
   }
 
-  const fraction = slideBack(snapshot, others, gesture);
-  return { landmasses: [...others, ...at(snapshot, gesture, fraction)], fraction, merged: false };
+  const fraction = slideBack(snapshot, others, gesture, canvas);
+  const resolved = reDetail(at(snapshot, gesture, fraction), others, gesture, coastDetail);
+  return { landmasses: [...others, ...resolved], fraction, merged: false };
 }

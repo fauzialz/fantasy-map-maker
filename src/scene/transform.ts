@@ -50,18 +50,25 @@ export function scaleObjects<T extends SceneObject>(
   factor: number,
 ): T[] {
   const safe = Math.max(factor, 0.05);
-  // Land is deliberately absent: scaling a coastline invalidates the epsilon it was
-  // simplified at (C3), so it needs re-simplification in the worker — WP-16.
-  return objects.map((object) =>
-    isPlaced(object)
-      ? ({
-          ...object,
-          x: origin.x + (object.x - origin.x) * safe,
-          y: origin.y + (object.y - origin.y) * safe,
-          scale: Math.max(object.scale * safe, 0.05),
-        } as T)
-      : object,
-  );
+  /**
+   * Land scales here, but only its points — the **re-detailing** it needs afterwards
+   * (C3: ε is in map units, so scaling scales the allowed deviation too) happens once on
+   * drop, in the worker, not on every frame of a drag. `engine/terrain/rescale.ts`.
+   */
+  return objects.map((object) => {
+    if (isLand(object))
+      return remapLand(object, ([x, y]) => [
+        origin.x + (x - origin.x) * safe,
+        origin.y + (y - origin.y) * safe,
+      ]) as unknown as T;
+    if (!isPlaced(object)) return object;
+    return {
+      ...object,
+      x: origin.x + (object.x - origin.x) * safe,
+      y: origin.y + (object.y - origin.y) * safe,
+      scale: Math.max(object.scale * safe, 0.05),
+    } as T;
+  });
 }
 
 /** Rotate about an origin: positions swing around it and each object turns with them. */
