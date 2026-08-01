@@ -1,8 +1,8 @@
-import { Circle, Group } from "react-konva";
+import { Circle, Group, Shape } from "react-konva";
 import type { Point, River } from "../scene/types";
+import { drawRiver, type DrawContext } from "./draw";
 import { HANDLE_PX } from "./handles";
 import { PALETTE } from "./palette";
-import { RiverShape } from "./shapes/RiverShape";
 
 interface Props {
   /** the river being drawn, rendered exactly as it will look once committed */
@@ -22,7 +22,10 @@ export function RiverOverlay({ preview, points, scale }: Props) {
     <Group>
       {preview && (
         <Group opacity={0.65}>
-          <RiverShape river={preview} />
+          <Shape
+            listening={false}
+            sceneFunc={(context) => drawRiver(context as unknown as DrawContext, preview)}
+          />
         </Group>
       )}
       {points.map(([x, y], index) => (

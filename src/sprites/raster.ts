@@ -7,7 +7,13 @@ import { BASELINE, GRID, SPRITE_HEIGHT, SPRITES, spriteExtent, type SpriteKind }
  * a few thousand path rasterisations in every frame.
  */
 
-/** Rasterise above map scale so sprites stay crisp when zoomed in. */
+/**
+ * Rasterise above map scale so sprites stay crisp when zoomed in.
+ *
+ * ponytail: this is also the export's sharpness ceiling — an export at 2× draws these
+ * 1:1, and anything above that upscales them. Raise it (at 4x the cache memory) if a
+ * poster-scale export ever looks soft.
+ */
 const OVERSAMPLE = 2;
 
 const FILL: Record<SpriteKind, string> = {

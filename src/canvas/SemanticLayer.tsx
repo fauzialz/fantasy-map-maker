@@ -1,10 +1,9 @@
 import type Konva from "konva";
-import { memo, useCallback, useRef, type ReactNode } from "react";
-import { Layer } from "react-konva";
+import { memo, useCallback, useMemo, useRef, type ReactNode } from "react";
+import { Layer, Shape } from "react-konva";
+import { inDrawOrder } from "../scene/order";
 import type { Layer as SceneLayer, LayerId } from "../scene/types";
-import { LandmassShape } from "./shapes/LandmassShape";
-import { ObjectBatch } from "./shapes/ObjectBatch";
-import { RiverShape } from "./shapes/RiverShape";
+import { drawLayer, type DrawContext } from "./draw";
 import { useLayerCache } from "./useLayerCache";
 import type { Rect } from "./viewport";
 
@@ -20,6 +19,14 @@ interface Props {
   overlay?: ReactNode;
 }
 
+/**
+ * A layer's objects are drawn by ONE Konva shape rather than one node each.
+ *
+ * A scattered forest is 1–2k objects; a node apiece means that many nodes to build,
+ * transform and hit-test per frame. Batching keeps it to a single draw loop over cached
+ * sprite bitmaps. Nothing is lost: per-object hit-testing is rbush's job (ADR-16), not
+ * Konva's, and sorting happens here anyway.
+ */
 export const SemanticLayer = memo(function SemanticLayer({
   layer,
   active,
@@ -33,6 +40,7 @@ export const SemanticLayer = memo(function SemanticLayer({
     (bytes: number) => onCacheBytes(layer.id, bytes),
     [onCacheBytes, layer.id],
   );
+  const sorted = useMemo(() => inDrawOrder(layer.objects), [layer.objects]);
 
   useLayerCache(ref, {
     active,
@@ -44,15 +52,10 @@ export const SemanticLayer = memo(function SemanticLayer({
 
   return (
     <Layer ref={ref} visible={layer.visible} listening={false}>
-      {/* Path-based objects get a node each; everything with an anchor is batched below. */}
-      {layer.objects.map((object) =>
-        object.type === "landmass" ? (
-          <LandmassShape key={object.id} landmass={object} />
-        ) : object.type === "river" ? (
-          <RiverShape key={object.id} river={object} />
-        ) : null,
-      )}
-      <ObjectBatch objects={layer.objects} />
+      <Shape
+        listening={false}
+        sceneFunc={(context) => drawLayer(context as unknown as DrawContext, layer.objects, sorted)}
+      />
       {overlay}
     </Layer>
   );

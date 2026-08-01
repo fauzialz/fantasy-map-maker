@@ -44,8 +44,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   → biomes → mountain/forest Poisson scatter → budget cap → assemble; confirm modal;
   one undoable replace; seed = metadata only. Sea level is a **quantile** of the elevation
   field, so land amount means what it says. 25 fixtures; 4000×3000 world in ~250–420 ms.
-- [ ] **WP-11 · Export** — PNG/JPG/WebP; **resolution clamp + warn**; **JPG flattens**
-  onto bg.
+- [x] **WP-11 · Export** — PNG/JPG/WebP; **resolution clamp + warn**; **JPG flattens**
+  onto bg. Draws through `canvas/draw.ts`, the one renderer the stage also uses, so an
+  export cannot drift from the screen. Clamped on **both** side (16 384 px) and total
+  pixels (64 MP) — the second is what actually stops a blank export. Verified by driven
+  input, 14 checks.
 - [ ] **WP-12 · Local-first persistence** — IndexedDB autosave/restore; maps carry
   `meta.id`; survives refresh; no scene data in localStorage.
 

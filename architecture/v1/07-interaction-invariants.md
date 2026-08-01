@@ -219,11 +219,21 @@ what sorts.
 | River spline, ribbon, hit-test | [engine/river.ts](../../src/engine/river.ts) |
 | River drawing + point editing | [canvas/useRiverTool.ts](../../src/canvas/useRiverTool.ts) |
 | Label measurement + drawing | [sprites/text.ts](../../src/sprites/text.ts) |
+| Every mark on the map, screen **and** export | [canvas/draw.ts](../../src/canvas/draw.ts) |
 
 The driver scripts used for these passes were scratchpad tooling and were not committed.
 §1 has enough to rebuild one in about twenty lines, and WP-8 did exactly that: 15 checks
 covering place / select / move / delete for icons and labels, and draw / commit / select /
 reshape / delete for rivers, all asserted against the HUD.
+
+WP-11's driver added a second kind of assertion worth reusing: **the artefact, not just the
+UI's account of it.** Fourteen checks clicked format, scale and Export, read the toast, and
+then went to the *downloaded files* — PNG header bytes for the real pixel dimensions, and
+the JPG decoded back into a canvas to sample its corners for the flatten. `Browser.set
+DownloadBehavior` with a `downloadPath` is what makes the file reachable; note that every
+export writes the same filename, so the driver has to move each one aside before the next.
+Reading back what shipped is how "exports are correct at each scale" stops being the app's
+own word for it.
 
 **Not done, and known: WP-9 and WP-10 have no driven-input evidence.** Undo/redo (keyboard and
 button) and the generator (a click, and a confirm dialog) were verified by hand at a real

@@ -210,7 +210,7 @@ artifact. Recomputed on commit only, in the Worker, cached as a bitmap.
 
 | Format | Phase | Note |
 |---|---|---|
-| PNG (default) | P0 | `stage.toDataURL()` at export scale |
+| PNG (default) | P0 | own canvas at export scale, drawn by `canvas/draw.ts` |
 | JPG | P0 | **flatten onto a background color** (no alpha) |
 | WebP | P0 | smallest; recommend as the "web" option |
 | Self-contained HTML embed | P1 | single `.html`, scene + viewer inlined, backend-free |
@@ -223,6 +223,14 @@ artifact. Recomputed on commit only, in the Worker, cached as a bitmap.
 exceeds browser canvas limits (~16k px/side), returning **blank or throwing**. Clamp
 export scale to a safe cap and **warn** if the user's pick was capped. **Tile-render +
 stitch** for poster-size is the noted upgrade path.
+
+Built as *two* clamps, because 16k px a side alone does not bind: a 4000×3000 map only
+reaches that at 4.1×, while the memory cost passes a gigabyte well before it. The one that
+bites in practice is the **64 MP total** cap (`export/image.ts`), and it is the one that
+keeps the export off the blank-canvas cliff. **Not the stage:** the on-screen stage is
+viewport-sized and caches its inactive layers at viewport resolution (ADR-19), so exporting
+from it would upscale a screen-resolution bitmap. Both draw through `canvas/draw.ts`
+instead — one renderer, so the file and the screen cannot disagree.
 
 ## 12. Auth, backend & persistence (P2)
 

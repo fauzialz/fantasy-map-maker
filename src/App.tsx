@@ -2,15 +2,34 @@ import { useEffect, useState } from "react";
 import { MapStage } from "./canvas/MapStage";
 import { Toasts } from "./ui/Toasts";
 import { callGeometry } from "./engine/worker/client";
+import {
+  download,
+  exportFilename,
+  FORMATS,
+  planExport,
+  renderScene,
+  toBlob,
+  type Format,
+} from "./export/image";
 import { restack } from "./scene/transform";
 import { ICON_KINDS } from "./sprites/registry";
 import type { CanvasPreset, Label, LayerId, WorldType } from "./scene/types";
-import { LAYER_OBJECT, LAYER_TOOLS, useEditorStore, type ObjectTool } from "./state/editorStore";
+import {
+  LAYER_OBJECT,
+  LAYER_TOOLS,
+  selectLandmasses,
+  useEditorStore,
+  type ObjectTool,
+} from "./state/editorStore";
 import { useToastStore } from "./state/toastStore";
 import "./App.css";
 
 const PRESETS: CanvasPreset[] = ["landscape", "square", "portrait"];
 const WORLD_TYPES: WorldType[] = ["single", "archipelago", "multiple"];
+const EXPORT_SCALES = [1, 2, 4];
+
+const fileSize = (bytes: number) =>
+  bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
 /** "place" means something different with a spline in your hand than with a stamp. */
 const TOOL_LABEL: Partial<Record<LayerId, Partial<Record<ObjectTool, string>>>> = {
@@ -117,6 +136,52 @@ export default function App() {
       useToastStore.getState().show(`Generate failed: ${(err as Error).message}`);
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const [format, setFormat] = useState<Format>("png");
+  const [exportScale, setExportScale] = useState(2);
+  const [exporting, setExporting] = useState(false);
+  const plan = planExport(scene.meta.canvas, exportScale);
+
+  /**
+   * WP-11 — render the scene to its own canvas and hand it over as a file. Rings are
+   * derived fresh rather than borrowed from the stage: they are never stored (ADR-13), and
+   * one worker round-trip is cheaper than plumbing the stage's copy out to the rail.
+   */
+  const exportImage = async () => {
+    setExporting(true);
+    try {
+      const state = useEditorStore.getState();
+      const { canvas } = state.scene.meta;
+      const landmasses = selectLandmasses(state);
+      const bands =
+        state.scene.settings.coastalRings && landmasses.length > 0
+          ? (
+              await callGeometry("deriveRings", {
+                landmasses,
+                canvas: { x: 0, y: 0, w: canvas.w, h: canvas.h },
+                ringCount: state.scene.settings.ringCount,
+                ringGap: state.scene.settings.ringGap,
+              })
+            ).bands
+          : [];
+
+      const filename = exportFilename(state.scene, format);
+      const blob = await toBlob(renderScene(state.scene, bands, plan), format);
+      download(blob, filename);
+      useToastStore
+        .getState()
+        .show(
+          `Exported ${filename} · ${plan.w}×${plan.h} · ${fileSize(blob.size)}` +
+            (plan.capped
+              ? ` — ${exportScale}× was capped to ${plan.scale.toFixed(2)}×, the export limit`
+              : ""),
+        );
+    } catch (err) {
+      useToastStore.getState().show(`Export failed: ${(err as Error).message}`);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -512,6 +577,41 @@ export default function App() {
           </button>
         </div>
         <p className="status">seed {generator.seed}</p>
+
+        <h2>Export</h2>
+        <div className="tools">
+          {(Object.keys(FORMATS) as Format[]).map((id) => (
+            <button
+              key={id}
+              type="button"
+              className={format === id ? "active" : undefined}
+              onClick={() => setFormat(id)}
+            >
+              {id.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        <div className="tools">
+          {EXPORT_SCALES.map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={exportScale === value ? "active" : undefined}
+              onClick={() => setExportScale(value)}
+            >
+              {value}×
+            </button>
+          ))}
+        </div>
+        <div className="tools">
+          <button type="button" onClick={exportImage} disabled={exporting}>
+            {exporting ? "Exporting…" : "Export image"}
+          </button>
+        </div>
+        <p className="status" data-export-plan>
+          {plan.w}×{plan.h}
+          {plan.capped && ` · capped from ${exportScale}× to ${plan.scale.toFixed(2)}×`}
+        </p>
 
         <h2>Canvas</h2>
         <div className="presets">

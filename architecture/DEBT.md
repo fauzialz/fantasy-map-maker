@@ -45,7 +45,7 @@ the next free number in the series; never renumber an existing row.
 | Missing driven-input evidence for WP-9 and WP-10 | WP-13's entry — it builds the one driver that covers all three. Narrative in `v1/07-interaction-invariants.md` §5 |
 | Open design decisions (D1, D4, D6) | `v1/08-terrain-as-objects.md` §8 — decisions gate work rather than sit inside it |
 | Features deferred from v1 | `v1/01-system-design.md` §15. Absence of a feature is not debt |
-| Unbuilt work packages (WP-11…WP-17) | `v1/05-p0-build-checklist.md` |
+| Unbuilt work packages (WP-12…WP-17) | `v1/05-p0-build-checklist.md` |
 
 ---
 
