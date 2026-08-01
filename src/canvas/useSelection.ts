@@ -77,6 +77,14 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
   /** The scene as the press landed, so the whole drag closes as one undo step. */
   const pending = useRef<Scene | null>(null);
   const [dragging, setDragging] = useState(false);
+  /**
+   * Whether the drag has actually *moved* anything yet, as opposed to a press that armed
+   * one. A click on a landmass arms a move (so click-and-drag is one gesture), and keying
+   * the ring suspension off `dragging` therefore froze and faded the rings for the length
+   * of every plain click — a visible blink for a gesture that changed nothing. A marquee
+   * started while land was selected did it too.
+   */
+  const [transforming, setTransforming] = useState(false);
   const [hoverCursor, setHoverCursor] = useState<string | undefined>(undefined);
   /**
    * A group has no inherent angle, so the frame carries one for as long as the selection
@@ -284,6 +292,8 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       if (current.kind === "move") {
         const dx = x - current.start[0];
         const dy = y - current.start[1];
+        // A mousemove at the same pixel is still a mousemove; only a real delta counts.
+        if (dx !== 0 || dy !== 0) setTransforming(true);
         current.gesture = { kind: "move", delta: [dx, dy] };
         apply(translateObjects(current.snapshot, dx, dy));
         return;
@@ -293,6 +303,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       if (current.kind === "scale") {
         const from = Math.hypot(current.start[0] - ox, current.start[1] - oy);
         const to = Math.hypot(x - ox, y - oy);
+        if (from > 1 && to !== from) setTransforming(true);
         if (from > 1) apply(scaleObjects(current.snapshot, { x: ox, y: oy }, to / from));
         return;
       }
@@ -300,6 +311,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       const before = Math.atan2(current.start[1] - oy, current.start[0] - ox);
       const after = Math.atan2(y - oy, x - ox);
       const degrees = ((after - before) * 180) / Math.PI;
+      if (degrees !== 0) setTransforming(true);
       current.gesture = { kind: "rotate", origin: { x: ox, y: oy }, degrees };
       apply(rotateObjects(current.snapshot, { x: ox, y: oy }, degrees));
       // The frame turns with the group. A single object's frame reads its own rotation,
@@ -349,6 +361,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       drag.current = null;
       setMarquee(null);
       setDragging(false);
+      setTransforming(false);
     };
 
     window.addEventListener("mousemove", move);
@@ -405,7 +418,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
     /** Selected landmasses, which draw as an outline rather than entering the frame. */
     landmasses: selectedLandmasses,
     /** True while land is being dragged — rings suspend and fade for the duration (C2). */
-    movingLand: dragging && selectedLandmasses.length > 0,
+    movingLand: transforming && selectedLandmasses.length > 0,
     count: selected.length,
     /** what the pointer should look like right now, or undefined to fall back */
     cursor: dragging ? dragCursor : hoverCursor,
