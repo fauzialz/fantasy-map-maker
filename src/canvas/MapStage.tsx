@@ -13,6 +13,7 @@ import { SemanticLayer } from "./SemanticLayer";
 import { useCoastalRings } from "./useCoastalRings";
 import { PALETTE } from "./palette";
 import { SelectionOverlay } from "./SelectionOverlay";
+import { TerrainSelectionOverlay } from "./TerrainSelectionOverlay";
 import { createLabel, useObjectBrush } from "./useObjectBrush";
 import { useRiverTool } from "./useRiverTool";
 import { useSelection } from "./useSelection";
@@ -412,11 +413,14 @@ export function MapStage({ editing }: { editing?: Label }) {
           */}
           <Layer listening={false}>
             {selecting && (
-              <SelectionOverlay
-                frame={selection.frame}
-                marquee={selection.marquee}
-                scale={vp.scale}
-              />
+              <>
+                <TerrainSelectionOverlay landmasses={selection.landmasses} scale={vp.scale} />
+                <SelectionOverlay
+                  frame={selection.frame}
+                  marquee={selection.marquee}
+                  scale={vp.scale}
+                />
+              </>
             )}
             {activeLayerId === "rivers" && river.active && (
               <RiverOverlay preview={river.preview} points={river.points} scale={vp.scale} />

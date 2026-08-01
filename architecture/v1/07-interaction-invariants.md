@@ -68,6 +68,17 @@ Two things make this work well here:
 - **Assert on what the UI reports, not on internals.** The HUD prints object and selection
   counts, so a driver can assert `"11 of 11 selected"` without the app exposing its store.
   Keep that HUD, or something like it.
+- **And you could not read the store anyway.** `await import("/src/state/editorStore.ts")`
+  from the console returns a **second module instance** with its own fresh zustand store, not
+  the one the app is running. WP-14's driver had the HUD reporting 4 landmasses while the
+  imported store reported 0. Pure functions imported that way are fine — WP-21's sprite
+  measurements use `spriteExtent` and `rasterSprite` exactly so — but anything holding state
+  is a different object graph. This makes "assert on the UI" a constraint, not a preference.
+- **Make the surface unambiguous before asserting on it.** WP-14's driver swept for land by
+  clicking and treating "1 selected" as a hit — but land is covered in trees, so it was
+  selecting a tree, and every check downstream then tested an empty land selection. A
+  `data-land-count` attribute on the rail made the question exact. If an assertion can be
+  satisfied by the wrong thing, it is not yet an assertion.
 - **Let the driver discover geometry by probing the app's own cursors.** Sprite variants
   are random and each has its own extent, so a driver cannot predict where a handle is.
   Sweeping the pointer and reading `document.querySelector(".stage").style.cursor` finds

@@ -1,7 +1,9 @@
 import { spriteBounds } from "../sprites/raster";
 import { textBounds } from "../sprites/text";
 import { iconVariant, type SpriteKind } from "../sprites/registry";
-import type { SceneObject } from "./types";
+import { landmassToPolygon } from "../engine/terrain/assemble";
+import { pointInPolygon } from "../engine/geometry/nesting";
+import type { Landmass, SceneObject } from "./types";
 
 export interface Bounds {
   minX: number;
@@ -113,3 +115,41 @@ export const boundsIntersect = (a: Bounds, b: Bounds): boolean =>
 
 export const boundsContainPoint = (bounds: Bounds, x: number, y: number): boolean =>
   x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
+
+/**
+ * Which landmass covers this point, if any — the path-based half of the two interaction
+ * models (I9). Promoted here from the generator's scatter, because selection needs the same
+ * question the scatter asks: is this point on land?
+ *
+ * `pointInPolygon` is even-odd across every ring, so a point in a lake counts as outside its
+ * parent — which is what lets an island inside a lake be clicked rather than the continent
+ * around it. That is also `08` C4's requirement, for free.
+ */
+export const landmassAt = (landmasses: Landmass[], x: number, y: number): Landmass | undefined =>
+  landmasses.find((landmass) => pointInPolygon(landmassToPolygon(landmass), [x, y]));
+
+/**
+ * A landmass's axis-aligned box.
+ *
+ * Deliberately **not** part of `objectBounds`, which stays undefined for path objects. That
+ * is what keeps landmasses out of the rbush index and out of `frameOf`, so WP-14 gets
+ * "selected, but no handles" by construction rather than by remembering to suppress them —
+ * a frame whose handles do nothing is the exact failure I9 describes. WP-19 is what widens
+ * `objectBounds`, once the transforms behind those handles actually move geometry.
+ *
+ * Used only for marquee containment, where a box is the right question.
+ */
+export function landmassBounds(landmass: Landmass): Bounds | undefined {
+  if (landmass.path.length === 0) return undefined;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of landmass.path) {
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  return { minX, minY, maxX, maxY };
+}

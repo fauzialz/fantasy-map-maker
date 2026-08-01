@@ -1,25 +1,35 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { hasFootprint, type Bounds } from "../scene/bounds";
+import { hasFootprint, landmassAt, landmassBounds, type Bounds } from "../scene/bounds";
 import { frameOf } from "../scene/frame";
 import { rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
-import type { Layer as SceneLayer, Point, Scene, SceneObject } from "../scene/types";
+import type { Landmass, Layer as SceneLayer, Point, Scene, SceneObject } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 import { resolveGesture } from "./gesture";
 import { cursorForHandle, cursorForHover, type Handle } from "./handles";
 import { SpatialIndex } from "./spatialIndex";
 
 /**
- * Everything a selection may touch, wherever it lives (WP-18, ADR-28).
+ * Everything a selection may touch, wherever it lives (WP-18, ADR-28) — and since WP-14,
+ * that includes landmasses, hit-tested by their path rather than by a box.
  *
- * Membership is decided by `hasFootprint`, not by layer — that is invariant I9's rule, and
- * scoping it to one layer was always narrower than the invariant. Hidden and locked layers
- * contribute nothing, which is what keeps a marquee over a forest from taking 200 trees
- * when you wanted three castles, and is the first real job the lock has had.
+ * Membership is not decided by layer: hidden and locked layers contribute nothing, which is
+ * what keeps a marquee over a forest from taking 200 trees when you wanted three castles.
+ *
+ * Rivers stay out until WP-20. Landmasses are in the pool but **not in the index** —
+ * `SpatialIndex` skips anything `objectBounds` will not measure, and `objectBounds` stays
+ * undefined for a path object on purpose. That single fact is what gives WP-14 "selected,
+ * but no handles": `frameOf` filters the same way, so a terrain selection cannot grow a
+ * frame whose handles would do nothing (I9).
  */
 const selectablePool = (layers: SceneLayer[]): SceneObject[] =>
   layers
     .filter((layer) => layer.visible && !layer.locked)
-    .flatMap((layer) => layer.objects.filter(hasFootprint));
+    .flatMap((layer) =>
+      layer.objects.filter((object) => hasFootprint(object) || object.type === "landmass"),
+    );
+
+const landmassesIn = (objects: SceneObject[]): Landmass[] =>
+  objects.filter((object): object is Landmass => object.type === "landmass");
 
 /** Which layers hold any of these ids — the write-back set for a cross-layer edit. */
 const layersHolding = (layers: SceneLayer[], ids: Set<string>) =>
@@ -85,6 +95,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
   useEffect(() => setGroupRotation(0), [selectionKey]);
 
   const frame = useMemo(() => frameOf(selected, groupRotation), [selected, groupRotation]);
+  const selectedLandmasses = useMemo(() => landmassesIn(selected), [selected]);
 
   /**
    * A transform can now span layers, so the write-back does too — one `setLayerObjects`
@@ -109,7 +120,10 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       const store = useEditorStore.getState();
       pending.current = store.scene;
 
-      const hit = index.hit(point[0], point[1]);
+      // Footprint first, land as the fallback: a mountain standing on a coast wins the
+      // click, because it is what you see and what is on top.
+      const hit =
+        index.hit(point[0], point[1]) ?? landmassAt(landmassesIn(objects), point[0], point[1]);
       const gesture = resolveGesture({
         point,
         frame,
@@ -166,16 +180,13 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
         return;
       }
       const point = toMapPoint(clientX, clientY);
-      setHoverCursor(
-        cursorForHover({
-          point,
-          frame,
-          overObject: index.hit(point[0], point[1]) !== undefined,
-          scale,
-        }),
-      );
+      // Same precedence the press resolves, land included — I4, and the reason bug #2
+      // stayed invisible.
+      const over =
+        index.hit(point[0], point[1]) ?? landmassAt(landmassesIn(objects), point[0], point[1]);
+      setHoverCursor(cursorForHover({ point, frame, overObject: over !== undefined, scale }));
     },
-    [frame, enabled, index, scale, toMapPoint],
+    [frame, enabled, index, objects, scale, toMapPoint],
   );
 
   useEffect(() => {
@@ -221,7 +232,20 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
     const stop = () => {
       const current = drag.current;
       if (current?.kind === "marquee" && marquee) {
-        const inside = index.within(marquee).map((object) => object.id);
+        // Deliberately asymmetric: footprint objects by intersection (rbush), land by
+        // **containment**. Clipping one bay of a crescent continent should take the trees
+        // in that bay, not the continent.
+        const contained = landmassesIn(objects).filter((landmass) => {
+          const box = landmassBounds(landmass);
+          return (
+            box &&
+            box.minX >= marquee.minX &&
+            box.minY >= marquee.minY &&
+            box.maxX <= marquee.maxX &&
+            box.maxY <= marquee.maxY
+          );
+        });
+        const inside = [...index.within(marquee), ...contained].map((object) => object.id);
         const store = useEditorStore.getState();
         store.setSelection(
           current.additive ? [...new Set([...store.selection, ...inside])] : inside,
@@ -247,7 +271,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", stop);
     };
-  }, [dragging, apply, index, marquee, toMapPoint]);
+  }, [dragging, apply, index, marquee, objects, toMapPoint]);
 
   // Delete removes the selection; Escape drops it.
   useEffect(() => {
@@ -292,6 +316,8 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
     frame,
     marquee,
     selection,
+    /** Selected landmasses, which draw as an outline rather than entering the frame. */
+    landmasses: selectedLandmasses,
     count: selected.length,
     /** what the pointer should look like right now, or undefined to fall back */
     cursor: dragging ? dragCursor : hoverCursor,

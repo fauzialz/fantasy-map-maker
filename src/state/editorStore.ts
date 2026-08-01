@@ -3,6 +3,7 @@ import { createEmptyScene } from "../scene/scene";
 import { ICON_KINDS } from "../sprites/registry";
 import type { GenerateResult } from "../engine/generator/generate";
 import type {
+  Biome,
   CanvasPreset,
   GeneratorMeta,
   Landmass,
@@ -55,6 +56,8 @@ interface EditorState {
   objectTool: ObjectTool;
   /** which icon the palette will place next */
   iconKind: string;
+  /** biome the terrain brush paints (D6). Session state — the scene stores it per landmass. */
+  terrainBiome: Biome;
   /** font size for the next label, in map units */
   labelSize: number;
   /** width of the next river at its mouth, in map units */
@@ -80,6 +83,7 @@ interface EditorState {
   setTerrainTool: (tool: "brush" | "sea") => void;
   setObjectTool: (tool: ObjectTool) => void;
   setIconKind: (kind: string) => void;
+  setTerrainBiome: (biome: Biome) => void;
   setLabelSize: (size: number) => void;
   setRiverWidth: (width: number) => void;
   setRiverTaper: (taper: boolean) => void;
@@ -139,6 +143,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   terrainTool: "brush",
   objectTool: "scatter",
   iconKind: ICON_KINDS[0],
+  terrainBiome: "grassland",
   labelSize: 96,
   riverWidth: 26,
   riverTaper: true,
@@ -168,6 +173,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setTerrainTool: (terrainTool) => set({ terrainTool }),
   setObjectTool: (objectTool) => set({ objectTool }),
   setIconKind: (iconKind) => set({ iconKind }),
+  setTerrainBiome: (terrainBiome) => set({ terrainBiome }),
   setLabelSize: (labelSize) => set({ labelSize }),
   setRiverWidth: (riverWidth) => set({ riverWidth }),
   setRiverTaper: (riverTaper) => set({ riverTaper }),

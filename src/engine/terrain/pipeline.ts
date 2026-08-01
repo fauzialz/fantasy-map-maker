@@ -1,4 +1,4 @@
-import type { Landmass } from "../../scene/types";
+import type { Biome, Landmass } from "../../scene/types";
 import { maskToMapRing } from "../geometry/coords";
 import type { MultiPolygon } from "../geometry/types";
 import { landmassToPolygon } from "./assemble";
@@ -15,6 +15,8 @@ export interface TerrainCommit {
   /** paint unions with land (S7); erase subtracts from it (S8) */
   mode: "paint" | "erase";
   existingLand: Landmass[];
+  /** biome for land this stroke creates; existing landmasses keep their own (D6) */
+  biome?: Biome;
 }
 
 /**
@@ -34,6 +36,7 @@ export function terrainCommit({
   coastDetail,
   mode,
   existingLand,
+  biome,
 }: TerrainCommit): Landmass[] {
   if (isMaskEmpty(mask)) return existingLand;
 
@@ -51,5 +54,5 @@ export function terrainCommit({
   const combined =
     mode === "erase" ? differenceLand(existing, regions) : unionLand(regions, existing);
 
-  return splitByComponents(combined, existingLand);
+  return splitByComponents(combined, existingLand, biome);
 }

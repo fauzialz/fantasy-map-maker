@@ -81,13 +81,22 @@ pointer; shift-click adds and removes; marquee selects. Selection draws as a **h
 coastline, not a transform frame**. A properties strip offers the biome palette, the name
 field, and delete.
 
-**Design.**
-- Hit-test with `pointInPolygon`, reusing `landmassAt` from
-  [scatter.ts](../../src/engine/generator/scatter.ts) — promote it to `scene/` since two
-  callers now need it.
-- Terrain gains a tool switch (`brush | sea | select`) alongside the existing
-  `terrainTool`, and `MapStage.onMouseDown` gains a terrain-select claimant ahead of the
-  brush. Cursor follows (C6).
+**Design.** *(Revised as built — WP-18 landed first and changed the shape. The original
+plan for a terrain-only select tool is struck through in spirit: it would have been a
+parallel selection mechanism that WP-19 then deleted.)*
+- Hit-test with `pointInPolygon`, reusing `landmassAt` — **promoted to
+  [scene/bounds.ts](../../src/scene/bounds.ts)** as planned, since selection and the
+  generator's scatter now ask the same question.
+- ~~Terrain gains a tool switch (`brush | sea | select`)~~ — **not needed.** ADR-28 already
+  made `select` a global mode that is live on every layer including terrain, and already
+  makes the brush stand down while it is on. Landmasses simply **join the existing selection
+  pool**, where `SpatialIndex` ignores them of its own accord because `objectBounds` returns
+  undefined for a path object. Hit precedence is footprint first, land as the fallback.
+- **"No handles" is now structural rather than a rule to remember.** `frameOf` filters by
+  `hasFootprint` too, so a land-only selection cannot grow a frame. `landmassBounds` is kept
+  deliberately *separate* from `objectBounds` for exactly this reason — widening
+  `objectBounds` is WP-19's job, once the transforms behind those handles work.
+- Cursor follows (C6): `cursorForHover` resolves the same precedence, land included.
 - **No handles.** This is the point of shipping T1 alone: a frame with handles that do
   nothing is precisely the failure I9 describes. An outline says "selected" and promises
   nothing else.
@@ -248,7 +257,7 @@ prompt in either direction.
 | **D3** | Overlap policy: setting or modal? | **Settled: radio group in the terrain panel, default "keep apart"** (ADR-25). |
 | **D4** | Does `ringGap` stay global when land is scaled? | **Open.** Recommended yes — rings derive from the union, so a per-landmass gap is not expressible. Decide inside WP-16. |
 | **D5** | Is "carve a strait" in T2 or its own package? | **Settled: its own, WP-17.** Roughening the cut edge is larger than the rest of T2 combined. |
-| **D6** | Does the brush paint the chosen biome directly? | **Open.** Recommended yes, inside WP-14 — five lines of plumbing once the palette exists. |
+| **D6** | Does the brush paint the chosen biome directly? | **Settled: yes**, shipped in WP-14. `TerrainCommit` carries a `biome`, and `splitByComponents` already took one — existing landmasses keep their own, only new components take the brush's. The palette does double duty: it recolours a selection, or sets what the brush paints next. |
 
 ## 9. Cost
 

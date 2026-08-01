@@ -81,6 +81,7 @@ export function useTerrainBrush({ enabled, map, toMapPoint }: Options) {
         coastDetail: state.scene.settings.coastDetail,
         mode,
         existingLand: before,
+        biome: state.terrainBiome,
       })
         .then(({ landmasses }) => {
           const store = useEditorStore.getState();

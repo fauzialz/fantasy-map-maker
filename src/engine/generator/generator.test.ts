@@ -14,7 +14,8 @@ import {
   seaLevelFor,
   type GenerateRequest,
 } from "./generate";
-import { capToBudget, landmassAt, ridgeLevel, scatterPoints, thin } from "./scatter";
+import { landmassAt } from "../../scene/bounds";
+import { capToBudget, ridgeLevel, scatterPoints, thin } from "./scatter";
 
 /** A small canvas, so a fixture traces a real world in milliseconds rather than seconds. */
 const CANVAS = { w: 800, h: 600 };

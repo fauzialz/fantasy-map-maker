@@ -94,10 +94,14 @@ colourable and movable. Full design, constraints, acceptance criteria and fixtur
 needs WP-13's real UI, and it rewrites interaction invariant I9). **D1 is now settled — yes**
 (ADR-28), so WP-15 is unblocked; D4 and D6 are still open.
 
-- [ ] **WP-14 · Terrain select & colour** (T1) — point-in-polygon hit-test; click /
+- [x] **WP-14 · Terrain select & colour** (T1) — point-in-polygon hit-test; click /
       shift-click / marquee-by-containment; selection draws as a **highlighted coastline with no
       handles**; properties strip (biome palette, name, delete); the brush paints the chosen
-      biome. Needs none of the open decisions.
+      biome (**D6 = yes**). **WP-18 made this smaller** — landmasses join the existing global
+      selection rather than getting a parallel terrain-only tool, so `08` §4 T1's "terrain
+      gains a tool switch" no longer applies. "No handles" now holds **by construction**:
+      `objectBounds` stays undefined for a path object, so `frameOf` and the rbush index skip
+      it without being asked. Verified by driven input, 15 checks.
 - [ ] **WP-15 · Terrain move & rotate** (T2) — rigid path transforms baked into
       `path`/`holes`; rings **freeze and fade during the drag**, one derivation on drop;
       **overlap radio, default "keep apart"** (slide back along the drag path to the last

@@ -82,10 +82,24 @@ export function Toolbar({ onGenerate, onExport }: Props) {
   // capability the active layer has to grant.
   const selecting = objectTool === "select";
 
+  /**
+   * Reaching for a create tool always leaves Select.
+   *
+   * Since WP-18, `select` is a mode that survives a layer switch — which is right when you
+   * are moving between layers to select on them, and wrong the moment you pick up a *tool*.
+   * On the object layers the default tool overwrote it anyway; on terrain nothing did, so
+   * clicking "Terrain" while selecting left the brush disabled and painting silently did
+   * nothing. Terrain has no `objectTool` of its own, so any non-select value means "not
+   * selecting".
+   */
+  const leaveSelect = () => objectTool === "select" && setObjectTool("scatter");
+
   const pickLayer = (layer: LayerId) => {
     setActiveLayer(layer);
-    if (layer === "terrain") setTerrainTool("brush");
-    else setObjectTool(DEFAULT_TOOL(layer));
+    if (layer === "terrain") {
+      setTerrainTool("brush");
+      leaveSelect();
+    } else setObjectTool(DEFAULT_TOOL(layer));
   };
 
   return (
@@ -136,7 +150,11 @@ export function Toolbar({ onGenerate, onExport }: Props) {
               data-tool="erase"
               className={toolButton({ active: erasing })}
               disabled={!onTerrain && !tools?.includes("erase")}
-              onClick={() => (onTerrain ? setTerrainTool("sea") : setObjectTool("erase"))}
+              onClick={() => {
+                if (!onTerrain) return setObjectTool("erase");
+                setTerrainTool("sea");
+                leaveSelect(); // same trap as pickLayer: the sea brush is a create tool too
+              }}
             >
               {onTerrain ? <Waves size={14} /> : <Eraser size={14} />}
               {/* The label says which of the two operations this is, so a contextual button

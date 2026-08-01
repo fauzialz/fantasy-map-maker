@@ -1,12 +1,22 @@
 import { ChevronsDown, ChevronsUp, Trash2 } from "lucide-react";
 import { useMemo } from "react";
 import { hasFootprint } from "../scene/bounds";
-import type { Label } from "../scene/types";
+import { BIOME_FILL } from "../canvas/palette";
+import type { Biome, Label, Landmass } from "../scene/types";
 import { restack } from "../scene/transform";
 import { ICON_KINDS } from "../sprites/registry";
 import { LAYER_OBJECT, LAYER_TOOLS, useEditorStore, type ObjectTool } from "../state/editorStore";
 import { Slider, Toggle } from "./controls";
-import { button, hint, panel, panelTitle, segment, toolButton } from "./variants";
+import {
+  button,
+  field,
+  fieldLabel,
+  hint,
+  panel,
+  panelTitle,
+  segment,
+  toolButton,
+} from "./variants";
 
 /** What each placement mode is called on the layer that offers it (ADR-14, ADR-18). */
 const TOOL_LABEL: Record<ObjectTool, string> = {
@@ -41,6 +51,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const setSettings = useEditorStore((s) => s.setSettings);
   const patchObject = useEditorStore((s) => s.patchObject);
   const record = useEditorStore((s) => s.record);
+  const terrainBiome = useEditorStore((s) => s.terrainBiome);
+  const setTerrainBiome = useEditorStore((s) => s.setTerrainBiome);
 
   const onTerrain = activeLayerId === "terrain";
   const tools = LAYER_TOOLS[activeLayerId];
@@ -63,6 +75,26 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
       : undefined;
   /** Whether anything in the selection answers to the frame's handles (I9's footprint side). */
   const transformable = selected.some(hasFootprint);
+  const selectedLand = selected.filter((o): o is Landmass => o.type === "landmass");
+
+  /**
+   * The palette does double duty (D6): with land selected it recolours it in one undo step,
+   * with nothing selected it sets what the brush will paint next. One control, because
+   * "which biome" is one question — and it is why a hand-painted continent stopped being
+   * grassland-or-nothing.
+   */
+  const pickBiome = (biome: Biome) => {
+    if (selectedLand.length === 0) {
+      setTerrainBiome(biome);
+      return;
+    }
+    const state = useEditorStore.getState();
+    state.record("set biome", () => {
+      for (const landmass of selectedLand) {
+        state.patchObject<Landmass>("terrain", landmass.id, { biome });
+      }
+    });
+  };
   /** The one selected label, so the size slider edits the thing rather than the default. */
   const editingLabel =
     onlyType === "label" && selected.length === 1 ? (selected[0] as Label) : undefined;
@@ -151,6 +183,68 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </>
       )}
 
+      {(onTerrain || selectedLand.length > 0) && (
+        <>
+          <p className={panelTitle()} data-land-count={selectedLand.length}>
+            {selectedLand.length > 0
+              ? `${selectedLand.length} landmass${selectedLand.length === 1 ? "" : "es"}`
+              : "Biome to paint"}
+          </p>
+          <div className={segment()}>
+            {(Object.keys(BIOME_FILL) as Biome[]).map((biome) => (
+              <button
+                key={biome}
+                type="button"
+                data-biome={biome}
+                className={toolButton({
+                  active:
+                    selectedLand.length > 0
+                      ? selectedLand.every((l) => l.biome === biome)
+                      : terrainBiome === biome,
+                })}
+                onClick={() => pickBiome(biome)}
+              >
+                <span
+                  aria-hidden
+                  className="mbf:border-line mbf:size-3 mbf:rounded-full mbf:border"
+                  style={{ background: BIOME_FILL[biome] }}
+                />
+                {biome}
+              </button>
+            ))}
+          </div>
+          {/*
+            A field, not a dialog. Unlike a label — whose whole point is *where* it sits, so
+            it gets an editor on the canvas — a landmass name is metadata about the selected
+            thing, which is what a properties strip is for. And WP-13's acceptance forbids
+            reaching for a native text prompt again.
+          */}
+          {selectedLand.length === 1 && (
+            <label className={field()}>
+              <span className={fieldLabel()}>Name</span>
+              <input
+                key={selectedLand[0].id}
+                data-land-name
+                defaultValue={selectedLand[0].name ?? ""}
+                placeholder="Unnamed"
+                className="mbf:bg-sink mbf:border-line mbf:text-ink mbf:focus-visible:outline-accent mbf:w-full mbf:rounded-md mbf:border mbf:px-2 mbf:py-1 mbf:text-xs mbf:focus-visible:outline-2"
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+                onBlur={(e) => {
+                  const name = e.target.value.trim();
+                  if (name === (selectedLand[0].name ?? "")) return;
+                  record("name landmass", () =>
+                    patchObject<Landmass>("terrain", selectedLand[0].id, { name }),
+                  );
+                }}
+              />
+            </label>
+          )}
+        </>
+      )}
+
       {activeLayerId === "icons" && objectTool === "place" && (
         <div className={segment()}>
           {ICON_KINDS.map((kind) => (
@@ -217,35 +311,46 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
 
       {selecting && (
         <>
+          {/*
+            Say only what is true of what is actually selected. A river reshapes by its
+            points; a landmass, until WP-15, does not move at all — the outline is the whole
+            of the feedback. Offering "corners scale" for either would be a lie (I4).
+          */}
           <p className={hint()}>
             {selected.length === 0
               ? "Click, shift-click or drag a marquee to select — any layer, not just this one."
               : `${selected.length} selected${onlyType ? "" : " across types"}` +
-                // Only promise the frame's gestures when something in the selection actually
-                // answers to them. A river is selectable but path-based: the transforms
-                // return it untouched, so offering "corners scale" would be a lie (I4).
                 (transformable
                   ? " · drag to move · corners scale · the stalk rotates."
-                  : " · drag its points to reshape it.")}
+                  : onlyType === "landmass"
+                    ? " · recolour or rename it above · Delete removes it and its rings."
+                    : " · drag its points to reshape it.")}
           </p>
-          <div className={segment()}>
-            <button
-              type="button"
-              className={button()}
-              disabled={selected.length === 0}
-              onClick={() => restackSelection(1)}
-            >
-              <ChevronsUp size={13} /> Forward
-            </button>
-            <button
-              type="button"
-              className={button()}
-              disabled={selected.length === 0}
-              onClick={() => restackSelection(-1)}
-            >
-              <ChevronsDown size={13} /> Back
-            </button>
-          </div>
+          {/*
+            Absent, not disabled, for a land-only selection: landmasses never overlap at
+            rest (`08` C1), so draw order among them cannot mean anything. A control that
+            appears and does nothing is exactly what I9 exists to prevent.
+          */}
+          {transformable && (
+            <div className={segment()}>
+              <button
+                type="button"
+                className={button()}
+                disabled={selected.length === 0}
+                onClick={() => restackSelection(1)}
+              >
+                <ChevronsUp size={13} /> Forward
+              </button>
+              <button
+                type="button"
+                className={button()}
+                disabled={selected.length === 0}
+                onClick={() => restackSelection(-1)}
+              >
+                <ChevronsDown size={13} /> Back
+              </button>
+            </div>
+          )}
           <button
             type="button"
             className={button({ tone: "danger", block: true })}
