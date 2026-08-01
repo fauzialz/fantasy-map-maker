@@ -1,5 +1,6 @@
 import { ChevronsDown, ChevronsUp, Trash2 } from "lucide-react";
 import { useMemo } from "react";
+import { hasFootprint } from "../scene/bounds";
 import type { Label } from "../scene/types";
 import { restack } from "../scene/transform";
 import { ICON_KINDS } from "../sprites/registry";
@@ -60,6 +61,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
     selected.length > 0 && selected.every((o) => o.type === selected[0].type)
       ? selected[0].type
       : undefined;
+  /** Whether anything in the selection answers to the frame's handles (I9's footprint side). */
+  const transformable = selected.some(hasFootprint);
   /** The one selected label, so the size slider edits the thing rather than the default. */
   const editingLabel =
     onlyType === "label" && selected.length === 1 ? (selected[0] as Label) : undefined;
@@ -217,7 +220,13 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           <p className={hint()}>
             {selected.length === 0
               ? "Click, shift-click or drag a marquee to select — any layer, not just this one."
-              : `${selected.length} selected${onlyType ? "" : " across types"} · drag to move · corners scale · the stalk rotates.`}
+              : `${selected.length} selected${onlyType ? "" : " across types"}` +
+                // Only promise the frame's gestures when something in the selection actually
+                // answers to them. A river is selectable but path-based: the transforms
+                // return it untouched, so offering "corners scale" would be a lie (I4).
+                (transformable
+                  ? " · drag to move · corners scale · the stalk rotates."
+                  : " · drag its points to reshape it.")}
           </p>
           <div className={segment()}>
             <button

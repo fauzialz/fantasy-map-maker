@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Line, Stage } from "react-konva";
+import { Layer, Line, Stage } from "react-konva";
 import { LAYER_OBJECT, selectLandmasses, useEditorStore } from "../state/editorStore";
 import { useThemeStore } from "../state/themeStore";
 import { LAYER_ORDER, type Label, type LayerId, type Point } from "../scene/types";
@@ -312,12 +312,13 @@ export function MapStage({ editing }: { editing?: Label }) {
           (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId] ? "crosshair" : "default"));
 
   /** The live, uncached layer draws whatever the active tool is in the middle of. */
-  const overlayFor = (id: LayerId, scale: number) => {
+  /**
+   * The one overlay that belongs *inside* a layer: the terrain brush preview is pretending
+   * to be land, so it has to sit under the forests and mountains standing on that land.
+   * Selection and river chrome go above everything instead — see the overlay layer below.
+   */
+  const overlayFor = (id: LayerId) => {
     if (id !== activeLayerId) return undefined;
-    if (selecting)
-      return <SelectionOverlay frame={selection.frame} marquee={selection.marquee} scale={scale} />;
-    if (id === "rivers" && river.active)
-      return <RiverOverlay preview={river.preview} points={river.points} scale={scale} />;
     if (id === "terrain" && brush.previewPoints)
       return (
         <Line
@@ -391,10 +392,36 @@ export function MapStage({ editing }: { editing?: Label }) {
               cacheRect={cache.rect}
               cacheScale={cache.scale}
               onCacheBytes={onCacheBytes}
-              overlay={overlayFor(layer.id, vp.scale)}
+              overlay={overlayFor(layer.id)}
             />
           ))}
           {scene.settings.parchment && <VignetteLayer map={map} />}
+
+          {/*
+            Tool chrome, above every layer including the vignette.
+
+            It used to render *inside* the active layer, which was survivable only while the
+            selection and the active layer were the same thing. Once selection went global
+            (WP-18) the frame could be drawn into `terrain` — the bottom of the stack — and
+            buried under 890 trees. A frame you cannot see is the same defect as no frame.
+
+            Both can be live at once and should be: on the rivers layer in edit mode the
+            river draws its control points, while the selection overlay still renders the
+            marquee. The frame stays empty there because a river has no footprint, so it
+            never enters the selection pool.
+          */}
+          <Layer listening={false}>
+            {selecting && (
+              <SelectionOverlay
+                frame={selection.frame}
+                marquee={selection.marquee}
+                scale={vp.scale}
+              />
+            )}
+            {activeLayerId === "rivers" && river.active && (
+              <RiverOverlay preview={river.preview} points={river.points} scale={vp.scale} />
+            )}
+          </Layer>
         </Stage>
       )}
 
