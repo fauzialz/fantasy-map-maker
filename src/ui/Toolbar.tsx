@@ -78,7 +78,9 @@ export function Toolbar({ onGenerate, onExport }: Props) {
   const onTerrain = activeLayerId === "terrain";
   const tools = LAYER_TOOLS[activeLayerId];
   const erasing = onTerrain ? terrainTool === "sea" : objectTool === "erase";
-  const selecting = !onTerrain && objectTool === "select";
+  // Select is a mode on every layer now, terrain included (ADR-28) — it is never a
+  // capability the active layer has to grant.
+  const selecting = objectTool === "select";
 
   const pickLayer = (layer: LayerId) => {
     setActiveLayer(layer);
@@ -104,21 +106,50 @@ export function Toolbar({ onGenerate, onExport }: Props) {
 
       <span className={divider()} />
 
-      <div className="mbf:flex mbf:flex-wrap mbf:items-center mbf:gap-0.5">
-        <Hint text={onTerrain ? "Terrain selection arrives with WP-14" : "Select and edit objects"}>
+      {/*
+        Mode, then create — two axes, not eight peers (ADR-28). Select acts on whatever is
+        already on the map; the six below pick what a press makes. Flattening them into one
+        row is what made Select read as a broken sibling of Mountains.
+      */}
+      <div className="mbf:flex mbf:items-center mbf:gap-0.5">
+        <Hint text="Select and edit objects on any layer">
+          <button
+            type="button"
+            data-tool="select"
+            className={toolButton({ active: selecting })}
+            onClick={() => setObjectTool("select")}
+          >
+            <MousePointer2 size={14} /> Select
+          </button>
+        </Hint>
+
+        <Hint
+          text={
+            onTerrain
+              ? "Erases land — can cut a landmass in two"
+              : `Erase ${activeLayerId} under the brush`
+          }
+        >
           <span>
             <button
               type="button"
-              data-tool="select"
-              className={toolButton({ active: selecting })}
-              disabled={!tools?.includes("select")}
-              onClick={() => setObjectTool("select")}
+              data-tool="erase"
+              className={toolButton({ active: erasing })}
+              disabled={!onTerrain && !tools?.includes("erase")}
+              onClick={() => (onTerrain ? setTerrainTool("sea") : setObjectTool("erase"))}
             >
-              <MousePointer2 size={14} /> Select
+              {onTerrain ? <Waves size={14} /> : <Eraser size={14} />}
+              {/* The label says which of the two operations this is, so a contextual button
+                  stops looking like a fixed peer of a now-global Select. */}
+              {onTerrain ? "Sea brush" : "Erase"}
             </button>
           </span>
         </Hint>
+      </div>
 
+      <span className={divider()} />
+
+      <div className="mbf:flex mbf:flex-wrap mbf:items-center mbf:gap-0.5">
         {LAYER_TOOLBAR.map(({ id, label, icon: Icon, layer, hint }) => (
           <Hint key={id} text={hint}>
             <button
@@ -133,26 +164,6 @@ export function Toolbar({ onGenerate, onExport }: Props) {
             </button>
           </Hint>
         ))}
-
-        <Hint
-          text={
-            onTerrain
-              ? "Sea brush — erases land and can split a landmass"
-              : `Erase ${activeLayerId}`
-          }
-        >
-          <span>
-            <button
-              type="button"
-              data-tool="erase"
-              className={toolButton({ active: erasing })}
-              disabled={!onTerrain && !tools?.includes("erase")}
-              onClick={() => (onTerrain ? setTerrainTool("sea") : setObjectTool("erase"))}
-            >
-              <Eraser size={14} /> Erase
-            </button>
-          </span>
-        </Hint>
       </div>
 
       <span className={divider()} />

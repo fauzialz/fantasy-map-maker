@@ -183,6 +183,13 @@ on one, and the edit did nothing. `tsc` stayed quiet because the binding was sti
 elsewhere (the overlay and the HUD count). Use an editor that errors on a missed match;
 after any wiring change, grep for the call you think you just added.
 
+> **It happened again in WP-18**, the same way. A scripted edit moved the Erase button into
+> the new mode group and a second scripted edit was supposed to delete the old one — but
+> Prettier had reflowed that block between the two, so the removal matched nothing and said
+> nothing. `tsc` and `oxlint` were clean; the app shipped **two Erase buttons**, and only a
+> screenshot caught it. The rule has a corollary now: **after a scripted edit, count what you
+> expected to change** — `grep -c 'data-tool="erase"'` would have said 2.
+
 ---
 
 ## 4. Sprite geometry reference
@@ -274,3 +281,18 @@ dialog. Three techniques from it are worth keeping:
   the "Generated N landmasses" toast. This is the same failure WP-12's driver hit from the
   other direction; between them the rule is: **a driver that races the thing it measures
   tests the race.**
+
+WP-18's driver added two more, both about **not letting the driver assume what it is meant to
+prove**:
+
+- **Prove membership from a number the UI already shows.** "The selection spans four layers"
+  cannot be asserted from a selection count. Deleting it and reading the **layer panel's
+  per-layer counts** shows exactly which layers shrank — and the undo puts them back, so the
+  probe costs nothing. A first draft had a `check(..., true, "verified below")`, which is a
+  test that cannot fail.
+- **Don't pick a target by guessing a pixel.** Clicking where a label was drawn selected a
+  tree instead, because `SpatialIndex.hit` returns the topmost and a tree was over it. Hiding
+  the other layers — using the feature under test — made the pick exact. Related: with a large
+  selection, a click *inside the frame* is a move, not a pick (I5), so a driver reaching for
+  one object must clear the selection first. Neither is a bug; both look like one from a
+  failing assertion.

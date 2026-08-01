@@ -159,25 +159,33 @@ export function MapStage({ editing }: { editing?: Label }) {
   const brushSize = useEditorStore((s) => s.brushSize);
   const terrainTool = useEditorStore((s) => s.terrainTool);
   const rings = useCoastalRings(map);
-  /** A locked layer accepts no tool at all — that is the whole of what the lock means. */
+  /** A locked layer accepts no *creation* tool — that is what the lock means for making. */
   const unlocked = !scene.layers.find((l) => l.id === activeLayerId)?.locked;
-  const live = unlocked && !spaceHeld && !draft;
+  const ready = !spaceHeld && !draft;
+  const live = unlocked && ready;
+  const objectTool = useEditorStore((s) => s.objectTool);
+  const onObjectLayer = LAYER_OBJECT[activeLayerId] !== undefined;
+  /**
+   * Selecting is a mode, not a capability of the active layer (ADR-28). It is live on every
+   * layer including terrain — where it selects the sprites and labels standing on the land —
+   * so the layer's own creation tool has to stand down while it is on.
+   */
+  const selecting = objectTool === "select";
   const brush = useTerrainBrush({
-    enabled: activeLayerId === "terrain" && live,
+    enabled: activeLayerId === "terrain" && !selecting && live,
     map,
     toMapPoint,
   });
-  const objectTool = useEditorStore((s) => s.objectTool);
-  const onObjectLayer = LAYER_OBJECT[activeLayerId] !== undefined;
   const objects = useObjectBrush({
     activeLayerId,
-    enabled: onObjectLayer && objectTool !== "select" && live,
+    enabled: onObjectLayer && !selecting && live,
     toMapPoint,
     onPlaceLabel: openLabelDraft,
   });
+  // Not gated on the active layer's lock: selecting does not edit the active layer, and the
+  // pool already drops every locked layer, so a lock still scopes what can be picked.
   const selection = useSelection({
-    activeLayerId,
-    enabled: onObjectLayer && objectTool === "select" && live,
+    enabled: selecting && ready,
     scale: vp?.scale ?? 1,
     toMapPoint,
   });
@@ -249,6 +257,32 @@ export function MapStage({ editing }: { editing?: Label }) {
     return cacheRef.current;
   }, [vp, view, map]);
 
+  /**
+   * ADR-19 says the active layer is live and the rest are bitmaps — but a cross-layer drag
+   * writes into layers that are not active, and a cached layer whose contents changed has
+   * to re-cache: a viewport-sized render per layer, per frame. So holding part of the
+   * selection makes a layer live too. Note the direction of the trade: a live layer holds
+   * no bitmap at all, so this spends draw time and *saves* memory, and the ~1-2k budget is
+   * on total objects rather than per layer.
+   *
+   * ponytail: measured (4000×3000 landscape, generated world, fit zoom, headless Chrome at
+   * dpr 1) as median time from a dispatched mousemove to two frames later. The harness
+   * itself — CDP round-trip plus the two rAFs — is **62 ms** of that, so subtract it:
+   * 756 objects in one layer cost **~6 ms**, 957 across four cost **~23 ms**. Over a 16 ms
+   * budget, under anything that feels broken, and far cheaper than the re-cache it avoids.
+   * If a selection ever spans enough to matter, the upgrade is redrawing only the dirty
+   * rect rather than the whole layer.
+   */
+  const selectionIds = useEditorStore((s) => s.selection);
+  const liveLayers = useMemo(() => {
+    const ids = new Set(selectionIds);
+    return new Set(
+      scene.layers
+        .filter((layer) => layer.objects.some((object) => ids.has(object.id)))
+        .map((layer) => layer.id),
+    );
+  }, [scene.layers, selectionIds]);
+
   const onCacheBytes = useCallback((id: LayerId, value: number) => {
     setBytes((prev) => (prev[id] === value ? prev : { ...prev, [id]: value }));
   }, []);
@@ -271,7 +305,7 @@ export function MapStage({ editing }: { editing?: Label }) {
     ? "grabbing"
     : spaceHeld
       ? "grab"
-      : !unlocked
+      : !unlocked && !selecting
         ? "not-allowed"
         : (selection.cursor ??
           river.cursor ??
@@ -280,7 +314,7 @@ export function MapStage({ editing }: { editing?: Label }) {
   /** The live, uncached layer draws whatever the active tool is in the middle of. */
   const overlayFor = (id: LayerId, scale: number) => {
     if (id !== activeLayerId) return undefined;
-    if (onObjectLayer && objectTool === "select")
+    if (selecting)
       return <SelectionOverlay frame={selection.frame} marquee={selection.marquee} scale={scale} />;
     if (id === "rivers" && river.active)
       return <RiverOverlay preview={river.preview} points={river.points} scale={scale} />;
@@ -353,7 +387,7 @@ export function MapStage({ editing }: { editing?: Label }) {
             <SemanticLayer
               key={layer.id}
               layer={layer}
-              active={layer.id === activeLayerId}
+              active={layer.id === activeLayerId || liveLayers.has(layer.id)}
               cacheRect={cache.rect}
               cacheScale={cache.scale}
               onCacheBytes={onCacheBytes}

@@ -125,10 +125,15 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
         grabbed.current = { id: selected.id, index: found.index };
         pending.current = useEditorStore.getState().scene;
         setDragging(true);
-      } else {
-        useEditorStore.getState().setSelection(found.kind === "pick" ? [found.id] : []);
+        return true;
       }
-      return true;
+      if (found.kind === "pick") {
+        useEditorStore.getState().setSelection([found.id]);
+        return true;
+      }
+      // A miss falls through rather than clearing (ADR-28): the global Select behind this
+      // tool owns empty space, so a marquee started over water still picks up sprites.
+      return false;
     },
     [drawing, editing, probe, scale, selected, toMapPoint],
   );

@@ -149,17 +149,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   past: [],
   future: [],
 
-  // Selection is per-layer, so switching layers drops it rather than leaving invisible
-  // objects selected on a layer you are no longer looking at. The tool comes along only
-  // if the new layer offers it — otherwise a press would land on a tool with no buttons.
+  /**
+   * Switching layers changes what a press *creates*, and nothing else (ADR-28).
+   *
+   * The selection survives, because it is no longer per-layer — dropping it here would
+   * throw away a cross-layer selection the moment you reached for another tool. And
+   * `select` survives too, on any layer including terrain: it is a mode, not a capability
+   * the layer grants. Any other tool still falls back to one the new layer offers, or a
+   * press would land on a tool with no buttons behind it.
+   */
   setActiveLayer: (activeLayerId) =>
     set((state) => {
       const tools = LAYER_TOOLS[activeLayerId];
-      return {
-        activeLayerId,
-        selection: [],
-        objectTool: !tools || tools.includes(state.objectTool) ? state.objectTool : tools[0],
-      };
+      const keep = state.objectTool === "select" || !tools || tools.includes(state.objectTool);
+      return { activeLayerId, objectTool: keep ? state.objectTool : tools[0] };
     }),
   setBrushSize: (brushSize) => set({ brushSize }),
   setTerrainTool: (terrainTool) => set({ terrainTool }),

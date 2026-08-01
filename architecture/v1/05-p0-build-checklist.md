@@ -105,12 +105,13 @@ needs WP-13's real UI, and it rewrites interaction invariant I9). **D1 is now se
 layer, and the toolbar stops presenting a pointer mode as a peer of the six layers. Design in
 `09-selection-across-layers.md`, decided in **ADR-28**. Every decision it needed is taken.
 
-- [ ] **WP-18 · Selection, unlinked from the layer** — toolbar splits into mode / create
+- [x] **WP-18 · Selection, unlinked from the layer** — toolbar splits into mode / create
   groups; Select hit-tests every **visible, unlocked** layer at once and is never disabled;
   lock and visibility scope a selection; mixed selections show common controls only; a layer
   is **live when active or holding a selection**; Erase relabels itself "Sea brush" on
-  Terrain. **Ships alone, blocks nothing** — take it before, after or between Batch 1's
-  packages. Carries a measurement: drag frame time across a four-layer selection.
+  Terrain. Verified by driven input, 16 checks — cross-layer membership proved from the
+  layer panel's own counts rather than asserted. **Measured**: after subtracting 62 ms of
+  harness, a drag costs ~6 ms for 756 objects in one layer and ~23 ms for 957 across four.
 - [ ] **WP-19 · Terrain joins the selection** (needs WP-17 **and** WP-18) — one frame over
   land and sprites, honest only once WP-16 makes every handle move geometry; WP-14's
   coastline highlight stays, additive; footprint wins the click over land; the marquee is

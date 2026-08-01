@@ -1,12 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Bounds } from "../scene/bounds";
+import { hasFootprint, type Bounds } from "../scene/bounds";
 import { frameOf } from "../scene/frame";
 import { rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
-import type { LayerId, Point, Scene, SceneObject } from "../scene/types";
+import type { Layer as SceneLayer, Point, Scene, SceneObject } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 import { resolveGesture } from "./gesture";
 import { cursorForHandle, cursorForHover, type Handle } from "./handles";
 import { SpatialIndex } from "./spatialIndex";
+
+/**
+ * Everything a selection may touch, wherever it lives (WP-18, ADR-28).
+ *
+ * Membership is decided by `hasFootprint`, not by layer — that is invariant I9's rule, and
+ * scoping it to one layer was always narrower than the invariant. Hidden and locked layers
+ * contribute nothing, which is what keeps a marquee over a forest from taking 200 trees
+ * when you wanted three castles, and is the first real job the lock has had.
+ */
+const selectablePool = (layers: SceneLayer[]): SceneObject[] =>
+  layers
+    .filter((layer) => layer.visible && !layer.locked)
+    .flatMap((layer) => layer.objects.filter(hasFootprint));
+
+/** Which layers hold any of these ids — the write-back set for a cross-layer edit. */
+const layersHolding = (layers: SceneLayer[], ids: Set<string>) =>
+  layers.filter((layer) => layer.objects.some((object) => ids.has(object.id)));
 
 type Drag =
   | { kind: "move"; start: Point; snapshot: SceneObject[] }
@@ -23,7 +40,6 @@ type Drag =
   | { kind: "marquee"; start: Point; additive: boolean };
 
 interface Options {
-  activeLayerId: LayerId;
   enabled: boolean;
   /** current zoom, so screen-constant handles convert to map space */
   scale: number;
@@ -38,10 +54,9 @@ interface Options {
  * idempotent — no drift from accumulating deltas, and WP-9 gets a clean before/after pair
  * to turn into one undo step.
  */
-export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Options) {
-  const objects = useEditorStore(
-    (s) => s.scene.layers.find((layer) => layer.id === activeLayerId)?.objects ?? [],
-  );
+export function useSelection({ enabled, scale, toMapPoint }: Options) {
+  const layers = useEditorStore((s) => s.scene.layers);
+  const objects = useMemo(() => selectablePool(layers), [layers]);
   const selection = useEditorStore((s) => s.selection);
   const [marquee, setMarquee] = useState<Bounds | null>(null);
   const drag = useRef<Drag | null>(null);
@@ -56,7 +71,12 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
    */
   const [groupRotation, setGroupRotation] = useState(0);
 
-  const index = useMemo(() => new SpatialIndex(objects), [objects]);
+  /**
+   * Built only while the tool is in hand. The pool spans every layer now, so rebuilding it
+   * on each scene change would put an index of the whole map inside every scatter stroke —
+   * for a tool that is not even active.
+   */
+  const index = useMemo(() => new SpatialIndex(enabled ? objects : []), [enabled, objects]);
   const selected = useMemo(
     () => objects.filter((object) => selection.includes(object.id)),
     [objects, selection],
@@ -66,19 +86,21 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
 
   const frame = useMemo(() => frameOf(selected, groupRotation), [selected, groupRotation]);
 
-  const apply = useCallback(
-    (transformed: SceneObject[]) => {
-      const state = useEditorStore.getState();
-      const patched = new Map(transformed.map((object) => [object.id, object]));
-      const layer = state.scene.layers.find((l) => l.id === activeLayerId);
-      if (!layer) return;
+  /**
+   * A transform can now span layers, so the write-back does too — one `setLayerObjects`
+   * per layer the drag actually touched. History needs nothing for this: a `Step` already
+   * carries a `LayerDiff[]`, so the whole cross-layer drag is still one undo step.
+   */
+  const apply = useCallback((transformed: SceneObject[]) => {
+    const state = useEditorStore.getState();
+    const patched = new Map(transformed.map((object) => [object.id, object]));
+    for (const layer of layersHolding(state.scene.layers, new Set(patched.keys()))) {
       state.setLayerObjects(
-        activeLayerId,
+        layer.id,
         layer.objects.map((object) => patched.get(object.id) ?? object),
       );
-    },
-    [activeLayerId],
-  );
+    }
+  }, []);
 
   const begin = useCallback(
     (clientX: number, clientY: number, shift: boolean) => {
@@ -238,12 +260,21 @@ export function useSelection({ activeLayerId, enabled, scale, toMapPoint }: Opti
       if (event.key === "Escape") store.setSelection([]);
       if ((event.key === "Delete" || event.key === "Backspace") && store.selection.length > 0) {
         event.preventDefault();
-        store.record("delete", () => store.removeObjects(activeLayerId, store.selection));
+        const doomed = new Set(store.selection);
+        const layers = layersHolding(store.scene.layers, doomed);
+        store.record("delete", () => {
+          for (const layer of layers) {
+            store.removeObjects(
+              layer.id,
+              layer.objects.filter((object) => doomed.has(object.id)).map((object) => object.id),
+            );
+          }
+        });
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeLayerId, enabled]);
+  }, [enabled]);
 
   // Whatever handle the drag started on keeps its own cursor for the whole drag —
   // reading the handle rather than assuming a diagonal, which flipped ne/sw to nwse.

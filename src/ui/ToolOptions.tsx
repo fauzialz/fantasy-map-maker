@@ -1,4 +1,5 @@
 import { ChevronsDown, ChevronsUp, Trash2 } from "lucide-react";
+import { useMemo } from "react";
 import type { Label } from "../scene/types";
 import { restack } from "../scene/transform";
 import { ICON_KINDS } from "../sprites/registry";
@@ -38,31 +39,59 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const selection = useEditorStore((s) => s.selection);
   const setSettings = useEditorStore((s) => s.setSettings);
   const patchObject = useEditorStore((s) => s.patchObject);
-  const removeObjects = useEditorStore((s) => s.removeObjects);
   const record = useEditorStore((s) => s.record);
 
   const onTerrain = activeLayerId === "terrain";
   const tools = LAYER_TOOLS[activeLayerId];
   const isObjectLayer = LAYER_OBJECT[activeLayerId] !== undefined;
+  const selecting = objectTool === "select";
 
+  /**
+   * A selection can now span layers (ADR-28), so what the rail offers follows the selected
+   * *objects*, not the active layer: shared controls always, and the type-specific ones only
+   * when every selected object is that type. A text-size slider over a mixed bag of trees
+   * and labels would have to either edit nothing or lie about what it edits.
+   */
+  const selected = useMemo(() => {
+    const ids = new Set(selection);
+    return scene.layers.flatMap((layer) => layer.objects.filter((o) => ids.has(o.id)));
+  }, [scene.layers, selection]);
+  const onlyType =
+    selected.length > 0 && selected.every((o) => o.type === selected[0].type)
+      ? selected[0].type
+      : undefined;
   /** The one selected label, so the size slider edits the thing rather than the default. */
   const editingLabel =
-    activeLayerId === "labels" && selection.length === 1
-      ? (scene.layers
-          .find((l) => l.id === "labels")
-          ?.objects.find((o) => o.id === selection[0] && o.type === "label") as Label | undefined)
-      : undefined;
+    onlyType === "label" && selected.length === 1 ? (selected[0] as Label) : undefined;
 
+  /**
+   * Restacking is per layer even for a cross-layer selection: layer order is fixed and
+   * z-order lives *within* a layer (ADR-15), so each object moves inside its own stack and
+   * cross-layer z never has to mean anything.
+   */
   const restackSelection = (direction: 1 | -1) => {
     const state = useEditorStore.getState();
-    const layer = state.scene.layers.find((l) => l.id === state.activeLayerId);
-    if (!layer) return;
-    state.record(direction === 1 ? "bring forward" : "send back", () =>
-      state.setLayerObjects(
-        state.activeLayerId,
-        restack(layer.objects, new Set(state.selection), direction),
-      ),
-    );
+    const ids = new Set(state.selection);
+    const touched = state.scene.layers.filter((l) => l.objects.some((o) => ids.has(o.id)));
+    state.record(direction === 1 ? "bring forward" : "send back", () => {
+      for (const layer of touched) {
+        state.setLayerObjects(layer.id, restack(layer.objects, ids, direction));
+      }
+    });
+  };
+
+  const deleteSelection = () => {
+    const state = useEditorStore.getState();
+    const doomed = new Set(state.selection);
+    const touched = state.scene.layers.filter((l) => l.objects.some((o) => doomed.has(o.id)));
+    state.record("delete", () => {
+      for (const layer of touched) {
+        state.removeObjects(
+          layer.id,
+          layer.objects.filter((o) => doomed.has(o.id)).map((o) => o.id),
+        );
+      }
+    });
   };
 
   return (
@@ -134,7 +163,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </div>
       )}
 
-      {activeLayerId === "labels" && (
+      {(activeLayerId === "labels" || onlyType === "label") && (
         <>
           <Slider
             label="Text size"
@@ -183,18 +212,18 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </>
       )}
 
-      {isObjectLayer && objectTool === "select" && (
+      {selecting && (
         <>
           <p className={hint()}>
-            {selection.length === 0
-              ? "Click, shift-click or drag a marquee to select."
-              : `${selection.length} selected · drag to move · corners scale · the stalk rotates.`}
+            {selected.length === 0
+              ? "Click, shift-click or drag a marquee to select — any layer, not just this one."
+              : `${selected.length} selected${onlyType ? "" : " across types"} · drag to move · corners scale · the stalk rotates.`}
           </p>
           <div className={segment()}>
             <button
               type="button"
               className={button()}
-              disabled={selection.length === 0}
+              disabled={selected.length === 0}
               onClick={() => restackSelection(1)}
             >
               <ChevronsUp size={13} /> Forward
@@ -202,7 +231,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
             <button
               type="button"
               className={button()}
-              disabled={selection.length === 0}
+              disabled={selected.length === 0}
               onClick={() => restackSelection(-1)}
             >
               <ChevronsDown size={13} /> Back
@@ -211,12 +240,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           <button
             type="button"
             className={button({ tone: "danger", block: true })}
-            disabled={selection.length === 0}
-            onClick={() =>
-              record("delete", () =>
-                removeObjects(activeLayerId, useEditorStore.getState().selection),
-              )
-            }
+            disabled={selected.length === 0}
+            onClick={deleteSelection}
           >
             <Trash2 size={13} /> Delete selected
           </button>
