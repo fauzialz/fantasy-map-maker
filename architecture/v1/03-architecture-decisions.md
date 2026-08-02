@@ -390,3 +390,78 @@ silhouette-based marquee (neither meaningful nor affordable); precise picking fo
 flattening arcs so the dialect could accept them (disproportionate — every design tool can
 emit curves instead); and leaving the parser documented-but-unguarded, which is the status
 quo that prompted the question.
+
+## ADR-31 — Monetization boundary: server-counted cloud cap, client has no vote
+**Decision:** Free tier is **everything that runs entirely in the browser** — the full
+editor, **unlimited local IndexedDB drafts**, image export, `.map.json`, and the
+self-contained HTML embed (P1) — all uncapped because none of it touches a server. Login
+unlocks **cloud-saved maps, count-capped** (starting limit 5) **and hosted
+sharing/embedding** (`/s/{slug}`, `/embed/{slug}`), both capped because both consume the
+Go API and Postgres. Paying raises the same two caps; it does not unlock a feature the free
+or logged-in tier lacked. This refines ADR-01 (which deferred billing *infrastructure*, not
+the enforcement seam) and ADR-07 (the "no wall" principle: the wall is on cloud persistence
+quantity, never on creating, editing, or exporting).
+
+**Enforcement seam:** the cap is a count check in the Go API (`count(maps) WHERE owner_id =
+$1` against the cap, on `POST /api/maps`), never a client-side check. This is the entire
+reason the cap survives the project being open source (see ADR-32): the SPA's source being
+public makes any limit enforced only in the browser a suggestion, not a paywall. A count on
+a row the client cannot write to is the only enforcement point that stays intact regardless
+of who reads or forks the client code.
+
+**At-cap UX:** hitting the cap on a cloud save must not be a bare rejection. The client
+offers three choices, each still resolved through calls that keep the server-enforced count
+true — the enforcement never loosens, only the recovery path gets friendlier:
+1. **Cancel** — abort, no server call, no state change.
+2. **Delete an existing cloud map, then save** — `DELETE /api/maps/{id}` followed by
+   `POST /api/maps`. Post-op count is still ≤ cap. No new endpoint needed.
+3. **Overwrite an existing cloud map** — this replaces that map's **content**, it does not
+   create a new row: `PUT` the current scene into the target's existing `maps.id`, keeping
+   that row's id, share slug, and thumbnail stable so links already pointing at it keep
+   working. The count never moves.
+
+**Open sub-decision, resolved here by default:** overwrite raises a real question, because
+the scene JSON carries its own `meta.id` — the client-generated UUID that is also the local
+IndexedDB key and P2's claim handle (ADR-07). When scene A overwrites cloud map B, the
+default is to **rewrite the outgoing scene's `meta.id` to B** before storing it, so the
+cloud row's id and its stored scene content never disagree. The tradeoff accepted knowingly:
+scene A's own local IndexedDB draft keeps autosaving under id A, now decoupled from the
+cloud slot it was just saved into — the user's next cloud save of "the same" map will not
+obviously resolve back to slot B. Acceptable for v1; revisit if this produces confusing
+"which local draft is which cloud save" reports once built.
+
+**Consequences:** options 1 and 2 need no new P2 endpoints, only client orchestration of
+what the API surface already has. Option 3 does need a decision at implementation time —
+today's `PUT /api/maps/{id}` implicitly assumes the payload's `meta.id` matches `{id}`; it
+must instead accept a mismatch and rewrite, per the default above. Billing itself (Stripe,
+checkout, tier/entitlement storage) stays out of scope here and for Phase 2 — this ADR fixes
+only the enforcement seam and the at-cap recovery UX, not payment processing.
+
+**Rejected:** hard rejection with no recovery choice (unnecessarily punitive for a routine,
+expected limit); enforcing the cap client-side (unenforceable the moment the source is
+public — the premise this ADR exists to resolve); a combined atomic "evict-and-create"
+endpoint (nice-to-have, not required — two existing calls suffice for v1).
+
+## ADR-32 — License split: AGPL on the hosted app, permissive on published packages
+**Decision:** Root `LICENSE` is **AGPL-3.0**, covering the editor SPA and the Go backend.
+`packages/map-viewer` and `packages/map-editor` (P3) each carry their **own permissive
+license** (MIT or Apache-2.0) that overrides the root for that subtree.
+
+**Why:** AGPL's network-use clause is the actual goal — anyone who stands up a modified
+hosted clone of the backend must publish their modifications, closing the "silent SaaS fork"
+risk that going open source raises (see ADR-31). But P3 exists specifically so **other
+sites embed these packages** (`01-system-design.md` §3); an AGPL viewer would force every
+embedding site to adopt AGPL too, which kills adoption and defeats P3's purpose. The moon
+monorepo makes the split free — license resolution is per-subtree and has nothing to do
+with the build/task graph.
+
+**Consequences:** AGPL requires that anyone hosting a modified backend offer its complete
+corresponding source, including the cap-enforcement logic in ADR-31 — expected, and
+harmless, since that enforcement's strength was already established to come from the
+server-held count, never from the code being secret. The published packages must keep their
+dependency graph free of app-only, AGPL-rooted code, or importing it would drag AGPL's terms
+into an otherwise-permissive package.
+
+**Rejected:** AGPL across the whole monorepo (kills P3 adoption, the one thing P3 exists to
+enable); a permissive license across the whole monorepo (no protection against a hosted
+clone of the backend — the exact risk this ADR answers).
