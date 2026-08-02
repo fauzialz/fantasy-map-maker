@@ -391,77 +391,179 @@ flattening arcs so the dialect could accept them (disproportionate — every des
 emit curves instead); and leaving the parser documented-but-unguarded, which is the status
 quo that prompted the question.
 
-## ADR-31 — Monetization boundary: server-counted cloud cap, client has no vote
-**Decision:** Free tier is **everything that runs entirely in the browser** — the full
-editor, **unlimited local IndexedDB drafts**, image export, `.map.json`, and the
-self-contained HTML embed (P1) — all uncapped because none of it touches a server. Login
-unlocks **cloud-saved maps, count-capped** (starting limit 5) **and hosted
-sharing/embedding** (`/s/{slug}`, `/embed/{slug}`), both capped because both consume the
-Go API and Postgres. Paying raises the same two caps; it does not unlock a feature the free
-or logged-in tier lacked. This refines ADR-01 (which deferred billing *infrastructure*, not
-the enforcement seam) and ADR-07 (the "no wall" principle: the wall is on cloud persistence
-quantity, never on creating, editing, or exporting).
 
-**Enforcement seam:** the cap is a count check in the Go API (`count(maps) WHERE owner_id =
-$1` against the cap, on `POST /api/maps`), never a client-side check. This is the entire
-reason the cap survives the project being open source (see ADR-32): the SPA's source being
-public makes any limit enforced only in the browser a suggestion, not a paywall. A count on
-a row the client cannot write to is the only enforcement point that stays intact regardless
-of who reads or forks the client code.
+## ADR-31 — Monetization boundary: free is what runs in the browser
+**Decision:** The free tier is **everything that executes entirely in the browser** — the
+full editor, **unlimited local drafts**, and *every* export: PNG/JPG/WebP, `.map.json`, the
+self-contained HTML embed, **and SVG/PDF**. What is gated is **consumption of the server**:
+cloud-saved maps (**5** free, **100** paid) and hosted sharing (`/s/{slug}`, `/embed/{slug}`).
+Paying raises quantity; it never unlocks a capability the free tier lacked. This refines
+ADR-01, which deferred billing *infrastructure* rather than the enforcement seam, and ADR-07,
+whose "no wall" holds exactly: the wall is on cloud-persistence *quantity*, never on
+creating, editing, or exporting.
 
-**At-cap UX:** hitting the cap on a cloud save must not be a bare rejection. The client
-offers three choices, each still resolved through calls that keep the server-enforced count
-true — the enforcement never loosens, only the recovery path gets friendlier:
-1. **Cancel** — abort, no server call, no state change.
-2. **Delete an existing cloud map, then save** — `DELETE /api/maps/{id}` followed by
-   `POST /api/maps`. Post-op count is still ≤ cap. No new endpoint needed.
-3. **Overwrite an existing cloud map** — this replaces that map's **content**, it does not
-   create a new row: `PUT` the current scene into the target's existing `maps.id`, keeping
-   that row's id, share slug, and thumbnail stable so links already pointing at it keep
-   working. The count never moves.
+**Phases are delivery order, not entitlement tiers.** SVG/PDF is the proof: Phase 2's WP-6
+re-emits the scene graph client-side and never touches the API, so it is free and available
+anonymously despite shipping in the accounts phase. Any future reading of the roadmap as a
+price ladder is a misreading.
 
-**Open sub-decision, resolved here by default:** overwrite raises a real question, because
-the scene JSON carries its own `meta.id` — the client-generated UUID that is also the local
-IndexedDB key and P2's claim handle (ADR-07). When scene A overwrites cloud map B, the
-default is to **rewrite the outgoing scene's `meta.id` to B** before storing it, so the
-cloud row's id and its stored scene content never disagree. The tradeoff accepted knowingly:
-scene A's own local IndexedDB draft keeps autosaving under id A, now decoupled from the
-cloud slot it was just saved into — the user's next cloud save of "the same" map will not
-obviously resolve back to slot B. Acceptable for v1; revisit if this produces confusing
-"which local draft is which cloud save" reports once built.
+**Enforcement.** The count check lives in the Go API and the client has no vote. It must be
+**atomic**: a bare `SELECT count(*)` followed by an `INSERT` is a time-of-check/time-of-use
+race — under read-committed, two concurrent requests both observe 4 and both insert, landing
+a capped-at-5 account on 6. Take a per-user row lock (`SELECT … FROM users WHERE id = $1 FOR
+UPDATE`) at the top of the transaction; contention is per-user and negligible. The lock must
+cover **every insertion path** — create, single claim, bulk claim, and restore-from-trash —
+and the count must exclude soft-deleted rows (`deleted_at IS NULL`), or delete-to-make-room
+silently fails to free a slot. A client-side count is a UX prediction only; the **402 is the
+authority**.
 
-**Consequences:** options 1 and 2 need no new P2 endpoints, only client orchestration of
-what the API surface already has. Option 3 does need a decision at implementation time —
-today's `PUT /api/maps/{id}` implicitly assumes the payload's `meta.id` matches `{id}`; it
-must instead accept a mismatch and rewrite, per the default above. Billing itself (Stripe,
-checkout, tier/entitlement storage) stays out of scope here and for Phase 2 — this ADR fixes
-only the enforcement seam and the at-cap recovery UX, not payment processing.
+**No separate sharing cap.** One slug per map plus the map cap already bounds shares at ≤ 5;
+a second lever would be redundant. Bandwidth is the real exposure — a single popular embed
+can outweigh a thousand users' stored maps — but that is a *view* meter, not a row count, and
+it gets its own ADR if and when there is data to justify it.
 
-**Rejected:** hard rejection with no recovery choice (unnecessarily punitive for a routine,
-expected limit); enforcing the cap client-side (unenforceable the moment the source is
-public — the premise this ADR exists to resolve); a combined atomic "evict-and-create"
-endpoint (nice-to-have, not required — two existing calls suffice for v1).
+**Backstops, not currencies:** a request body limit (~10 MB, `http.MaxBytesReader`
+middleware) and an account-level abuse tripwire (~2 GB). Neither is user-facing. A typical
+scene is ~220 KB measured and the 1–2k object perf budget keeps real maps far below the
+ceiling, so no legitimate user meets either. The **visible** cap stays a map *count*, because
+bytes are not a unit users can predict or manage, and a size cap could only be enforced at
+save time — after the work is done — rather than at creation.
 
-## ADR-32 — License split: AGPL on the hosted app, permissive on published packages
-**Decision:** Root `LICENSE` is **AGPL-3.0**, covering the editor SPA and the Go backend.
-`packages/map-viewer` and `packages/map-editor` (P3) each carry their **own permissive
-license** (MIT or Apache-2.0) that overrides the root for that subtree.
+**Why this survives the source being public (ADR-32):** enforcement is a count on a row the
+client cannot write. Publishing the check grants nothing; a forker would need their own
+database, at which point they were never a customer. Secrets stay out of the repo under any
+license.
 
-**Why:** AGPL's network-use clause is the actual goal — anyone who stands up a modified
-hosted clone of the backend must publish their modifications, closing the "silent SaaS fork"
-risk that going open source raises (see ADR-31). But P3 exists specifically so **other
-sites embed these packages** (`01-system-design.md` §3); an AGPL viewer would force every
-embedding site to adopt AGPL too, which kills adoption and defeats P3's purpose. The moon
-monorepo makes the split free — license resolution is per-subtree and has nothing to do
-with the build/task graph.
+**Consequences:** billing itself — checkout, tiers, entitlement storage — remains out of
+scope here and in Phase 2; this ADR fixes only the seam. Because no upgrade path exists yet,
+the downgrade policy is recorded intent rather than a build item: an over-cap account keeps
+every map readable and exportable and **never has work destroyed by a billing event** (see
+ADR-33 for the mechanism).
 
-**Consequences:** AGPL requires that anyone hosting a modified backend offer its complete
-corresponding source, including the cap-enforcement logic in ADR-31 — expected, and
-harmless, since that enforcement's strength was already established to come from the
-server-held count, never from the code being secret. The published packages must keep their
-dependency graph free of app-only, AGPL-rooted code, or importing it would drag AGPL's terms
-into an otherwise-permissive package.
+**Rejected:** enforcing the cap in the browser (unenforceable once the source is public —
+the premise this ADR answers); a user-facing size quota (illegible, and enforceable only
+after the work is done); a separate hosted-sharing cap (redundant against the map cap);
+gating SVG/PDF because it ships in P2 (confuses delivery order with entitlement, and would
+put a wall in front of exporting).
 
-**Rejected:** AGPL across the whole monorepo (kills P3 adoption, the one thing P3 exists to
-enable); a permissive license across the whole monorepo (no protection against a hosted
-clone of the backend — the exact risk this ADR answers).
+## ADR-32 — MIT across the monorepo, sprite art included
+**Decision:** **MIT at the repository root, covering everything** — editor, Go backend, the
+P3 packages, and the sprite artwork. This **supersedes the AGPL-root / permissive-packages
+split** previously recorded under this number.
+
+**Why the split was unsatisfiable:** P1 WP-1 and P3 WP-1 both make sharing the renderer a
+*hard constraint* — "do not fork the renderer… extract it into an internal module **the app
+also consumes**." That shared core (`src/scene/`, `src/canvas/`, `src/engine/`,
+`src/sprites/` — scene types, `migrate()`, ring derivation, sprite registry) is one body of
+code the AGPL app and the permissive packages must both import. A root-AGPL tree with
+permissive `packages/*` would ship an MIT wrapper around an AGPL dependency: not MIT in any
+meaningful sense, and fatal to the adoption P3 exists to enable.
+
+**Why not AGPL at all:** §13 compels publishing *modifications* served over a network —
+running an **unmodified** copy is fully permitted. It therefore does not prevent a hosted
+clone, only a silent one. It would also have obligated *us* to hand our own users the
+backend source including the cap logic, and would have contaminated the P1 embed export:
+WP-3 inlines the viewer runtime into a single `.html` the user hosts themselves, so every
+export would carry copyleft obligations onto the user. That is the opposite of a free-tier
+feature.
+
+**The codebase had already decided this, undocumented.** `src/engine/terrain/contours.ts`
+deliberately runs marching squares through **`d3-contour` (ISC)** instead of the
+`marching-squares` package, for exactly the reason above — recorded in the file and in
+`04-geometry-pipeline.md` S2: *"that package is AGPL-3.0, which would force the whole app and
+the planned `@byfauzi/*` packages under AGPL."* A geometry dependency was rejected on those
+grounds long before this ADR existed, so an AGPL root would have contradicted a choice
+already paid for in code. This ADR makes the existing position explicit rather than
+introducing a new one.
+
+**Consequences:** the paywall is unaffected — MIT compels no disclosure at all, and ADR-31's
+enforcement was never predicated on secrecy. The P1 embed must carry the MIT notice, which
+is one banner comment in the generated file (under AGPL this same fact was fatal; under MIT
+it is trivial). A competitor may take the stack, proprietize it, and sell it, owing only the
+copyright notice — accepted knowingly: the moat is the hosted service, the domain, the
+users, and the artwork, not the source. The sprite art is MIT by explicit choice rather than
+oversight.
+
+**Rejected:** AGPL root with permissive packages (contradicts the shared-core constraint
+above); AGPL everywhere (kills P3 adoption, which is P3's entire purpose); BSL or another
+source-available licence (genuinely does prevent hosted competition, unlike AGPL —
+disproportionate for a portfolio project, and revisitable if that ever stops being true).
+
+## ADR-33 — Cloud sync is opt-in per map; local-first is never negotiable
+**Decision:** **Local IndexedDB autosave is hardcoded on and cannot be disabled.** Cloud sync
+is **opt-in per map**, and a map becomes a cloud row only on an explicit user action — the
+save menu, the status-bar call-to-action, or the sync toggle. **The cap is checked once, at
+first materialisation, never on an autosave tick.**
+
+**Why:** WP-3 specifies debounced cloud autosave, so saving is a background timer. A cap
+dialog cannot be raised from a timer, and a user at cap would otherwise fire a rejected POST
+every interval. Making materialisation explicit puts the only capped decision in the
+foreground, where a dialog is coherent. The user-facing label is **"Cloud sync"**, never
+"autosave" — the local layer already owns that word and never turns off.
+
+**Claim is offered, never automatic.** Login claims nothing by itself. When unclaimed local
+drafts exist the user is *offered* a claim: "save all N" when N fits the remaining slots, or
+a selection list capped at the remaining count when it does not. Dismissible, loses nothing,
+idempotent on `meta.id`, re-openable from the gallery, and suppressible with a preference
+that stays re-enableable in settings. This replaces WP-4's automatic bulk claim, which would
+have made logging in the most punitive moment in the product — ADR-07 promises login only
+*adds*.
+
+**At the cap** the dialog offers **cancel** or **delete-to-make-room**. There is deliberately
+**no overwrite-in-place**: its only advantage was slug continuity, which is actively harmful
+(a third party's embed would silently begin showing a different map), and it dragged in
+`meta.id` rewriting, local re-keying, an orphaned local draft that reads as unsynced
+immediately after a successful sync, and a collision when a local copy of the target already
+exists.
+
+**Conflict model.** Comparing local and cloud timestamps directly is unsafe — one is
+client-stamped, the other server-stamped. `DraftRecord` therefore carries
+`lastSyncedLocalAt` and `lastSyncedServerAt`, and each side is compared only against its own
+clock. A **genuine conflict is both sides changed since the last common sync point**; the
+three other combinations resolve themselves without a prompt. Conflicts surface at four
+moments only — boot/open, toggling sync on, a 409 on explicit save, and reconnecting — and
+**never auto-resolve**: both copies are kept until the user chooses. Turning sync on is
+non-destructive by construction: it goes through the `updated_at` check and, on 409, leaves
+sync off and raises the prompt.
+
+**The `past.length > 0` guard extends to the cloud path.** `useAutosave` already refuses to
+restore over work in progress, because an async load landing on a stroke the user just
+painted is the data loss WP-12 exists to prevent. The network is slower and more variable
+than IndexedDB, so the same bug is *more* likely on the cloud path — but the cloud case must
+**route into the conflict flow rather than discarding**, since "the user already edited"
+means a conflict, not a reason to drop the remote copy. Boot-time prompts are non-blocking.
+
+**Three UI elements, distinct jobs:** a persistent status indicator (cloud state headlines
+when sync is on, local state when it is off); a **closeable** CTA banner ("this map is only
+on this device"), which is the *only* closeable element, scoped per map, re-shown once per
+new session while the map stays unsynced; and toasts for failure, conflict and cap events,
+which closing the banner can never hide.
+
+**Deletion is soft** (`deleted_at`, 30-day retention, daily purge), with a trash view,
+undo-toast, and explicit permanent delete behind a confirmation. Deleting a cloud map
+**never touches the local copy**. Soft-deleted rows do not count toward the cap, so permanent
+delete frees storage but no slots — the UI must say so. **Restore is an insertion path** and
+goes through the cap check like any other.
+
+**Downgrade** marks maps with `downgraded_at` (distinct from `deleted_at`, so "billing
+lapsed" and "user deleted" stay tellable apart), gets its own 60-day grace, and renders as
+**"not syncing — over limit"**, never "read-only": the editor never locks, local autosave
+continues, and export stays available. Over-limit maps stop accepting PUTs and their share
+slugs are disabled. Reclaiming through the same selection dialog nulls `downgraded_at`; only
+after the grace expires unclaimed do maps fall into ordinary soft deletion.
+
+**Consequences:** `DraftRecord` gains `lastSyncedLocalAt`, `lastSyncedServerAt`, a
+banner-closed flag and a title/thumbnail for the gallery — all local, so
+**`02-scene-data-model.md` is untouched**: no `schemaVersion` bump, no `migrate()` step, and
+nothing leaks into `.map.json` or the P1 embed. The sync flag itself lives server-side
+(`maps.cloud_sync`), which resolves the chicken-and-egg cleanly — "not synced" before
+materialisation is simply the absence of a row — at the cost of being global rather than
+per-device. Local drafts are LRU-pruned to the ~20 most recent, evicting **only** fully
+synced maps; anything local-only or ahead of cloud is never evicted. Opt-in sync also makes
+a **merged local+cloud gallery mandatory** rather than optional — scheduled as WP-22.
+
+**Rejected:** a cap dialog at map creation (local maps cost nothing and are unlimited; a
+dialog there is a wall in front of *creating*, which ADR-07 forbids); automatic bulk claim
+on login; overwrite-in-place; auto-resolving conflicts by newest timestamp (silent data
+loss across two clocks); making the whole status bar closeable (would let a user hide a
+conflict warning permanently).

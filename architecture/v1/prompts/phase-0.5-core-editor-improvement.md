@@ -261,6 +261,48 @@ over the path string. Only the picking `Path2D` lives in the browser.
 
 ---
 
+## Batch 4 — More than one map (WP-22)
+
+**Design:** none yet — the decisions live in **ADR-33**; write `11-…` if this grows past one
+package. **Decision:** ADR-33 (and ADR-31 for why local is uncapped). **Prerequisite:** none.
+**Settle first:** nothing.
+
+**What this batch is about.** `persistence/drafts.ts` stores drafts as a **keyed collection**
+— `meta.id` is the keyPath, deliberately, so P2 can claim into an account — but the only two
+operations are `saveScene` (put one) and `loadLatestScene` (reverse cursor, newest only).
+Nothing lists it and nothing creates a second draft, so in practice the editor has **one
+continuous working copy** and a user's second map is unreachable. The store is already the
+right shape; what is missing is the query and the UI.
+
+This became load-bearing rather than nice-to-have when cloud sync went **opt-in per map**
+(ADR-33): local-only maps are now a first-class and potentially numerous thing, and
+"unlimited local drafts" is the headline of the free tier (ADR-31) — meaningless if you
+cannot switch between them.
+
+### WP-22 · The local map gallery
+Add **`listDrafts()`** over the existing `updatedAt` index, and a gallery UI listing local
+projects with title, thumbnail and updated time: **new map · open · rename · delete**. Keep
+a local thumbnail per draft so the list does not have to rehydrate every scene to render.
+
+**Local only.** A merged view of local *and* cloud maps with sync badges is the target shape,
+but the cloud half belongs to P2's WP-3 — build the list so a second source can be folded in
+without a rewrite, and stop there.
+
+**Deleting a local draft is not deleting a map.** It removes this device's copy; if the map
+has been synced, the cloud row is untouched (the mirror of ADR-33's rule that deleting a
+cloud map never touches the local copy). Say so in the confirmation, or the two deletes will
+be read as one.
+
+**Do not evict on the user's behalf here.** LRU pruning of synced drafts is WP-3's, and it
+must never touch a draft that is local-only or ahead of cloud.
+
+- **Acceptance:** create three maps, switch between them, and each reopens with its own
+  geometry and title · a renamed map keeps its `meta.id` · deleting one leaves the others
+  and the newest-first order intact · a reload restores the map that was open, not merely
+  the most recently written · driven input for open/switch/delete, per the house rule.
+
+---
+
 ## Adding a future batch
 
 Append it below Batch 1. A batch is admissible here when it (a) changes the **core editor**,
