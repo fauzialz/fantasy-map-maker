@@ -99,6 +99,16 @@ iframe**, and export **SVG/PDF**. Anonymous use is unchanged.
   "already edited" means conflict, not a reason to drop the remote copy.
 - Generate and store a **PNG thumbnail** per map. LRU-prune local drafts to ~20, evicting
   **only fully synced** maps — never one that is local-only or ahead of cloud.
+- **Two decisions left open deliberately, to settle while building** (they need the real
+  thing in front of you, not a guess in a design doc):
+  - **Sync cadence and the offline queue.** The local layer throttles at 800 ms with
+    documented reasoning (`useAutosave`); the cloud layer wants something much longer,
+    because the cost is a network round-trip rather than an IDB write. Decide the interval,
+    whether a failed sync queues and retries or simply waits for the next change, and how
+    many times before it stops and says so. **Never silently drop a sync** — a failure the
+    user cannot see is worse than one that stops trying.
+  - **Thumbnail timing.** First cloud save only, every sync, or throttled independently.
+    Rendering a thumbnail is not free, and the gallery is the only consumer.
 - **Acceptance:** a new map stays local until explicitly synced and **never fires a cloud
   write on an autosave tick**; a map edited on two devices raises a conflict prompt and
   loses neither copy; painting immediately on load is never overwritten by an arriving

@@ -391,7 +391,6 @@ flattening arcs so the dialect could accept them (disproportionate — every des
 emit curves instead); and leaving the parser documented-but-unguarded, which is the status
 quo that prompted the question.
 
-
 ## ADR-31 — Monetization boundary: free is what runs in the browser
 **Decision:** The free tier is **everything that executes entirely in the browser** — the
 full editor, **unlimited local drafts**, and *every* export: PNG/JPG/WebP, `.map.json`, the
