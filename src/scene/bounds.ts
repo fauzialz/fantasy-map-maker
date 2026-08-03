@@ -170,6 +170,26 @@ export const landmassAt = (landmasses: Landmass[], x: number, y: number): Landma
   landmasses.find((landmass) => pointInPolygon(landmassToPolygon(landmass), [x, y]));
 
 /**
+ * What stands on a landmass — the double-click gesture of WP-19 (`09` §4, item 8).
+ *
+ * Membership is the **anchor**, not the box: a sprite's `x,y` is its feet (`07` §4), so a
+ * mountain whose artwork overhangs the water is still standing on the land, and asking the
+ * box would make that a matter of which way it leans. Path objects are deliberately out —
+ * a river crossing three continents is not standing on any of them, and this gesture exists
+ * to pick up a continent's *contents* rather than everything it touches.
+ *
+ * Even-odd through the lakes for free: something on an island in a lake belongs to the
+ * island, not to the continent around it, and `landmassAt` already answers it that way.
+ */
+export const standingOn = (landmass: Landmass, objects: SceneObject[]): PlacedObject[] => {
+  const polygon = landmassToPolygon(landmass);
+  return objects.filter(
+    (object): object is PlacedObject =>
+      hasFootprint(object) && pointInPolygon(polygon, [object.x, object.y]),
+  );
+};
+
+/**
  * A path-based object's axis-aligned box — a landmass's coastline, or a river's ribbon.
  *
  * Deliberately **not** part of `objectBounds`, which stays undefined for path objects. That

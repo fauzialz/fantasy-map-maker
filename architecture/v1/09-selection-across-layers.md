@@ -221,7 +221,7 @@ press that would place a mountain where a press actually starts a marquee. `MapS
 cursor fallback now checks `selecting` first. I4 again, and it took a probe that expected a
 specific cursor rather than merely "not the wrong one" to see it.
 
-### WP-19 · Terrain joins the selection
+### WP-19 · Terrain joins the selection  *(built)*
 
 **Prerequisite: WP-17 and WP-18.** Available a package earlier in principle — the §7
 precondition is met once scale lands at WP-16 — but waiting for WP-17 means all three overlap
@@ -261,6 +261,52 @@ broken promise (S6).
   mountain · a marquee clipping a continent's corner takes its trees and not the continent ·
   double-clicking a landmass selects it plus its contents · one ring derivation per drop ·
   the biome palette appears for a mixed selection and recolours only the land · driven input.
+
+#### As built
+
+**Seven of the eight items were already true when the package started.** Not by accident and
+not by drift: each was the cheapest thing to build at the moment its own package needed it,
+so WP-15 landed the frame and the freeze-and-fade, WP-16 made the handles honest, WP-18
+landed the asymmetric marquee and the footprint-first precedence, and WP-20 generalised
+`landmassBounds` into `pathBounds` and reused the `frameInterior` flag. **Item 7, the shared
+resolved delta — this package's whole risk — was written in WP-15 too**, because the moment
+land could be dragged at all, `resolveTerrainDrop` had to decide what the rest of the drag
+did, and "the same fraction" was no harder than the alternative. §7's warning that it "must
+be designed in rather than retrofitted" was right, and the design landed four packages early.
+
+So what was left was item 8 and two pieces of dishonesty:
+
+- **The double-click** — `standingOn` in [scene/bounds.ts](../../src/scene/bounds.ts).
+  Membership is the **anchor**, not the box: a sprite's `x,y` is its feet (`07` §4), so a
+  mountain whose artwork overhangs the water is still standing on the land, and asking the
+  box would make that a question of which way the art leans. Path objects are deliberately
+  out — a river crossing three continents stands on none of them. Lakes come free, because
+  `pointInPolygon` is even-odd across every ring: what sits on an island in a lake belongs to
+  the island.
+- **The rail had gone stale.** Its land-only branch still offered nothing but recolour and
+  rename — true when WP-14 wrote it, false since WP-15. A pointer that promises what a press
+  does (I4) and a rail that describes what it cannot are the same defect at different volumes.
+- **The double-click handler was keyed on the rivers _layer_.** Since WP-20 left that tool
+  drawing-only, being on the rivers layer no longer implies a draft is open, so the gesture
+  was being swallowed there with Select on. Root cause rather than a second branch: the
+  condition is now `river.active`.
+
+**Verified by 14 driven checks and six mutations**, one per decision — the double-click, the
+shared delta, `standingOn`'s membership test, marquee containment, hit precedence, and the
+ring freeze. Two are worth recording:
+
+- **The riskiest item's check did not work on the first attempt, and passed.** Objects riding
+  the _requested_ delta while the land slid back were still standing on the same continent:
+  the slip was 360 units against a 1 060-unit landmass, so a containment probe could not see
+  it. This is `07` §1's "move by more than the thing you are moving", one layer up — the rule
+  applies to the **slip** as much as to the displacement. Overshooting to 2 000 units makes
+  the slip 1 260, wider than the landmass, and the strays then land on the neighbour that
+  stopped the drag — which a second check now asks about directly.
+- **"One ring derivation per drop" is a count, not an inference.** Wrapping
+  `Worker.prototype.postMessage` from the driver logs the `op` of every geometry request, and
+  it catches the worker the app already created because the method lives on the prototype.
+  The drag and drop together send exactly `resolveDrop, deriveRings`. The HUD's "rings
+  frozen" banner is asserted on every frame as well, but the op log is what makes it exact.
 
 ## 5. What this does *not* cover
 

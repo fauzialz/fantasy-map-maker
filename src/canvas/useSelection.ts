@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { callGeometry } from "../engine/worker/client";
 import { isOnRiver } from "../engine/river";
 import type { DropGesture } from "../engine/terrain/overlap";
-import { hasFootprint, landmassAt, pathBounds, type Bounds } from "../scene/bounds";
+import { hasFootprint, landmassAt, pathBounds, standingOn, type Bounds } from "../scene/bounds";
 import { frameOf } from "../scene/frame";
 import { rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
 import type {
@@ -169,6 +169,32 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       riverAt(riversIn(objects), point, grab) ??
       landmassAt(landmassesIn(objects), point[0], point[1]),
     [grab, index, objects],
+  );
+
+  /**
+   * Double-click a landmass and take everything standing on it (`09` §4, item 8).
+   *
+   * The ergonomic answer to E8, which decided that moving land does **not** carry its
+   * contents automatically: a ride-along would be hidden behaviour needing a containment
+   * query on every drag and a policy for anything astride the coast. One gesture, run once,
+   * asks the same question explicitly — and it is the only way to take a continent that is
+   * too large to marquee at the current zoom.
+   *
+   * Resolved from the point rather than from the selection the first click left, so it says
+   * what it means whatever that click landed on.
+   */
+  const expand = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!enabled) return false;
+      const point = toMapPoint(clientX, clientY);
+      const land = landmassAt(landmassesIn(objects), point[0], point[1]);
+      if (!land) return false;
+      useEditorStore
+        .getState()
+        .setSelection([land.id, ...standingOn(land, objects).map((object) => object.id)]);
+      return true;
+    },
+    [enabled, objects, toMapPoint],
   );
 
   /**
@@ -563,6 +589,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
 
   return {
     begin,
+    expand,
     hover,
     frame,
     marquee,

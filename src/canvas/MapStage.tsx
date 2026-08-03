@@ -376,14 +376,19 @@ export function MapStage({ editing }: { editing?: Label }) {
         setCursor(toMapPoint(e.clientX, e.clientY));
       }}
       onMouseLeave={() => setCursor(null)}
-      onDoubleClick={() => {
-        if (activeLayerId === "rivers") return river.finish();
+      onDoubleClick={(e) => {
+        // Only a river being *drawn* claims the gesture. Keying this on the layer instead
+        // swallowed every double-click on the rivers layer, Select on or not — WP-20 left
+        // that tool drawing-only, so the layer stopped being the right question.
+        if (river.active) return river.finish();
         // A double-click's first press has already selected the label under the pointer.
         const selected = useEditorStore.getState().selection;
         const label = scene.layers
           .find((l) => l.id === "labels")
           ?.objects.find((o) => o.id === selected[0] && o.type === "label") as Label | undefined;
-        if (label) openLabelDraft([label.x, label.y], label);
+        if (label) return openLabelDraft([label.x, label.y], label);
+        // Otherwise: land under the pointer takes everything standing on it (WP-19).
+        selection.expand(e.clientX, e.clientY);
       }}
       style={{ cursor: pointerCursor }}
     >

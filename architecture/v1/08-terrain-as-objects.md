@@ -275,10 +275,12 @@ prompt in either direction.
   *before* WP-19 — every transform is lossless on a river. In the event WP-15 got there first,
   so the two-model frame was debugged on coastlines and rivers then cost about half of it.
 - **Non-destructive transforms.** Would need a schema bump (C7).
-- **Selecting land and sprites together.** This document gives terrain its own selection on
-  its own layer. Putting landmasses into the *same* selection as mountains and labels is
-  **WP-19**, in `09-selection-across-layers.md` — it needs all three tiers below plus WP-18,
-  and it is where the shared-delta consequence of §5's "keep apart" gets resolved.
+- **Selecting land and sprites together.** This document gave terrain its own selection on
+  its own layer. Putting landmasses into the *same* selection as mountains and labels was
+  **WP-19**, in `09-selection-across-layers.md` — **built**, and in the event WP-18 arrived
+  first and made it the only selection there is. The shared-delta consequence of §5's "keep
+  apart" resolved there too: every object in a drag receives the fraction the landmass
+  actually moved, so a mountain never stays behind on the water.
 
 ## 7. Proposed replacement for invariant I9
 

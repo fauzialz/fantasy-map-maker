@@ -347,19 +347,21 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
       {selecting && (
         <>
           {/*
-            Say only what is true of what is actually selected. A river reshapes by its
-            points; a landmass, until WP-15, does not move at all — the outline is the whole
-            of the feedback. Offering "corners scale" for either would be a lie (I4).
+            Say only what is true of what is actually selected (I4). The land-only branch
+            used to offer nothing but recolour and rename, which was honest while terrain
+            could not be dragged — WP-15, WP-16 and WP-20 made move, scale and rotate real
+            for both path types, so every framed selection now gets the same first line and
+            each type adds only what is extra about it.
           */}
           <p className={hint()}>
             {selected.length === 0
               ? "Click, shift-click or drag a marquee to select — any layer, not just this one."
               : `${selected.length} selected${onlyType ? "" : " across types"}` +
-                (transformable
-                  ? " · drag to move · corners scale · the stalk rotates."
-                  : onlyType === "landmass"
-                    ? " · recolour or rename it above · Delete removes it and its rings."
-                    : " · drag its points to reshape it.")}
+                " · drag to move · corners scale · the stalk rotates." +
+                (onlyType === "river" ? " Drag a control point to reshape it." : "") +
+                (selectedLand.length > 0
+                  ? " Double-click land to take what stands on it too."
+                  : "")}
           </p>
           {/*
             Absent, not disabled, for a land-only selection: landmasses never overlap at

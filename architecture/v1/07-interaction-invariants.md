@@ -100,6 +100,23 @@ Two things make this work well here:
   displacement smaller than the box leaves that point still covered: 286 map units against a
   190-unit mountain passed one run and failed the next on identical code. **Move by more than
   the thing you are moving**, or the probe is measuring the sprite's size.
+
+  > **WP-19 hit the same rule one layer up, where the measured thing was a *slip*.** Its
+  > riskiest check asks whether objects dragged with a landmass ride the drag's **resolved**
+  > delta or its requested one. Break the code and they ride the requested one — but the slip
+  > between the two was 360 map units against a 1 060-unit continent, so the strays were
+  > still standing on it and the containment probe reported everything fine. The mutation
+  > passed. Overshooting the drag until the slip exceeded the landmass made it decisive.
+  > **Whatever a probe measures containment against, the error has to be bigger than the
+  > container.**
+- **Count the app's own side effects, don't infer them.** "One ring derivation per drop" was
+  first written as "the HUD never says *deriving rings* during the drag", which is an
+  inference and can miss a fast derivation between two samples. Wrapping
+  `Worker.prototype.postMessage` from the driver logs the `op` of every geometry request
+  instead — and because the method is on the prototype, it catches the worker the app created
+  long before the driver arrived. The exact answer for a whole drag and drop is two ops:
+  `resolveDrop, deriveRings`. This is not the store-reading trap above; `postMessage` is a
+  platform method, and there is only ever one of those.
 - **A cursor probe outside the stage returns the previous answer, not no answer.** WP-20's
   driver reads `.mbf-stage` `style.cursor` at predicted map points. The stage is 1088 px wide
   and the map does not fit inside it, so points past its right edge never receive the
@@ -222,16 +239,24 @@ this predicate it falls on.
 > first, so land, not rivers, is where the model got debugged. Rivers then cost about half of
 > WP-15, exactly as `09` estimated.
 >
-> **Rules from `09-selection-across-layers.md`, all four now shipped:** the marquee is
-> intersection for footprint objects and **containment for path objects** (WP-14 for land,
-> WP-20 generalised it — `landmassBounds` became `pathBounds` over `worldCorners`, and the
-> containment branch stopped naming a type); **the box takes no press, including I5's
-> frame-interior rung, with the cursor resolving the identical precedence** (WP-15 for land,
-> WP-20 for rivers, reusing the same `frameInterior` flag rather than inventing a second one);
-> **a river's control points outrank the frame's handles** (WP-20, now I5's top rung); and a
-> drag applies one resolved delta to the whole selection — the only one still owed, and it is
-> WP-19's single riskiest item. The first three graduate into this list once WP-19 has
-> exercised them across models.
+> **Rules from `09-selection-across-layers.md`, all four shipped and all four now exercised
+> across both models by WP-19:** the marquee is intersection for footprint objects and
+> **containment for path objects** (WP-14 for land, WP-20 generalised it — `landmassBounds`
+> became `pathBounds` over `worldCorners`, and the containment branch stopped naming a type);
+> **the box takes no press, including I5's frame-interior rung, with the cursor resolving the
+> identical precedence** (WP-15 for land, WP-20 for rivers, reusing the same `frameInterior`
+> flag rather than inventing a second one); **a river's control points outrank the frame's
+> handles** (WP-20, now I5's top rung); and **a drag applies one resolved delta to the whole
+> selection** — written in WP-15, because the moment land could be dragged
+> `resolveTerrainDrop` had to decide what the rest of the drag did, and proved in WP-19, where
+> a mountain riding the *requested* delta while its continent slides back is the defect the
+> rule exists to prevent.
+>
+> **A fifth rule joins them, and it is the one that decides membership:** a footprint object
+> belongs to the landmass its **anchor** stands on, never its box (`standingOn`, WP-19). The
+> anchor is the feet (§4) and the same `y` the draw order sorts on, so what looks like it is
+> standing on the land is what the double-click takes — while a box would hand a coastal
+> mountain to whichever side its artwork happened to lean.
 
 ---
 

@@ -126,11 +126,11 @@ needs WP-13's real UI, and it rewrites interaction invariant I9). **D1 is now se
       a tolerance. Tapered to zero at both joins, so the cut blends into the coast the user
       drew. 28 unit fixtures + driven input, 9 checks. **Batch 1 complete.**
 
-**Batch 2 — selection across layers.** The Select tool stops being scoped to the active
-layer, the toolbar stops presenting a pointer mode as a peer of the six layers, and path-based
-objects gain the same frame sprites have. Design in `09-selection-across-layers.md`, decided
-in **ADR-28** and **ADR-29**. Every decision it needed is taken.
-**Build order is WP-18 → WP-20 → WP-19**, which is not numeric.
+**Batch 2 — selection across layers — complete (WP-18, WP-20, WP-19).** The Select tool stops
+being scoped to the active layer, the toolbar stops presenting a pointer mode as a peer of the
+six layers, and path-based objects gain the same frame sprites have. Design in
+`09-selection-across-layers.md`, decided in **ADR-28** and **ADR-29**.
+**Build order was WP-18 → WP-20 → WP-19**, which is not numeric.
 
 - [x] **WP-18 · Selection, unlinked from the layer** — toolbar splits into mode / create
       groups; Select hit-tests every **visible, unlocked** layer at once and is never disabled;
@@ -149,12 +149,21 @@ in **ADR-28** and **ADR-29**. Every decision it needed is taken.
       deleted rather than kept alongside** (−142 lines there): reshaping and deleting a river
       now work from any layer, which is what ADR-28 asked for. 21 driven checks, seven
       mutations, and one WP-18 cursor bug found along the way.
-- [ ] **WP-19 · Terrain joins the selection** (needs WP-17 **and** WP-20 — **both done, so
-      this is the next one to build**) — one frame over
-      land and sprites, honest only once WP-16 makes every handle move geometry; WP-14's
+- [x] **WP-19 · Terrain joins the selection** — one frame over land and sprites; WP-14's
       coastline highlight stays, additive; footprint wins the click over land; the marquee is
-      asymmetric on purpose; double-click a landmass to take its contents too. **The risk is one
-      item**: overlap resolution runs first and its resolved delta goes to the whole drag.
+      asymmetric on purpose; double-click a landmass to take its contents too. **Seven of its
+      eight items were already true when it started** — WP-15, WP-16, WP-18 and WP-20 each
+      landed one on the way past, including the shared resolved delta this package was sized
+      around. What was actually left: the **double-click** (`standingOn` in `scene/bounds.ts`,
+      membership by **anchor**, so a sprite overhanging the water still belongs to the land it
+      stands on), a rail hint gone stale claiming land could only be recoloured, and a
+      double-click handler keyed on the *rivers layer* rather than on a river being drawn —
+      which had been swallowing the gesture there since WP-20 made that tool drawing-only.
+      **The evidence is what this package really bought**: 14 driven checks and six mutations,
+      one per decision. The riskiest item was **not caught on the first pass** — a stray riding
+      the requested delta was still standing on the same continent, because the slip was 360
+      units against a 1 060-unit landmass. `07` §1's rule one layer up: overshoot until the
+      slip exceeds the thing you are measuring. **Batch 2 complete.**
 
 **Batch 3 — the drawn shape decides.** Sprites are picked by their bounding box, and the box
 is a poor stand-in for the shape: ink fills 53% of a mountain's, 50% of a tree's, and
