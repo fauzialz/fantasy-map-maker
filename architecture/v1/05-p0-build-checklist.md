@@ -168,9 +168,21 @@ Independent of Batches 1 and 2. Authoring side: `HOW-TO-CHANGE-SPRITE-ART.md`.
   test** instead of mis-measuring. **Item 4 ships alone if you want it sooner** — it is the
   safety net for changing sprite art.
 
+**Batch 4 — more than one map.** `drafts.ts` already keys drafts by `meta.id`, but only
+`saveScene` and `loadLatestScene` exist, so the editor has one working copy and a second map
+is unreachable. Became load-bearing when cloud sync went opt-in per map. Decided in
+**ADR-33**; no design doc yet.
+
+- [ ] **WP-22 · The local map gallery** — `listDrafts()` over the existing `updatedAt` index
+  plus a list UI: **new map · open · rename · delete**, with a local thumbnail per draft.
+  **Local only** — the merged local+cloud view with sync badges is P2's WP-3; build so the
+  second source folds in without a rewrite. Deleting a local draft must not read as deleting
+  the cloud map.
+
 ## Later phases (see the phase prompts)
 
 - [ ] **P1** — self-contained HTML embed export + `.map.json` import/export.
-- [ ] **P2** — Zitadel auth, Go+Postgres API, cloud save, "my maps", claim local
-      drafts, share page + iframe, SVG/PDF export.
+- [ ] **P2** — Zitadel auth, Go+Postgres API, **opt-in per-map cloud sync** with the cap
+      enforced server-side, the claim *offer*, "my maps" merged with the local gallery,
+      share page + iframe, SVG/PDF export (free — client-side, see ADR-31).
 - [ ] **P3** — `@byfauzi/map-viewer` then `@byfauzi/map-editor` npm packages.

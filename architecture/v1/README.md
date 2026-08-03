@@ -96,7 +96,7 @@ prompts** used to drive an AI coding agent through the build.
 | **P0 — Core editor** | A complete, deployable editor | No | Terrain brush, coastal rings, mountains/forests/icons/rivers, multi-select, undo/redo, noise generator, image export, local-first autosave |
 | **0.5 — Core-editor improvement** (ongoing, never closes) | Editor enhancements after P0 | No | Batch 1: terrain as objects — select / colour / name / delete land, move + rotate, resize, overlap policy (`08-terrain-as-objects.md`). Batch 2: selection across layers — one Select tool over every layer, then frames for path objects, rivers before land (`09-selection-across-layers.md`). Work order `prompts/phase-0.5-core-editor-improvement.md` |
 | **P1 — Distribution** | Get maps out, no server | No | Self-contained HTML embed export, `.map.json` import/export |
-| **P2 — Accounts & sharing** | Persistence + hosted sharing | Yes (Go + Postgres + Zitadel) | Login, cloud save, "my maps", claim local drafts, share page + hosted iframe, SVG/PDF export |
+| **P2 — Accounts & sharing** | Persistence + hosted sharing | Yes (Go + Postgres + Zitadel) | Login, **opt-in per-map cloud sync** under a server-enforced cap, "my maps", the claim *offer*, share page + hosted iframe, SVG/PDF export (free — client-side) |
 | **P3 — React library** | Reusable component | No | `@byfauzi/map-viewer` then `@byfauzi/map-editor` npm packages |
 
 P0 alone is a complete portfolio piece.
@@ -106,7 +106,10 @@ P0 alone is a complete portfolio piece.
 ## Product principles (non-negotiable)
 
 1. **The editor works fully anonymous.** Login only adds cloud persistence — never
-   a wall in front of creating/editing/exporting.
+   a wall in front of creating/editing/exporting. Stated precisely in **ADR-31**: what
+   is free is **everything that runs in the browser** (including unlimited local drafts
+   and *every* export format); what is capped is **consumption of the server**. The
+   phases are delivery order, not a price ladder.
 2. **Everything is an editable object.** Even generated content is ordinary,
    hand-editable geometry. Nothing is locked.
 3. **One serializable scene** = save file = export source = React-library input.

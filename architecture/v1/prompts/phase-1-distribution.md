@@ -47,9 +47,16 @@ renders their map (pan/zoom, read-only) on any website with no dependencies, and
   requests** (respecting strict CSPs — inline everything, embed assets as data URIs).
 - Provide the user a copy-paste `<iframe>` snippet pointing at their hosted file, plus
   the downloadable `.html`.
+- **Licence notices travel with the file (ADR-32).** The export is a redistribution: the
+  user hosts it on their own site. Emit a banner comment carrying the **MIT** notice for the
+  inlined viewer runtime, and — **if any font is inlined** — the **OFL-1.1** notice and
+  copyright for it, since the Open Font License requires its notice to accompany
+  redistributed font files. One comment block, written once; the alternative is a compliance
+  defect multiplied across every file your users publish.
 - **Acceptance:** open the exported file directly in a browser and embed it via iframe
   on a blank page — the map renders and pans/zooms with zero network calls; bundle size
-  is reasonable (lazy-note: sprite atlas dominates — keep it tight).
+  is reasonable (lazy-note: sprite atlas dominates — keep it tight); the file carries the
+  MIT notice, plus the OFL notice whenever a font is inlined.
 
 ### WP-4 · Export UI integration
 - Add "Export → Embeddable HTML" and "Export → Project (.map.json)" and "Import

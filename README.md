@@ -10,6 +10,11 @@ Design source of truth and per-phase build orders live in
 [`05-p0-build-checklist.md`](architecture/v1/05-p0-build-checklist.md), and outstanding
 technical debt is [`architecture/DEBT.md`](architecture/DEBT.md).
 
+MIT licensed — see [`LICENSE`](LICENSE), and ADR-32 in
+[`architecture/v1/03-architecture-decisions.md`](architecture/v1/03-architecture-decisions.md)
+for why. Contributions welcome: start with [`CONTRIBUTING.md`](CONTRIBUTING.md), which links
+the one-time [CLA](CLA.md).
+
 ## Development
 
 ```sh
