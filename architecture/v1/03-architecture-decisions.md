@@ -484,6 +484,24 @@ copyright notice — accepted knowingly: the moat is the hosted service, the dom
 users, and the artwork, not the source. The sprite art is MIT by explicit choice rather than
 oversight.
 
+**Keeping the option open costs nothing now and everything later.** MIT is perpetual and
+irrevocable, so every published version stays MIT and can be forked from — relicensing only
+ever binds *future* versions (Redis→Valkey, Terraform→OpenTofu). Relicensing also requires
+controlling **all** the copyright, which a project loses the moment it merges an outside
+contribution without an agreement. `CLA.md` therefore takes a sublicensing grant from
+contributors from the start: retrofitting one means chasing every past contributor, and a
+single unreachable holdout blocks the change permanently. Note this is insurance, not a plan
+— ADR-31's hosted-service model monetises without touching the licence at all.
+
+**Dependency hygiene is part of this decision.** The tree was audited at the lockfile (which
+covers transitive deps, unlike a `package.json` read): **no GPL/AGPL/LGPL/SSPL anywhere**;
+`marching-squares` is absent entirely rather than merely undeclared; `clipper-lib`'s
+ambiguous "BSL" is **Boost** Software License 1.0 (confirmed from the published tarball), not
+*Business* Source, which would have forbidden commercial use. MPL-2.0 appears only in
+`lightningcss` build binaries, never shipped. The fonts are **OFL-1.1**, which permits
+redistribution but requires its notice to travel with the files — relevant to P1's embed
+export, which inlines assets into a file the user then hosts.
+
 **Rejected:** AGPL root with permissive packages (contradicts the shared-core constraint
 above); AGPL everywhere (kills P3 adoption, which is P3's entire purpose); BSL or another
 source-available licence (genuinely does prevent hosted competition, unlike AGPL —
