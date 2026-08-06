@@ -8,16 +8,7 @@ import {
   type Bounds,
   type PlacedObject,
 } from "./bounds";
-import type {
-  Label,
-  Landmark,
-  Landmass,
-  Mountain,
-  Ring,
-  River,
-  SceneObject,
-  Tree,
-} from "./types";
+import type { Label, Landmark, Landmass, Mountain, Ring, River, SceneObject, Tree } from "./types";
 
 const square = (x: number, y: number, size: number): Ring => [
   [x, y],

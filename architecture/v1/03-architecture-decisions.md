@@ -268,7 +268,7 @@ class, no `Scatter` class. Gestures capture the scene at pointerdown and commit 
 not of how many command types exist. One mechanism gets it for free for every gesture,
 including ones not yet written, and it satisfies §13's "only the affected landmass(es)"
 requirement by construction rather than by each command remembering to. A whole-scene variant
-covers Generate and new-canvas.
+covers Generate and reset-canvas (renamed from new-canvas by ADR-35; the *new map* half is not undoable, because it destroys nothing).
 **Consequences:** comparison must be **by value** (the worker returns fresh objects for
 unchanged landmasses); slider steps must **coalesce** by label and target; and the stack needs
 a **cap**, because whole-scene steps retain entire scenes. Full detail in
@@ -658,3 +658,43 @@ welds app data to the IdP); a shared entitlements service (nothing to share once
 per-app); and refresh tokens in the browser (see `platform/README.md` D2 — with every app on
 one registrable domain, `prompt=none` renewal needs no long-lived credential in JavaScript at
 all).
+
+## ADR-35 — "New map" and "Reset canvas" are two buttons, and only one is undoable
+**Decision:** The single **New canvas** button splits in two. **New map** creates a separate
+map with a fresh `meta.id` and switches to it, leaving the previous map intact in the gallery;
+it is **not undoable**, because it destroys nothing. **Reset canvas** empties the map you are
+on, **keeping its `meta.id`, title and `createdAt`**, behind a confirm dialog and as one
+undoable whole-scene step. Renaming a map is **not undoable** either. Shipped with **WP-22**.
+
+**Why it had to change.** `createEmptyScene` mints a fresh `crypto.randomUUID()`, and
+autosave keys records on `meta.id` — so the old single button already wrote a *new* record on
+every click and left the previous map on disk with nothing pointing at it. The editor has been
+accumulating unreachable drafts since WP-12. That behaviour is exactly "new map" wearing the
+label "new canvas", minus any way to get back. Splitting the button makes the two intentions
+say what they do, and reset's `meta.id` reuse is what stops it stranding a draft.
+
+**Why only reset is undoable.** ADR-22's granularity rule is about *destruction*: a step exists
+so work can come back. Emptying a map destroys it in place, so it needs one. Creating a second
+map takes nothing away — the first is a click away in My maps — so an undo step there would
+retain an entire scene (ADR-27's cap concern) to reverse something no user would call a loss.
+For the same reason, **switching maps clears the undo stack**: a step carries scenes belonging
+to the map that produced them, so undoing across a switch would drop another map's geometry
+into this one. Undo history is session state and per-map (data model §7).
+
+**Why rename is not undoable, stated rather than assumed.** `diffScene` walks layers and
+settings and never touches `meta`, so routing a rename through `record` would file a step
+carrying nothing and an undo would silently do nothing — the worst of both. It is `setLayerFlags`'
+reasoning: undo should reverse your last *edit*, not your last label. Recorded here because
+"why isn't this undoable" is the question a future reader will ask.
+
+**Consequences:** `01-system-design.md` §13 and ADR-27 now say *reset canvas* where they said
+*new canvas*. The confirm dialog is the ADR-21 pattern (confirm **and** undo for a destructive
+whole-scene action), not belt-and-braces. Deleting a map from the gallery is confirmed but
+**not** undoable, and its wording says *this device* — P2 gives a map a cloud copy this delete
+must not touch (ADR-33's mirror rule), so a confirmation reading "delete this map" would teach
+the wrong thing now and be wrong later.
+
+**Rejected:** keeping one button (it means two things and orphans a draft every time); making
+New map undoable (a whole-scene step to reverse a non-loss); dropping reset entirely and
+telling people to make a new map and delete the old one (three gestures for one intention, and
+it changes the map's identity, so a P2 share slug would break).

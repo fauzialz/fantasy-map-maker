@@ -261,7 +261,7 @@ over the path string. Only the picking `Path2D` lives in the browser.
 
 ---
 
-## Batch 4 — More than one map (WP-22)
+## Batch 4 — More than one map (WP-22) — **complete**
 
 **Design:** none yet — the decisions live in **ADR-33**; write `11-…` if this grows past one
 package. **Decision:** ADR-33 (and ADR-31 for why local is uncapped). **Prerequisite:** none.
@@ -279,7 +279,7 @@ This became load-bearing rather than nice-to-have when cloud sync went **opt-in 
 "unlimited local drafts" is the headline of the free tier (ADR-31) — meaningless if you
 cannot switch between them.
 
-### WP-22 · The local map gallery
+### WP-22 · The local map gallery  *(built)*
 Add **`listDrafts()`** over the existing `updatedAt` index, and a gallery UI listing local
 projects with title, thumbnail and updated time: **new map · open · rename · delete**. Keep
 a local thumbnail per draft so the list does not have to rehydrate every scene to render.
@@ -300,6 +300,31 @@ must never touch a draft that is local-only or ahead of cloud.
   geometry and title · a renamed map keeps its `meta.id` · deleting one leaves the others
   and the newest-first order intact · a reload restores the map that was open, not merely
   the most recently written · driven input for open/switch/delete, per the house rule.
+
+#### As built
+
+**The package found a live defect, not just a missing feature.** `createEmptyScene` mints a
+fresh `meta.id`, and autosave keys on it — so the single "New canvas" button had been writing a
+*new* record and stranding the previous map on every click since WP-12. The gallery's first job
+is surfacing drafts that already existed. The button split into **New map** (fresh id, not
+undoable — nothing is destroyed) and **Reset canvas** (same id, confirm plus undo), recorded as
+**ADR-35**, which also states why rename is deliberately not undoable: `diffScene` never walks
+`meta`, so `record` would file a step carrying nothing.
+
+**The boot path was the real work.** "A reload restores the map that was open" is not satisfied
+by `loadLatestScene`; the open map's id is remembered in localStorage — an id, not scene data,
+so WP-12's rule holds — with the newest-draft fallback for a draft deleted since.
+
+**Measured, and it settled the one schema question:** listing 20 drafts of a 152 KB scene costs
+**7.4 ms**, against 1.0 ms with summaries in their own store. A 7× ratio and an irrelevant
+absolute, so no `DB_VERSION` bump; the ceiling is a `ponytail:` comment in `drafts.ts`.
+
+**Two driven checks did not discriminate on the first attempt** — the same trap `07` §1 keeps
+recording. "A reload restores the open map" could not fail, because *opening* a map re-saves it
+and so makes it the newest write as well; the check now ages another record so the two answers
+genuinely differ. And the thumbnail check passed against a mutation that wiped thumbnails,
+because the gallery re-renders one on open and masked it — it now reads the **record** instead
+of the UI. 22 driven checks, 5 mutations, all caught.
 
 ---
 
