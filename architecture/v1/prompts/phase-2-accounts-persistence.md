@@ -11,9 +11,14 @@
 - `../02-scene-data-model.md` — scene contract; note `meta.id` (client UUID) and
   `migrate()`.
 - `../03-architecture-decisions.md` — ADR-06 (Zitadel), ADR-07 (no wall / local-first),
-  ADR-08 (phase order), ADR-04 (SEO/SSR share pages), and **ADR-31 (what is free vs
+  ADR-08 (phase order), ADR-04 (SEO/SSR share pages), **ADR-34 (topology: Zitadel is shared
+  infrastructure, this repo is the map product)**, and **ADR-31 (what is free vs
   gated, and how the cap is enforced) + ADR-33 (opt-in cloud sync, claim, conflicts,
-  deletion)** — these two govern most of WP-2 … WP-4.
+  deletion)** — the last two govern most of WP-2 … WP-4.
+- `../../platform/README.md` and `../../platform/01-zitadel-setup.md` — **mandatory before
+  WP-1 and WP-2.** Zitadel, Postgres and Caddy are shared across apps and are not built in
+  this repo; the setup, app registration, `users` shape and integration contract are
+  specified there.
 
 ## Definition of done for Phase 2
 A user can log in with Google/GitHub/email, save maps to the cloud and reopen them from
@@ -25,6 +30,15 @@ iframe**, and export **SVG/PDF**. Anonymous use is unchanged.
 - **Backend:** **Go** (chi or echo), `pgx` + `sqlc`, **Postgres** (scenes as `jsonb`).
 - **Auth:** **Zitadel** self-hosted; SPA uses **OIDC Authorization Code + PKCE** (no
   client secret in the browser); Go validates JWTs via **JWKS** (no server sessions).
+- **Zitadel, Postgres and Caddy are not built here.** They are shared infrastructure
+  operated from `byfauzi-infra` (ADR-34). This repo builds the SPA auth client and the map
+  API; it never adds an IdP service of its own.
+- **Identity has one source of truth, and it is Zitadel.** The local `users` row is a
+  foreign-key anchor, a lock target for the cap check, and a **cache** of profile claims —
+  never authoritative. See `../../platform/01-zitadel-setup.md` §6.
+- **Keep `auth/` free of map-specific imports.** Issuer and audience in, `sub` out. It is
+  the package that lifts into a shared service later; a single map import is what turns that
+  move into a rewrite.
 - **No login wall.** Gate only cloud features behind auth; the editor, local autosave,
   image export, and P1 exports all work logged-out.
 - **SaaS seam:** include a **nullable `tenant_id`** on `maps` now (a filter later, not a
@@ -34,12 +48,31 @@ iframe**, and export **SVG/PDF**. Anonymous use is unchanged.
 ## Work packages
 
 ### WP-1 · Zitadel setup + OIDC/PKCE in the SPA
-- Stand up **Zitadel** (Docker Compose alongside Postgres). Configure upstream logins:
-  **Google, GitHub, email/password**. Register the SPA as an OIDC client.
-- Implement the SPA auth client: PKCE login/redirect, token storage, **silent refresh**
-  so long editing sessions don't 401 mid-save, logout.
-- **Acceptance:** a user logs in with each provider and receives a valid JWT; refresh
-  keeps a long session alive; logged-out users see no functional regression.
+
+> **Half of this package does not belong to this repository.** Zitadel is **shared
+> infrastructure** across every byfauzi app, not this app's service — see **ADR-34**. Standing
+> it up is `byfauzi-infra`'s work, and the compose file, Caddyfile, app registrations and
+> integration contract are already written, paste-ready, in
+> **`../../platform/01-zitadel-setup.md`**. Do not re-derive them here, and do not add a
+> Zitadel service to this repo. What stays in this package is the **SPA auth client**.
+
+- **Infra side (in `byfauzi-infra`, per `../../platform/01-zitadel-setup.md`):** stand up
+  Zitadel + Postgres behind Caddy; configure upstream logins **Google, GitHub,
+  email/password**; register `map-spa` (User Agent, PKCE, **JWT** access tokens) and
+  `map-api` under the **Map** project. Mind the four settings in that document's §3 — each
+  fails with a symptom that does not name its cause.
+- **SPA side (here):** PKCE login/redirect and callback; **access token in memory only**,
+  never `localStorage`; renewal by **`prompt=none`** — top-level redirect on load, hidden
+  iframe mid-session — and **no refresh token in the browser** (platform D2). Handle
+  `error=login_required` by rendering the logged-out state, not by redirecting again.
+  Sign-out via `end_session_endpoint` (platform D3).
+- **Never block boot on auth.** ADR-07: the editor renders anonymous and fully usable first;
+  the silent check runs in the background and only swaps in signed-in chrome if it succeeds.
+- **Acceptance:** a user logs in with each provider and receives a valid JWT; a session
+  outlasts several access-token lifetimes without a visible re-login and **without a
+  refresh token existing in browser storage**; `login_required` renders logged-out rather
+  than looping; sign-out ends the Zitadel session, so a reload does not silently sign the
+  user back in; logged-out users see no functional regression.
 
 ### WP-2 · Go API service
 - Endpoints (per §12):
@@ -129,6 +162,15 @@ iframe**, and export **SVG/PDF**. Anonymous use is unchanged.
   duplicate a claimed map.
 
 ### WP-5 · Hosted share page (SSR meta) + live iframe
+
+> **Scope boundary — settled.** Sharing is **one public read-only link per map**, and nothing
+> else. No per-person access grants, no invite flow, no shared editing. Those are deferred
+> (`../01-system-design.md` §15) and they are the point at which per-object permissions would
+> become real — rows in the `maps` domain, never Zitadel roles (ADR-34). Do not add a members
+> table here.
+>
+> **Make the slug a random token, not sequential**, so an unlisted map is not discoverable by
+> counting.
 - `GET /s/{slug}` — the **Go backend serves an HTML shell with escaped `<meta>`/Open
   Graph tags** (title, description, thumbnail) so social unfurls and search see real
   content; the SPA viewer hydrates on top.

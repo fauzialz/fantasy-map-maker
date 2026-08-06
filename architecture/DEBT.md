@@ -43,10 +43,11 @@ the next free number in the series; never renumber an existing row.
 | | Where it lives |
 |---|---|
 | Deliberate shortcuts and ceilings in code | `grep -rn "ponytail:" src/` — each names its own ceiling and upgrade trigger |
-| Open design decisions (D4, D6) | `v1/08-terrain-as-objects.md` §8 — decisions gate work rather than sit inside it. D1 was settled by ADR-28 |
+| Open design decisions | **None in `v1/08-terrain-as-objects.md` §8 — D1…D6 are all settled.** This row previously named D4 and D6 as open; D4 was settled in WP-16 and D6 shipped in WP-14, so the row was wrong. Batch 3's F1–F5 (`v1/10`) and Batch 2's E1–E15 (`v1/09`) are settled too |
 | Features deferred from v1 | `v1/01-system-design.md` §15. Absence of a feature is not debt |
 | Unbuilt work packages (WP-21, WP-22) | `v1/05-p0-build-checklist.md` |
-| Deploying the built SPA | WP-13's entry — the bundle is static and the README documents the host requirements; picking a host is the owner's call, not debt |
+| Deploying the built SPA | WP-13's entry. **The host is now chosen** — the VPS, behind Caddy, frontend-only (ADR-34, `platform/README.md` D4). Unbuilt work, not debt |
+| Platform decisions and open verifications | `platform/README.md` D1–D5, and `platform/01-zitadel-setup.md` §3 for what must be verified against a live Zitadel at P2 WP-1 |
 
 ---
 

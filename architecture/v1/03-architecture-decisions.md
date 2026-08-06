@@ -584,3 +584,62 @@ dialog there is a wall in front of *creating*, which ADR-07 forbids); automatic 
 on login; overwrite-in-place; auto-resolving conflicts by newest timestamp (silent data
 loss across two clocks); making the whole status bar closeable (would let a user hide a
 conflict warning permanently).
+
+## ADR-34 — This repo is the map product; Zitadel is shared infrastructure
+**Decision:** The map editor is the **first of several byfauzi apps** behind one Zitadel
+sign-in. Topology is **separate backends, separate repositories, one shared IdP**:
+`fantasy-map-maker` (this repo — SPA, map API, `architecture/`), a future `writing-app`, and
+**`byfauzi-infra`** which operates Caddy, Postgres and Zitadel for all of them. The one
+shared thing is **identity**; the data boundary between apps is `user_id` and nothing else,
+enforced by a separate database and role per app rather than by discipline. Full topology,
+decisions D1–D5 and the migration plan to a consolidated backend live in
+**`../platform/README.md`**; the paste-ready setup in **`../platform/01-zitadel-setup.md`**.
+Both folders move to `byfauzi-infra` when it exists — they are sited as a **sibling** of
+`v1/`, not inside it, so `v1/` stays the map product's design at version 1 and the move is
+one `git mv`.
+
+**Why separate rather than one backend now.** Measured against what it would save: a JWKS
+middleware is ~100 lines around a library, and a `users` anchor is five columns. That is the
+entire duplication, because the two products share no table — maps are `jsonb` scenes with a
+row cap, chapters are text with per-object purchases. The monolith's payoff here is
+**operational, not structural**, and roughly equal to the cost of the restructure that buys
+it. Consolidation is scheduled by trigger (a third or fourth app, or a cross-cutting change
+touching more than two repos in a week), not by date, and `platform/README.md` records the
+five phases and which one is the point of no return.
+
+**Why not a monorepo.** It re-opens **ADR-32**, which rejected a root-licence /
+subdirectory-licence split as unsatisfiable and settled on MIT covering the whole repository
+including the sprite art. Dropping a commercial paywalled app into an MIT-rooted tree
+rebuilds exactly that rejected split. It would also force `architecture/v1/` to become
+`architecture/map/v1/` and complicate the single-tracker agent workflow CLAUDE.md depends on.
+
+**Billing is separate per app**, so Zitadel stays **identity-only**. No roles are defined;
+the sole authorization rule is ownership (`owner_id = sub`) plus ADR-31's count. Free-vs-paid
+is deliberately **not** a role or a token claim — a claim is a snapshot from token-mint time,
+so an upgrade would not take effect until the token rolled over and a downgrade would keep
+the higher cap for the same window. ADR-31 already states the 402 is the authority. Zitadel
+project roles remain the right home for coarse `admin`/`staff` if an admin surface ever
+exists; per-object sharing would be rows in the owning app, not IdP roles.
+
+**Identity has exactly one source of truth.** Zitadel holds it; each app's `users` row is an
+anchor for foreign keys, a lock target for the cap check, and a **cache** of profile claims —
+refreshed from the token, never written by the app, safe to rebuild. This corrects
+`01-system-design.md` §12, which said the primary key "mirrors Zitadel sub": Zitadel issues
+numeric snowflake ids that a `uuid` column cannot hold, and pointing every foreign key at an
+identifier another system owns makes an IdP change a full-schema rewrite. Local `uuid` pk +
+`zitadel_sub text unique`.
+
+**Consequences:** P2 WP-1 splits — the SPA auth client stays, standing up Zitadel does not,
+and the prompt now says so. `auth/` must keep zero map-specific imports, which is what makes
+a later extraction a move rather than a rewrite. P0 deploys **frontend-only to the VPS**
+behind Caddy rather than to a static host, so `/api/*` stays **same-origin** and arrives as
+three lines of Caddy config instead of a migration and a CORS policy. Account deletion needs
+a per-app reconcile cron, since nothing announces that a row should stop existing.
+
+**Rejected:** a monorepo (above); a shared central `users` database alongside Zitadel (it
+would be a *second* identity store competing with the first — the centralisation was already
+built, and it is the IdP); Zitadel user metadata as a general app-data store (k/v, and it
+welds app data to the IdP); a shared entitlements service (nothing to share once billing is
+per-app); and refresh tokens in the browser (see `platform/README.md` D2 — with every app on
+one registrable domain, `prompt=none` renewal needs no long-lived credential in JavaScript at
+all).

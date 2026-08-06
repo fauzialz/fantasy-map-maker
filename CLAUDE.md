@@ -5,6 +5,12 @@ Design source of truth is `architecture/v1/` — start at its `README.md`. The s
 the ADR log; `07-interaction-invariants.md` is mandatory reading before touching anything
 pointer-driven.
 
+`architecture/platform/` is **not this app's design** — it holds infrastructure shared with
+other byfauzi apps (Zitadel, Postgres, Caddy) and **moves to a `byfauzi-infra` repo** when
+that exists (ADR-34). Read it before any auth or backend work; never build an IdP service in
+this repo. Keep it free of imports from `v1/`, and `v1/` free of imports from it, so the move
+stays one `git mv`.
+
 ## Debt
 
 `architecture/DEBT.md` is the single home for technical and code debt.
