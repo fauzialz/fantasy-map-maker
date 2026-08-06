@@ -206,6 +206,21 @@ is unreachable. Became load-bearing when cloud sync went opt-in per map. Decided
   **7.4 ms** against 1.0 ms if summaries lived in their own store. A 7× ratio and an irrelevant
   absolute, so **no `DB_VERSION` bump** — the ceiling is a `ponytail:` comment, to be revisited
   only if ADR-33's ~20-draft cap ever rises.
+  **Thumbnail size, measured** (4000×3000 landscape, headless Chrome at dpr 1, rendered through
+  the gallery's own path and cross-checked against the Blob it actually stored):
+
+  | | empty map | generated world |
+  |---|---|---|
+  | **240 px — shipped** | **1.5 KB** | **15.7 KB** |
+  | 480 px | 4.3 KB | 49.4 KB |
+
+  So **~16 KB** for a full map, and at ADR-33's ~20-draft cap that is ~320 KB of thumbnails in
+  total — about **10%** on top of the scene JSON, and nothing against the IDB quota.
+  **WebP is load-bearing, not a default.** Same image, 240 px, generated world: webp 15.7 KB ·
+  jpg 18.4 KB · **png 79.4 KB**. On an *empty* map PNG is 65.6 KB against webp's 1.5 — **44×**
+  — because the parchment is procedural noise, so lossless compression pays full price for
+  pixels carrying no information. Changing the format is one argument to `toBlob` in
+  `MapGallery.tsx`; these are the numbers that say don't.
   6 unit fixtures + **22 driven checks and 5 mutations**. Two checks did not discriminate on
   the first attempt and both were fixed: "a reload restores the open map" could not fail
   because *opening* a map re-saves it, making it the newest write too — the check now ages

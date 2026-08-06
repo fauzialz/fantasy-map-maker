@@ -40,7 +40,15 @@ import {
  * built for it either, because one source needs no abstraction over sources.
  */
 
-/** Wide enough for a retina row at 48 px, small enough that the blob stays a few KB. */
+/**
+ * Wide enough for a retina row at 48 px, small enough that the blob stays a few KB.
+ *
+ * Measured at this width: **1.5 KB** for an empty map and **15.7 KB** for a generated world,
+ * so ~320 KB across ADR-33's ~20-draft cap. **WebP is not a default here** — the same image
+ * as PNG is 79.4 KB, and 44× worse on an empty map, because the parchment is procedural noise
+ * that lossless compression cannot help. Full table in WP-22's entry in
+ * `architecture/v1/05-p0-build-checklist.md`; re-measure there before changing either.
+ */
 const THUMB_WIDTH = 240;
 
 const when = (iso: string) => {
