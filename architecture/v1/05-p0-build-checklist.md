@@ -70,8 +70,13 @@ src/` no longer names WP-13, and no native prompt or confirm remains. **The driv
       built**: 29 checks covering undo, redo, the generate confirm and this package's chrome,
       which closes WP-9's and WP-10's missing interaction evidence too.
       **Deploy is the one part not done** — `npm run build` emits a static `dist/` and the
-      README documents the two host requirements, but nothing is hosted yet: it needs a host
-      and a domain, which are the owner's to choose.
+      README documents the two host requirements, but nothing is hosted yet. **The host is no
+      longer an open question**: ADR-34 settles it as the VPS behind Caddy at
+      `map.byfauzi.com`, serving the static build and *nothing else* until P2 — the Caddyfile
+      in `../platform/01-zitadel-setup.md` §4 already has the `/api/*` route commented out
+      for then. Chosen over a static host precisely so the API arrives **same-origin**, as
+      three lines of config rather than a migration and a CORS policy. What remains is
+      running it.
 
 ---
 
