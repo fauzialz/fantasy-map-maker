@@ -236,9 +236,14 @@ instead — one renderer, so the file and the screen cannot disagree.
 
 - **Zitadel** (Go, OIDC-first, multi-tenant, self-hosted). SPA uses **Auth Code +
   PKCE** (no client secret in the browser). Go validates JWTs against Zitadel's
-  **JWKS** — no server session store. Handle **token refresh** so long editing
-  sessions don't 401 mid-save. Other apps reuse the same IdP by registering each as
-  its own OIDC client.
+  **JWKS** — no server session store. Other apps reuse the same IdP by registering each as
+  its own OIDC client. **Zitadel is shared infrastructure, not this app's** — it is
+  operated from `byfauzi-infra`, and its setup, app registration and integration contract
+  live in **`../platform/01-zitadel-setup.md`** (ADR-34). Settled there: JWT access tokens;
+  **no refresh token in the browser** — the access token is held in memory and renewed with
+  `prompt=none`, so long editing sessions never 401 mid-save; and sign-out is RP-initiated.
+  Also there: `users` is an **anchor plus a cache**, never a second source of truth for
+  identity.
 - **Go API surface:**
   ```
   GET    /api/maps                 list my maps (id, title, thumb, updatedAt)
@@ -253,8 +258,10 @@ instead — one renderer, so the file and the screen cannot disagree.
   ```
 - **Postgres (starter):**
   ```sql
-  users(  id uuid pk,            -- mirrors Zitadel sub
-          email text, display_name text, created_at )
+  users(  id uuid pk,            -- OURS, generated here
+          zitadel_sub text uniq,  -- THEIRS; a numeric snowflake string, not a uuid
+          email text, display_name text,  -- CACHE of Zitadel claims, not authoritative
+          profile_synced_at, created_at )
   maps(   id uuid pk, owner_id uuid fk,
           tenant_id uuid null,   -- nullable NOW so multi-tenant is a filter later
           title text, style text,
@@ -324,4 +331,7 @@ Three rules the mechanism needs, each learned by building it:
 
 Second (modern) map style · formal object grouping · first-class water bodies &
 canals · auto-generated rivers · rich blended biome transitions · tile-render export ·
-WebGL renderer.
+WebGL renderer · **per-person map sharing and collaborative editing** — v1 sharing is a
+**public read-only link and nothing else** (§11, P2 WP-5). Granting a named person access
+would need per-map member rows and an invite flow; shared *editing* would need live conflict
+resolution well beyond ADR-33's two-device model. Neither is a v1 shape.
