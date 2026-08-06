@@ -7,6 +7,8 @@
  * with no image decode and no data: URI, and the same string is the vector original the
  * P2 SVG export needs. These are map sprites, never Lucide icons (that is UI chrome).
  */
+import { pathRings, type PathRing } from "./path";
+
 export interface Sprite {
   /** filled silhouette */
   body: string;
@@ -158,6 +160,29 @@ export interface Extent {
 /** Half the sprite stroke, so the drawn outline is inside the measured extent. */
 const STROKE_PAD = 1.3;
 
+/** Wrap a variant into range, the one place the modulo lives. */
+const variantIndex = (kind: SpriteKind, variant: number) => {
+  const count = SPRITES[kind].length;
+  return ((variant % count) + count) % count;
+};
+
+/**
+ * The sprite's silhouette, as polygon rings in grid units — subpaths separate, curves
+ * flattened, cached per variant like the raster.
+ *
+ * This is what makes picking answer to the drawn shape rather than to the box (ADR-30):
+ * ink fills only 53% of a mountain's box, 50% of a tree's and **28% of the compass's**,
+ * because a four-armed star is mostly the gaps between the arms.
+ */
+export const spriteRings = (kind: SpriteKind, variant: number): PathRing[] => {
+  const key = `${kind}:${variantIndex(kind, variant)}`;
+  const cached = ringCache.get(key);
+  if (cached) return cached;
+  const rings = pathRings(SPRITES[kind][variantIndex(kind, variant)].body);
+  ringCache.set(key, rings);
+  return rings;
+};
+
 /**
  * The sprite's actual drawn extent in grid units.
  *
@@ -166,28 +191,31 @@ const STROKE_PAD = 1.3;
  * its centre is 38, not 50). Anchoring and measuring on the grid instead of the content
  * is what left slack at the top of the selection frame and put the pivot off to one side.
  *
- * Measured from the path data rather than the raster: it has to work without a canvas,
- * and it updates itself when the artwork changes. The paths use only absolute M/L/Q/Z,
- * so every number is a coordinate; Q control points sit outside the curve, which makes
- * this a slight over-estimate and never an under-estimate.
+ * Measured from the path data rather than the raster: it has to work without a canvas
+ * (`07` §4), and it updates itself when the artwork changes.
+ *
+ * **Measured from the flattened path, not from the numbers in the string** (WP-21). The
+ * regex this replaced took the min/max of every number, so it counted each `Q` control
+ * point as if the ink reached it — and a quadratic never gets more than half way there.
+ * Walking the path tightens every box for free, and an unsupported command now throws
+ * instead of being silently mis-measured (`path.ts`).
  */
 export const spriteExtent = (kind: SpriteKind, variant: number): Extent => {
-  const sprites = SPRITES[kind];
-  const index = ((variant % sprites.length) + sprites.length) % sprites.length;
-  const key = `${kind}:${index}`;
+  const key = `${kind}:${variantIndex(kind, variant)}`;
   const cached = extentCache.get(key);
   if (cached) return cached;
 
-  const numbers = sprites[index].body.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (let i = 0; i + 1 < numbers.length; i += 2) {
-    minX = Math.min(minX, numbers[i]);
-    maxX = Math.max(maxX, numbers[i]);
-    minY = Math.min(minY, numbers[i + 1]);
-    maxY = Math.max(maxY, numbers[i + 1]);
+  for (const ring of spriteRings(kind, variant)) {
+    for (const [x, y] of ring) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
   }
 
   const extent: Extent = {
@@ -201,6 +229,7 @@ export const spriteExtent = (kind: SpriteKind, variant: number): Extent => {
 };
 
 const extentCache = new Map<string, Extent>();
+const ringCache = new Map<string, PathRing[]>();
 
 export const GRID = 100;
 /** Where the sprites' feet sit on the grid. */

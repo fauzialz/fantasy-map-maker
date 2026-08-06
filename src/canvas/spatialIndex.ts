@@ -1,5 +1,5 @@
 import RBush from "rbush";
-import { objectBounds, type Bounds } from "../scene/bounds";
+import { coversPoint, hasFootprint, objectBounds, type Bounds } from "../scene/bounds";
 import type { SceneObject } from "../scene/types";
 
 interface Entry extends Bounds {
@@ -32,16 +32,35 @@ export class SpatialIndex {
     this.tree.load(entries);
   }
 
-  /** Topmost object whose box contains the point — topmost so clicking picks what you see. */
+  /**
+   * The object under a point: **box narrows, silhouette decides, topmost breaks the tie**
+   * (ADR-30).
+   *
+   * rbush finds every candidate whose box contains the point, exactly as before. Among
+   * them, one whose *artwork* covers the point beats one where the point fell in empty box
+   * — that is where "which one did I mean" is a real question, and it is what stops a click
+   * between a compass's arms from taking the compass.
+   *
+   * **A tie-break, deliberately not a filter.** If nothing's artwork covers the point, the
+   * topmost box still wins, because at fit zoom a tree is a few pixels and demanding an
+   * exact silhouette hit would make an isolated sprite *harder* to select for no gain (P2,
+   * Fitts). Precision resolves ambiguity; it does not police aim.
+   */
   hit(x: number, y: number): SceneObject | undefined {
     const found = this.tree.search({ minX: x, minY: y, maxX: x, maxY: y });
     if (found.length === 0) return undefined;
     let best: SceneObject | undefined;
+    let bestCovered = false;
     for (const entry of found) {
       const object = this.byId.get(entry.id);
       if (!object || !("y" in object)) continue;
-      // Same order the renderer draws in, so the click picks the one on top.
-      if (!best || !("y" in best) || object.y > best.y) best = object;
+      const covered = hasFootprint(object) && coversPoint(object, x, y);
+      if (bestCovered && !covered) continue;
+      // Same order the renderer draws in, so a tie picks the one on top.
+      if ((covered && !bestCovered) || !best || !("y" in best) || object.y > best.y) {
+        best = object;
+        bestCovered = covered;
+      }
     }
     return best;
   }

@@ -154,11 +154,19 @@ The sprite grid is 100×100 with the baseline at y=88, but no sprite fills it. M
 the grid instead of the path put visible slack above every object and mis-centred the
 ones whose art is off-centre. `spriteBounds` measures the path data (§4).
 
-> **A layer arrives beneath this with WP-21** (`10-hit-testing-precision.md`, ADR-30): the box
-> narrows the candidates, the **silhouette** decides between them. Measured, the box is a
+> **That layer arrived — WP-21 built it** (`10-hit-testing-precision.md`, ADR-30): the box
+> narrows the candidates, the **silhouette** decides between them. Measured, the box was a
 > loose stand-in — 53% ink for a mountain, 50% for a tree, **28% for the compass**. I2 still
-> holds and the box still exists; it stops being the last word. Labels stay box-picked on
+> holds and the box still exists; it stopped being the last word. Labels stay box-picked on
 > purpose.
+>
+> **And the box got more honest at the same time.** `spriteExtent` now measures the flattened
+> path rather than every number in the string, so a `Q` control point no longer stretches the
+> box to a place the ink cannot reach: mountain 2 tightened **27%**, trees 1 and 3 by 17% and
+> 15%. The rest did not move, because their extremes were already on-curve — which is worth
+> knowing, since it means the tighter boxes and the precise picking fix **different sprites**.
+> The compass's box is eight straight lines and was always honest; what was wrong there was
+> using it to pick.
 
 ### I3 — Bounds follow rotation
 `objectBounds` returns the AABB of the *rotated* sprite. Skipping this makes the
@@ -311,19 +319,24 @@ fills the grid, and is not always centred:
 `spriteExtent` in [registry.ts](../../src/sprites/registry.ts) derives this from the path
 string rather than the raster, for two reasons: bounds are unit-tested in Node where
 there is no canvas, and a measurement taken from the artwork updates itself when the
-artwork changes. It works because the paths use only absolute `M/L/Q/Z`, so every number
-is a coordinate. **If a sprite ever needs an arc or a relative command, that parser must
-be revisited** — it would silently mis-measure.
+artwork changes.
 
-> **This warning is being upgraded to a guard.** A note in a document is weak protection for
-> something that goes wrong months later, at asset-swap time, with "selection feels off" as
-> its only symptom — and the unsupported set (lowercase relatives, `A`, `H`/`V`) is precisely
-> what a design tool exports by default. WP-21 item 4 makes an unsupported command fail a
-> test instead. It ships alone if the rest of that package waits. Procedure and the
-> conversion step: `HOW-TO-CHANGE-SPRITE-ART.md`.
+> **The warning that used to live here is now a guard — WP-21.** It read: *the paths use only
+> absolute `M/L/Q/Z`, so if a sprite ever needs an arc or a relative command that parser must
+> be revisited, or it will silently mis-measure.* A note in a document is weak protection for
+> something that goes wrong months later at asset-swap time with "selection feels off" as its
+> only symptom, and the unsupported set is precisely what a design tool exports by default.
 >
-> The same regex is also why boxes are loose: it takes the min/max of *every* number,
-> **including Bézier control points**, and a quadratic never reaches its control point.
+> [path.ts](../../src/sprites/path.ts) is now a real command walker: an unsupported command
+> **throws**, naming the letter and the path, and `path.test.ts` runs it over **every body,
+> detail and highlight in the registry** — so the wrong dialect turns the suite red on paste
+> rather than mis-measuring in silence. The same walker flattens curves, which is what stopped
+> the old min/max-of-every-number from counting **Bézier control points** as ink; a quadratic
+> never reaches its control point, and mountain 2's box was 27% too big because of it.
+>
+> It also produces the rings the silhouette hit-test ray-casts, so there is one parser rather
+> than a `Path2D` cache beside it, and precise picking stays canvas-free like the bounds.
+> Procedure and the conversion step: `HOW-TO-CHANGE-SPRITE-ART.md`.
 
 An object's `x,y` anchors the **centre-line of the content at the baseline** — its feet.
 That is the same `y` the draw order sorts on (data model §5), so what you see matches

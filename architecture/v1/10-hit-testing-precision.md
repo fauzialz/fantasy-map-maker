@@ -92,6 +92,49 @@ The shape being non-rectangular is unavoidable. The other two are not:
   than mis-measuring · driven input, sweeping the pointer to read `.mbf-stage` cursors,
   because the cursor must agree with the new precedence (I4, `09` S9).
 
+#### As built
+
+Close to the plan, with one correction to this document's own acceptance list and one
+simplification the plan did not anticipate.
+
+- **The first acceptance bullet contradicted F1, and F1 won.** It reads "clicking inside a
+  compass's box but outside its arms **selects nothing**" — which is *full precision*, the
+  thing §5.1, F1 and P2 all explicitly reject. Under a tie-break a lone compass still answers
+  a click in its dead corner, because there is no ambiguity for precision to resolve and Fitts
+  says a bigger target is easier to hit. ADR-30 says tie-break in its first sentence, and the
+  work order says the ADR wins, so the bullet is the thing that was wrong. It is now two
+  checks that pull in opposite directions: **with a tree underneath, the tree wins; with
+  nothing underneath, the compass is still selected.** Making precision a filter fails the
+  second one, which is exactly what it is there for.
+- **No `Path2D`, and no browser-side cache.** ADR-30 anticipated one; it turned out to be
+  unnecessary. The path walker item 3 needed for the extent already produces polygon rings,
+  and `pointInRing` already existed for the terrain work — so picking ray-casts those rings
+  instead. One parser feeds both jobs, the silhouette cache sits beside the extent cache, and
+  **the whole feature stays canvas-free** rather than P4 applying only to bounds. That also
+  means the tie-break is unit-testable in Node, which is how the mutations below could run.
+- **Flattening pays where a control point defined an extreme, and nowhere else.** The honest
+  re-measurement: **mountain 2 51% → 71%** (box −27%), **tree 1 53% → 64%** (−17%), **tree 3
+  55% → 64%** (−15%), and *every other sprite unchanged*, because its box was already set by
+  on-curve points. Kind means move from 54% → 59% (mountain) and 51% → 56% (tree); the
+  landmarks do not move at all. **Compass stays at 28%** — its box is eight straight lines, so
+  there was never anything to tighten, and it is precise *picking* rather than a tighter box
+  that fixes it. That split is the useful finding: item 3 and item 1 address different
+  sprites, and shipping only one would have left the other's worst case untouched.
+- **`coversPoint` unions the rings rather than applying even-odd**, because a tree's trunk and
+  foliage overlap and even-odd would punch a hole through the overlap. Marked in the code with
+  its ceiling: a sprite drawn with a genuine hole would read as filled. Likewise the 2.6-wide
+  stroke is not included, so a point on the outer edge of the ink can read as outside. Both
+  fail *towards* the old behaviour, which is the property a tie-break gets for free.
+
+**Verified by 31 unit fixtures, 7 mutations and 15 driven checks.** Each mutation was aimed at
+one decision and caught by its own test: control points counted as ink again · the tie-break
+leaves `hit` · precision becomes a filter · labels lose their exemption · the parser stops
+rejecting · `coversPoint` stops un-rotating · the marquee starts asking the silhouette. The
+driver then re-ran the two that matter most against the real app, and the riskiest check —
+"which object did the click take?" — was proved by **deleting the selection and reading the
+layer panel's own per-layer counts** (WP-18's technique) rather than by asserting a count that
+both outcomes satisfy.
+
 ## 6. Decisions
 
 | | Decision | Outcome |

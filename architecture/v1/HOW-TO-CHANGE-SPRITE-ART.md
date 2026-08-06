@@ -84,16 +84,17 @@ string only — not the `<path>` element, not the `<svg>` wrapper.
 
 ### 3. Convert to the supported dialect  ← **the step that bites**
 
-The bounds parser currently reads the path with one regex: *take every number, pair them as
-`(x, y)`*. That is correct only for absolute commands whose numbers are all coordinates.
+The paths are read by a real command walker
+([`src/sprites/path.ts`](../../src/sprites/path.ts)), and it accepts a deliberately narrow
+dialect: **absolute `M`, `L`, `Q`, `Z` and nothing else.**
 
 | Command | OK? | If not, why |
 |---|---|---|
-| `M` `L` `Q` `Z` | **Yes** | What the current assets use |
-| `C` `S` `T` (absolute) | Yes, by luck | Even number of coordinates, so the pairing survives |
-| `m` `l` `q` `c` … (**lowercase**) | **No** | Relative — the numbers are deltas, so min/max is meaningless |
-| `A` (arc) | **No** | Seven numbers, two of them boolean flags. Odd count mispairs everything after it |
-| `H` `V` | **No** | One number each, so the pairing slips by one from there on |
+| `M` `L` `Q` `Z` | **Yes** | What the assets use, and all the walker accepts |
+| `C` `S` `T` (absolute) | **No** | Would parse under the old regex by luck; the walker rejects them rather than guess |
+| `m` `l` `q` `c` … (**lowercase**) | **No** | Relative — the numbers are deltas |
+| `A` (arc) | **No** | Flattening arcs is disproportionate when every tool can emit curves instead (ADR-30 F4) |
+| `H` `V` | **No** | Shorthand, one number each |
 
 **Design tools emit exactly the unsupported set by default** — lowercase relatives and
 cubics, sometimes arcs. So convert:
@@ -102,11 +103,14 @@ cubics, sometimes arcs. So convert:
   SVGO pass with `convertPathData: { forceAbsolutePath: true, makeArcs: false }`.
 - **Remove arcs** — every tool can emit curves instead.
 - **Expand `H`/`V`** into full `L x y`.
+- **Reduce cubics to quadratics**, or accept the rejection and redraw the curve.
 
-Until WP-21 item 4 lands, **a wrong dialect fails silently**: no error, no crash, just a
-selection box that is subtly or wildly wrong, discovered by feel. After it lands, an
-unsupported command fails a test the moment you paste it. If you are doing this before that
-package, eyeball the box (step 6) with extra care.
+> **This no longer fails silently — WP-21 shipped the guard.** An unsupported command throws
+> with the offending letter and the whole path in the message, and
+> `src/sprites/path.test.ts` walks **every body, detail and highlight in the registry**, so
+> pasting the wrong dialect turns the suite red the moment you run it. Before that guard
+> existed, the failure mode was no error at all: just a selection box subtly or wildly wrong,
+> discovered by feel months later. Run `npx vitest run src/sprites/` after pasting.
 
 ### 4. Paste it in
 [`src/sprites/registry.ts`](../../src/sprites/registry.ts).
@@ -150,22 +154,21 @@ artwork with no table to update anywhere. That is why the measurement reads the 
 than the rasterised bitmap (`07` §4).
 
 **With one caveat, which is step 3.** The derivation is only as good as the parser, and the
-parser is narrow. Inside the supported dialect it is fully automatic; outside it, it is
-automatically *wrong*. That asymmetry is the single thing to remember from this document.
+parser is narrow. Inside the supported dialect it is fully automatic; outside it, **the walker
+throws and a test goes red** — which is the whole improvement WP-21 made here. It used to be
+automatically *wrong* instead, and silently.
 
-Two smaller consequences worth knowing:
+One smaller consequence worth knowing: the box is measured from **`body` only**, so art that
+lives entirely in `detail` is invisible to selection — and now also to picking, since the
+silhouette comes from the same field.
 
-- The box is measured from **`body` only**. Art that lives entirely in `detail` is invisible
-  to selection.
-- Boxes are currently a little loose because the parser counts Bézier **control points** as
-  if the ink reached them. WP-21 fixes that by flattening the curves; until then, a shape
-  with dramatic curve handles will box looser than it looks.
+## What WP-21 changed here
 
-## What changes after WP-21
-
-- Clicking uses the **silhouette** to break ties between overlapping boxes, so precise art
-  gets precise picking (`10-hit-testing-precision.md`).
-- Boxes get tighter, because curves are flattened rather than approximated by their control
-  points.
-- Step 3 gets a **safety net**: an unsupported command fails a test instead of mis-measuring.
-- The dialect can then widen cheaply, because a real path walker will exist. Arcs stay out.
+- Clicking uses the **silhouette to break ties** between overlapping boxes, so precise art
+  gets precise picking (`10-hit-testing-precision.md`). It is a tie-break, not a filter: an
+  isolated sprite still answers to a near miss.
+- **Boxes got tighter**, because curves are flattened instead of measured to their control
+  points. Measured on the current art: mountain 2's box shrank **27%**, trees 1 and 3 by
+  17% and 15%, and every other box is unchanged because its extremes are already on-curve.
+- Step 3 has a **safety net**: an unsupported command fails a test instead of mis-measuring.
+- The dialect can now widen cheaply, because a real path walker exists. Arcs stay out.
