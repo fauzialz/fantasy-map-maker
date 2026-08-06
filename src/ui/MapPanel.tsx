@@ -243,24 +243,44 @@ export function MapPanel({
         >
           My maps
         </button>
+        <button
+          type="button"
+          data-action="reset"
+          className={toolButton()}
+          onClick={() => setResetting(scene.meta.canvas.preset)}
+        >
+          Reset
+        </button>
       </div>
-      <p className={hint()}>A new map keeps this one — both live in My maps.</p>
+      <p className={hint()}>
+        A new map keeps this one — both live in My maps. Reset empties this one.
+      </p>
 
       <p className={panelTitle()}>Canvas</p>
       <div className={segment()}>
-        {PRESETS.map((preset) => (
-          <button
-            key={preset}
-            type="button"
-            data-preset={preset}
-            className={toolButton({ active: scene.meta.canvas.preset === preset })}
-            onClick={() => setResetting(preset)}
-          >
-            {preset}
-          </button>
-        ))}
+        {PRESETS.map((preset) => {
+          const active = scene.meta.canvas.preset === preset;
+          return (
+            <button
+              key={preset}
+              type="button"
+              data-preset={preset}
+              data-preset-active={active || undefined}
+              className={toolButton({ active })}
+              /**
+               * Re-picking the size you are already on is a no-op, not a reset. Without
+               * this the chip is a trap: tapping "landscape" to check it is selected asks
+               * to destroy the map. Emptying it in place is the Reset button's job, which
+               * says so on the tin.
+               */
+              onClick={() => !active && setResetting(preset)}
+            >
+              {preset}
+            </button>
+          );
+        })}
       </div>
-      <p className={hint()}>Changing the canvas empties this map — undoable in one step.</p>
+      <p className={hint()}>Changing the canvas size empties this map — undoable in one step.</p>
 
       <MapGallery open={galleryOpen} onOpenChange={setGalleryOpen} />
       <ConfirmDialog
