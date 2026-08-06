@@ -137,7 +137,19 @@ interface EditorState {
   record: (label: string, change: () => void, merge?: boolean) => void;
   undo: () => void;
   redo: () => void;
-  newScene: (preset: CanvasPreset) => void;
+  /**
+   * Rename the open map. **Not undoable, deliberately** — and not by oversight: `diffScene`
+   * watches layers and settings, never `meta`, so routing this through `record` would file a
+   * step that carries nothing and an undo would silently do nothing. The same reasoning as
+   * `setLayerFlags`: undo should reverse your last *edit*, not your last label.
+   */
+  setTitle: (title: string) => void;
+  /** Empty this map, keeping its `meta.id`. Undoable; the UI confirms first. */
+  resetCanvas: (preset: CanvasPreset) => void;
+  /** A separate map with a fresh `meta.id`. Not undoable — the old one is in the gallery. */
+  newMap: (preset: CanvasPreset) => void;
+  /** Switch to an existing draft. Clears history, which belongs to the map that made it. */
+  openScene: (scene: Scene) => void;
 }
 
 const TERRAIN = "terrain";
@@ -351,22 +363,56 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
 
-  // A new canvas throws away everything painted so far, so it is undoable — as a whole-scene
-  // step, because the preset changes `meta` too, which per-object diffs don't carry.
-  newScene: (preset) =>
+  setTitle: (title) =>
+    set((state) => ({
+      scene: { ...state.scene, meta: { ...state.scene.meta, title } },
+    })),
+
+  /**
+   * Empty **this** map out, keeping its identity (WP-22).
+   *
+   * Undoable as a whole-scene step, because the preset changes `meta` too and per-object
+   * diffs don't carry that. `meta.id` and `createdAt` survive deliberately: reset means
+   * "clear the map I am on", so it must write back over the same draft rather than leave
+   * the old one stranded under its old key — which is precisely what the single `newScene`
+   * this replaced did on every click.
+   */
+  resetCanvas: (preset) =>
     set((state) => {
-      const scene = createEmptyScene(preset);
+      const fresh = createEmptyScene(preset, state.scene.meta.title);
+      const scene: Scene = {
+        ...fresh,
+        meta: {
+          ...fresh.meta,
+          id: state.scene.meta.id,
+          createdAt: state.scene.meta.createdAt,
+        },
+      };
       return {
         scene,
         selection: [],
         past: pushStep(state.past, {
-          label: `new ${preset} canvas`,
+          label: `reset ${preset} canvas`,
           layers: [],
           scene: { before: state.scene, after: scene },
         }),
         future: [],
       };
     }),
+
+  /**
+   * A second map, alongside the first (WP-22).
+   *
+   * **Not undoable, and it clears the stack.** Nothing is lost — the previous map keeps its
+   * own draft and is one click away in the gallery — so there is no destruction to reverse.
+   * The history has to go because a step holds scenes belonging to the map that produced
+   * them: undoing across a switch would drop the *other* map's geometry into this one while
+   * the remembered-open id still points here. Undo history is session state and per-map
+   * (data model §7).
+   */
+  openScene: (scene) => set({ scene, selection: [], past: [], future: [] }),
+
+  newMap: (preset) => set({ scene: createEmptyScene(preset), selection: [], past: [], future: [] }),
 }));
 
 export const selectLandmasses = (state: EditorState): Landmass[] =>

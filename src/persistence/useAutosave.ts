@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useEditorStore } from "../state/editorStore";
 import { useToastStore } from "../state/toastStore";
-import { loadLatestScene, saveScene } from "./drafts";
+import type { Scene } from "../scene/types";
+import { loadLatestScene, loadScene, rememberOpen, rememberedOpen, saveScene } from "./drafts";
 
 /** At most one write per this long — enough that a scatter drag or slider sweep coalesces. */
 const SAVE_EVERY_MS = 800;
@@ -58,7 +59,20 @@ export function useAutosave(): SaveStatus {
       }
     };
 
-    void loadLatestScene()
+    /**
+     * The map that was open, falling back to the newest (WP-22).
+     *
+     * `loadLatestScene` alone was right while there was one working copy. With a gallery it
+     * is wrong in a specific way: open an older map, change nothing, reload, and "newest by
+     * `updatedAt`" hands back a *different* map. The remembered id is tried first and the
+     * fallback covers a draft deleted since — including deleted in another tab.
+     */
+    const restore = async (): Promise<Scene | null> => {
+      const remembered = rememberedOpen();
+      return (remembered ? await loadScene(remembered) : null) ?? (await loadLatestScene());
+    };
+
+    void restore()
       .then((scene) => {
         if (cancelled) return;
         if (!scene) {
@@ -83,6 +97,9 @@ export function useAutosave(): SaveStatus {
     // Comparing scene identity keeps a mouse-move from endlessly pushing the save out.
     const unsubscribe = useEditorStore.subscribe((state) => {
       if (state.scene === pending) return;
+      // One place catches every way the open map can change — a new map, opening one from
+      // the gallery, or the restore above — rather than each caller remembering to.
+      if (state.scene.meta.id !== pending.meta.id) rememberOpen(state.scene.meta.id);
       pending = state.scene;
       clearTimeout(timer);
       timer = setTimeout(

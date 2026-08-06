@@ -304,7 +304,7 @@ on every mousemove each close as a single step. The rows below describe what a s
 | Transform / edit props | before/after of the touched objects |
 | Delete | the removed objects, restored whole |
 | Toggle setting / slider | before/after `settings` |
-| **Generate · new canvas** | the **entire previous scene** (atomic; reversible even past the confirm) |
+| **Generate · reset canvas** | the **entire previous scene** (atomic; reversible even past the confirm). *Reset*, not "new": WP-22 split the button, and only the one that empties **this** map is undoable — creating a *separate* map destroys nothing, so there is nothing to reverse (ADR-35) |
 
 Three rules the mechanism needs, each learned by building it:
 

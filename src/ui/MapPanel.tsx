@@ -1,8 +1,11 @@
 import { ChevronDown, Dices, Eye, EyeOff, Lock, LockOpen } from "lucide-react";
 import { Collapsible } from "radix-ui";
+import { useState } from "react";
 import type { CanvasPreset, WorldType } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 import { Slider, Toggle } from "./controls";
+import { ConfirmDialog } from "./dialogs";
+import { MapGallery } from "./MapGallery";
 import { button, hint, layerRow, panel, panelTitle, segment, toolButton } from "./variants";
 
 const PRESETS: CanvasPreset[] = ["landscape", "square", "portrait"];
@@ -29,7 +32,11 @@ export function MapPanel({
   const setLayerFlags = useEditorStore((s) => s.setLayerFlags);
   const setSettings = useEditorStore((s) => s.setSettings);
   const record = useEditorStore((s) => s.record);
-  const newScene = useEditorStore((s) => s.newScene);
+  const setTitle = useEditorStore((s) => s.setTitle);
+  const newMap = useEditorStore((s) => s.newMap);
+  const resetCanvas = useEditorStore((s) => s.resetCanvas);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [resetting, setResetting] = useState<CanvasPreset | null>(null);
   const generator = scene.generator;
   const setGenerator = useEditorStore((s) => s.setGenerator);
   const seaLevel = useEditorStore((s) => s.seaLevel);
@@ -206,20 +213,88 @@ export function MapPanel({
       </div>
       <p className="mbf:text-muted mbf:font-mono mbf:text-[10px]">seed {generator.seed}</p>
 
+      <p className={panelTitle()}>Map</p>
+      <input
+        data-map-title
+        aria-label="Map name"
+        value={scene.meta.title}
+        placeholder="Untitled Map"
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => e.stopPropagation()}
+        className={
+          "mbf:bg-panel mbf:border-line mbf:text-ink mbf:focus:border-accent mbf:rounded-md " +
+          "mbf:border mbf:px-2 mbf:py-1 mbf:text-xs mbf:outline-none"
+        }
+      />
+      <div className={segment()}>
+        <button
+          type="button"
+          data-action="new-map"
+          className={toolButton()}
+          onClick={() => newMap(scene.meta.canvas.preset)}
+        >
+          New map
+        </button>
+        <button
+          type="button"
+          data-action="gallery"
+          className={toolButton()}
+          onClick={() => setGalleryOpen(true)}
+        >
+          My maps
+        </button>
+        <button
+          type="button"
+          data-action="reset"
+          className={toolButton()}
+          onClick={() => setResetting(scene.meta.canvas.preset)}
+        >
+          Reset
+        </button>
+      </div>
+      <p className={hint()}>
+        A new map keeps this one — both live in My maps. Reset empties this one.
+      </p>
+
       <p className={panelTitle()}>Canvas</p>
       <div className={segment()}>
-        {PRESETS.map((preset) => (
-          <button
-            key={preset}
-            type="button"
-            className={toolButton({ active: scene.meta.canvas.preset === preset })}
-            onClick={() => newScene(preset)}
-          >
-            {preset}
-          </button>
-        ))}
+        {PRESETS.map((preset) => {
+          const active = scene.meta.canvas.preset === preset;
+          return (
+            <button
+              key={preset}
+              type="button"
+              data-preset={preset}
+              data-preset-active={active || undefined}
+              className={toolButton({ active })}
+              /**
+               * Re-picking the size you are already on is a no-op, not a reset. Without
+               * this the chip is a trap: tapping "landscape" to check it is selected asks
+               * to destroy the map. Emptying it in place is the Reset button's job, which
+               * says so on the tin.
+               */
+              onClick={() => !active && setResetting(preset)}
+            >
+              {preset}
+            </button>
+          );
+        })}
       </div>
-      <p className={hint()}>A new canvas replaces the map — undoable in one step.</p>
+      <p className={hint()}>Changing the canvas size empties this map — undoable in one step.</p>
+
+      <MapGallery open={galleryOpen} onOpenChange={setGalleryOpen} />
+      <ConfirmDialog
+        open={resetting !== null}
+        title="Empty this map?"
+        description={
+          `This clears everything on “${scene.meta.title || "Untitled Map"}” and sets the ` +
+          `canvas to ${resetting ?? ""}. The map keeps its name and its place in My maps, ` +
+          `and you can undo it in one step.`
+        }
+        confirmLabel="Empty the map"
+        onConfirm={() => resetting && resetCanvas(resetting)}
+        onOpenChange={(next) => !next && setResetting(null)}
+      />
     </aside>
   );
 }

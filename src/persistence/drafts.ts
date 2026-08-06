@@ -27,7 +27,24 @@ export interface DraftRecord {
   /** the scene as `serialize()` wrote it; `deserialize()` is the only way back, so a
    *  restored draft always passes through `migrate()` (ADR-23) */
   json: string;
+  /** Canvas size, so the gallery can label a row without parsing `json`. WP-22. */
+  canvas?: { w: number; h: number };
+  /** Small JPEG of the map, rendered on demand. Absent until the map has been opened. */
+  thumb?: Blob;
 }
+
+/**
+ * A gallery row: everything except the scene itself.
+ *
+ * ponytail: `listDrafts` still reads whole records and drops `json`, because IndexedDB has
+ * no projection — a cursor hands back the entire value. **Measured** at 20 drafts of a
+ * 152 KB scene with a 20 KB thumbnail each: **7.4 ms** per gallery open, against 1.0 ms if
+ * summaries lived in their own store. A 7× ratio and an irrelevant absolute — it is half a
+ * frame, once, on a dialog open — so the second store and its `DB_VERSION` migration are not
+ * worth buying. It scales linearly, so split them if the local draft cap ever rises well
+ * past ADR-33's ~20.
+ */
+export type DraftSummary = Omit<DraftRecord, "json">;
 
 let opening: Promise<IDBDatabase> | undefined;
 
@@ -60,30 +77,139 @@ export function draftRecord(scene: Scene, at = new Date()): DraftRecord {
     id: scene.meta.id,
     title: scene.meta.title,
     updatedAt,
+    canvas: { w: scene.meta.canvas.w, h: scene.meta.canvas.h },
     json: serialize({ ...scene, meta: { ...scene.meta, updatedAt } }),
   };
 }
 
+/**
+ * The record after a rename: the row's title **and** the scene's own `meta.title`.
+ *
+ * Both, or the gallery and the map disagree — rewriting only the row leaves the old name
+ * inside `json`, so reopening the map silently reverts it, and an export or a P1 `.map.json`
+ * carries the stale one. Pure, so the part that actually goes wrong is unit-tested.
+ */
+export function renamedRecord(record: DraftRecord, title: string): DraftRecord {
+  const scene = deserialize(record.json);
+  return {
+    ...record,
+    title,
+    json: serialize({ ...scene, meta: { ...scene.meta, title } }),
+  };
+}
+
+/** Promise over a request, since every IDB call below needs the same three lines. */
+const settle = <T>(request: IDBRequest<T>, what: string): Promise<T> =>
+  new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error(what));
+  });
+
+const complete = (tx: IDBTransaction, what: string): Promise<void> =>
+  new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onabort = tx.onerror = () => reject(tx.error ?? new Error(what));
+  });
+
 export async function saveScene(scene: Scene): Promise<void> {
   const db = await open();
   const tx = db.transaction(STORE, "readwrite");
-  tx.objectStore(STORE).put(draftRecord(scene));
+  const store = tx.objectStore(STORE);
+  // Carry the thumbnail forward. `put` replaces the whole record, so without this every
+  // autosave tick would blank the gallery's picture of the map being edited — read and
+  // write inside one transaction so nothing can interleave.
+  const existing = await settle(store.get(scene.meta.id), "could not read the draft");
+  const record = draftRecord(scene);
+  store.put(existing?.thumb ? { ...record, thumb: existing.thumb } : record);
   // Settle on the transaction, not the put: a put can report success and the transaction
   // still abort — on quota, most often — which would be silent data loss.
-  await new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onabort = tx.onerror = () => reject(tx.error ?? new Error("autosave failed"));
-  });
+  await complete(tx, "autosave failed");
 }
 
 /** The most recently saved draft, or null on a first visit. */
 export async function loadLatestScene(): Promise<Scene | null> {
   const db = await open();
   const index = db.transaction(STORE, "readonly").objectStore(STORE).index("updatedAt");
-  const request = index.openCursor(null, "prev");
-  const cursor = await new Promise<IDBCursorWithValue | null>((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("could not read drafts"));
-  });
+  const cursor = await settle(index.openCursor(null, "prev"), "could not read drafts");
   return cursor ? deserialize((cursor.value as DraftRecord).json) : null;
 }
+
+/** One draft by id, or null if it is not there — deleted in another tab, most likely. */
+export async function loadScene(id: string): Promise<Scene | null> {
+  const db = await open();
+  const record = await settle(
+    db.transaction(STORE, "readonly").objectStore(STORE).get(id),
+    "could not read that map",
+  );
+  return record ? deserialize((record as DraftRecord).json) : null;
+}
+
+/** Every draft, newest first, without the scenes. The gallery's whole data source. */
+export async function listDrafts(): Promise<DraftSummary[]> {
+  const db = await open();
+  const index = db.transaction(STORE, "readonly").objectStore(STORE).index("updatedAt");
+  const request = index.openCursor(null, "prev");
+  return new Promise((resolve, reject) => {
+    const out: DraftSummary[] = [];
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return resolve(out);
+      const { json: _json, ...summary } = cursor.value as DraftRecord;
+      out.push(summary);
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error ?? new Error("could not list your maps"));
+  });
+}
+
+export async function deleteDraft(id: string): Promise<void> {
+  const db = await open();
+  const tx = db.transaction(STORE, "readwrite");
+  tx.objectStore(STORE).delete(id);
+  await complete(tx, "could not delete that map");
+}
+
+export async function renameDraft(id: string, title: string): Promise<void> {
+  const db = await open();
+  const tx = db.transaction(STORE, "readwrite");
+  const store = tx.objectStore(STORE);
+  const record = await settle(store.get(id), "could not read that map");
+  if (record) store.put(renamedRecord(record as DraftRecord, title));
+  await complete(tx, "could not rename that map");
+}
+
+export async function putThumb(id: string, thumb: Blob): Promise<void> {
+  const db = await open();
+  const tx = db.transaction(STORE, "readwrite");
+  const store = tx.objectStore(STORE);
+  const record = await settle(store.get(id), "could not read that map");
+  // Only ever decorate a record that exists; a thumbnail must never resurrect a draft the
+  // user just deleted, which a bare `put` would do.
+  if (record) store.put({ ...(record as DraftRecord), thumb });
+  await complete(tx, "could not store the thumbnail");
+}
+
+/**
+ * Which map the editor had open, so a reload comes back to it rather than to whichever was
+ * written last (WP-22). An id is not scene data, so localStorage is the right home for it —
+ * ADR-07's rule is about scenes, which are megabytes; this is 36 bytes and wants to be
+ * readable synchronously at boot rather than adding a second async race to `useAutosave`.
+ */
+const OPEN_KEY = "map-byfauzi:open";
+
+export const rememberOpen = (id: string): void => {
+  try {
+    localStorage.setItem(OPEN_KEY, id);
+  } catch {
+    // Private mode or a full quota. Boot falls back to the newest draft, which is WP-12's
+    // behaviour — worse, but not broken, and not worth failing a save over.
+  }
+};
+
+export const rememberedOpen = (): string | null => {
+  try {
+    return localStorage.getItem(OPEN_KEY);
+  } catch {
+    return null;
+  }
+};

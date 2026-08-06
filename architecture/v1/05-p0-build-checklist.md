@@ -42,7 +42,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 - [x] **WP-9 · Undo/redo** — command stack; one stroke / scatter-drag / generate = one
       step; terrain commands store only affected-landmass before/after. Steps are per-layer
-      object diffs; sliders coalesce; a new canvas is undoable as a whole-scene step (the
+      object diffs; sliders coalesce; emptying the canvas is undoable as a whole-scene step (the
       shape WP-10's Generate reuses).
 - [x] **WP-10 · Generator** (10a–10h) — noise fields → mask → Pipeline B → speck filter
       → biomes → mountain/forest Poisson scatter → budget cap → assemble; confirm modal;
@@ -190,11 +190,28 @@ Independent of Batches 1 and 2. Authoring side: `HOW-TO-CHANGE-SPRITE-ART.md`.
 is unreachable. Became load-bearing when cloud sync went opt-in per map. Decided in
 **ADR-33**; no design doc yet.
 
-- [ ] **WP-22 · The local map gallery** — `listDrafts()` over the existing `updatedAt` index
-  plus a list UI: **new map · open · rename · delete**, with a local thumbnail per draft.
-  **Local only** — the merged local+cloud view with sync badges is P2's WP-3; build so the
-  second source folds in without a rewrite. Deleting a local draft must not read as deleting
-  the cloud map.
+- [x] **WP-22 · The local map gallery** — `listDrafts()` over the existing `updatedAt` index
+  plus a Radix dialog: **new map · open · rename · delete**, newest first, with a thumbnail
+  rendered on gallery open. **Local only**, as specified.
+  **It found a live defect rather than only adding a feature**: `createEmptyScene` mints a
+  fresh `meta.id`, so the old single "New canvas" button had been writing a *new* record and
+  stranding the previous map on every click since WP-12. The gallery surfaces drafts that were
+  already there. Split into **New map** (fresh id, not undoable) and **Reset canvas** (same id,
+  confirm + undo) — **ADR-35**, which also records why rename is deliberately not undoable
+  (`diffScene` never walks `meta`, so `record` would file an empty step).
+  **The boot path changed**: `loadLatestScene` alone is wrong once there are several maps, so
+  the open map's id is remembered in localStorage — an id, not scene data, so WP-12's rule
+  holds — with the newest-draft fallback covering a draft deleted since.
+  **Measured, and it settled a schema question**: listing 20 drafts of a 152 KB scene costs
+  **7.4 ms** against 1.0 ms if summaries lived in their own store. A 7× ratio and an irrelevant
+  absolute, so **no `DB_VERSION` bump** — the ceiling is a `ponytail:` comment, to be revisited
+  only if ADR-33's ~20-draft cap ever rises.
+  6 unit fixtures + **22 driven checks and 5 mutations**. Two checks did not discriminate on
+  the first attempt and both were fixed: "a reload restores the open map" could not fail
+  because *opening* a map re-saves it, making it the newest write too — the check now ages
+  another record so the two answers genuinely differ; and the thumbnail check passed because
+  the gallery re-renders on open, masking a wipe, so it now reads the **record** rather than
+  the UI (WP-11's rule).
 
 ## Later phases (see the phase prompts)
 
