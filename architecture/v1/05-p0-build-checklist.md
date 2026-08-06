@@ -170,12 +170,20 @@ is a poor stand-in for the shape: ink fills 53% of a mountain's, 50% of a tree's
 **28% of the compass's**. Design in `10-hit-testing-precision.md`, decided in **ADR-30**.
 Independent of Batches 1 and 2. Authoring side: `HOW-TO-CHANGE-SPRITE-ART.md`.
 
-- [ ] **WP-21 · Precise picking, honest boxes, a guarded parser** — silhouette as a
-  **tie-break** over the rbush candidates (not a filter — an isolated tree must still tolerate
-  a near-miss); **labels exempt**; `spriteExtent` walks and flattens the path instead of
-  scraping numbers, tightening every box for free; and an unsupported path command **fails a
-  test** instead of mis-measuring. **Item 4 ships alone if you want it sooner** — it is the
-  safety net for changing sprite art.
+- [x] **WP-21 · Precise picking, honest boxes, a guarded parser** — silhouette as a
+  **tie-break** over the rbush candidates (not a filter — an isolated tree still tolerates a
+  near-miss); **labels exempt**; `spriteExtent` walks and flattens the path instead of scraping
+  numbers; an unsupported command **throws**, and a test walks every path in the registry.
+  **No `Path2D`** — one parser (`sprites/path.ts`) feeds both the extent and the silhouette,
+  and picking ray-casts the flattened rings through the existing `pointInRing`, so all of it
+  stays canvas-free and unit-tested in Node as `10` P4 requires. **Re-measured (`10` §2):**
+  mountain 2 **51% → 71% ink** as its box shrank **27%**, trees 1 and 3 **17%** and **15%**
+  tighter; every other box was already on-curve and did not move, which is the honest result —
+  flattening only pays where a control point was defining an extreme. 31 unit fixtures, 7
+  mutations, and 15 driven checks. **The discriminating check was proved by mutation**: with
+  the tie-break removed the click deletes the compass instead of the tree, and making
+  precision a *filter* fails both the near-miss check and the cursor check — I4 tracking the
+  change on its own, because hover and press go through the same `objectAt`.
 
 **Batch 4 — more than one map.** `drafts.ts` already keys drafts by `meta.id`, but only
 `saveScene` and `loadLatestScene` exist, so the editor has one working copy and a second map

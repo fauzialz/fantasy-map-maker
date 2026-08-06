@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Tree } from "../scene/types";
+import { coversPoint, objectBounds } from "../scene/bounds";
+import type { Landmark, Tree } from "../scene/types";
 import { SpatialIndex } from "./spatialIndex";
 
 const tree = (id: string, x: number, y: number, scale = 1): Tree => ({
@@ -50,5 +51,65 @@ describe("SpatialIndex", () => {
       { id: "l", type: "landmass", path: [[0, 0]], holes: [], biome: "grassland" },
     ]);
     expect(index.hit(0, 0)).toBeUndefined();
+  });
+});
+
+const compass = (x: number, y: number): Landmark => ({
+  id: "compass",
+  type: "landmark",
+  kind: "compass",
+  x,
+  y,
+  rotation: 0,
+  scale: 1,
+  z: 0,
+});
+
+/**
+ * WP-21 / ADR-30. The box narrows the field, the drawn shape decides between the
+ * candidates, and topmost-by-Y is what is left when nothing's artwork is under the point.
+ */
+describe("SpatialIndex.hit — the drawn shape decides", () => {
+  it("prefers the sprite whose artwork covers the point over the topmost box", () => {
+    // A compass rose is a four-armed star: 28% ink, so its box corners are open space.
+    const rose = compass(1000, 1000);
+    const box = objectBounds(rose);
+    if (!box) throw new Error("expected a footprint");
+    const point: [number, number] = [
+      box.minX + (box.maxX - box.minX) * 0.1,
+      box.minY + (box.maxY - box.minY) * 0.1,
+    ];
+    // A tree whose foliage really is under that point, standing higher up the map.
+    const conifer = tree("tree", point[0], point[1] + 50);
+
+    // Premises — without these the assertion below could pass for the wrong reason.
+    expect(coversPoint(rose, ...point)).toBe(false);
+    expect(coversPoint(conifer, ...point)).toBe(true);
+    expect(rose.y).toBeGreaterThan(conifer.y); // so topmost-by-Y alone would say "compass"
+
+    const index = new SpatialIndex([conifer, rose]);
+    expect(index.hit(...point)?.id).toBe("tree");
+  });
+
+  it("still picks an isolated sprite from a near miss — a tie-break, not a filter (P2)", () => {
+    // Nothing else is under the point, so precision has no ambiguity to resolve and the
+    // box stays in charge. Demanding an exact silhouette hit would make a sprite that is
+    // a few pixels at fit zoom harder to select, not easier.
+    const rose = compass(1000, 1000);
+    const box = objectBounds(rose);
+    if (!box) throw new Error("expected a footprint");
+    const point: [number, number] = [
+      box.minX + (box.maxX - box.minX) * 0.1,
+      box.minY + (box.maxY - box.minY) * 0.1,
+    ];
+    expect(coversPoint(rose, ...point)).toBe(false);
+    expect(new SpatialIndex([rose]).hit(...point)?.id).toBe("compass");
+  });
+
+  it("keeps the marquee on boxes — silhouettes never narrow a `within`", () => {
+    const rose = compass(1000, 1000);
+    const box = objectBounds(rose);
+    if (!box) throw new Error("expected a footprint");
+    expect(new SpatialIndex([rose]).within(box).map((object) => object.id)).toEqual(["compass"]);
   });
 });

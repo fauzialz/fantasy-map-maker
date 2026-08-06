@@ -391,6 +391,21 @@ flattening arcs so the dialect could accept them (disproportionate — every des
 emit curves instead); and leaving the parser documented-but-unguarded, which is the status
 quo that prompted the question.
 
+**Built, WP-21**, with one thing this ADR got wrong and one the design doc did.
+**The `Path2D` cache was never needed.** The path walker written for the honest boxes already
+emits polygon rings, and `pointInRing` already existed for the terrain work — so picking
+ray-casts those rings and the whole feature stays **canvas-free**, not just the bounds. One
+parser, two consumers, no browser-side cache to invalidate on a theme change, and the
+tie-break is unit-testable in Node. And `10` §5's first acceptance bullet ("clicking between
+a compass's arms selects nothing") described the *full precision* this ADR rejects in its
+first sentence; the ADR won, and the bullet became two checks that pull opposite ways — a
+covered rival wins the click, a lone compass still answers a near miss.
+**The two halves fix different sprites, which the measurement only made obvious afterwards:**
+flattening tightened mountain 2 by 27% and trees 1 and 3 by 17% and 15%, and moved nothing
+else, because every other box was already set by on-curve points — the **compass's box is
+eight straight lines and was always honest at 28% ink.** Its problem was only ever that a box
+was picking. Shipping either item alone would have left the other's worst case untouched.
+
 ## ADR-31 — Monetization boundary: free is what runs in the browser
 **Decision:** The free tier is **everything that executes entirely in the browser** — the
 full editor, **unlimited local drafts**, and *every* export: PNG/JPG/WebP, `.map.json`, the

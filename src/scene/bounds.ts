@@ -1,8 +1,16 @@
 import { spriteBounds } from "../sprites/raster";
 import { textBounds } from "../sprites/text";
-import { iconVariant, type SpriteKind } from "../sprites/registry";
+import {
+  BASELINE,
+  GRID,
+  SPRITE_HEIGHT,
+  iconVariant,
+  spriteExtent,
+  spriteRings,
+  type SpriteKind,
+} from "../sprites/registry";
 import { landmassToPolygon } from "../engine/terrain/assemble";
-import { pointInPolygon } from "../engine/geometry/nesting";
+import { pointInPolygon, pointInRing } from "../engine/geometry/nesting";
 import type { Landmass, SceneObject } from "./types";
 
 export interface Bounds {
@@ -85,6 +93,43 @@ export function objectBounds(object: SceneObject): Bounds | undefined {
     maxY = Math.max(maxY, object.y + dy);
   }
   return { minX, minY, maxX, maxY };
+}
+
+/**
+ * Does the object's **drawn artwork** cover this point, as opposed to its box (ADR-30)?
+ *
+ * The box is a loose stand-in for the shape: measured, ink fills 53% of a mountain's box,
+ * 50% of a tree's, and **28% of the compass's** — a four-armed star is mostly the gaps
+ * between the arms. This is the question `SpatialIndex.hit` asks to break a tie between
+ * overlapping candidates.
+ *
+ * **Labels are exempt and answer yes anywhere in their box** (F2). Picking text by hitting
+ * an actual letter stroke would be miserable, and the gaps between words are part of the
+ * thing you are pointing at. That is a deliberate inconsistency, not an oversight.
+ *
+ * Canvas-free on purpose (`10` P4): the point is carried back into the sprite's own grid
+ * and ray-cast against the flattened path, so this works in Node like every other bound.
+ *
+ * ponytail: two known approximations, both of which fail *towards* the old behaviour
+ * because this is a tie-break and a "no" merely falls back to topmost-by-Y. Rings are
+ * unioned rather than even-odd, so a sprite drawn with a genuine hole would read as
+ * filled — none is, and the trunk/foliage overlap in a tree is why union is the right
+ * default. And the 2.6-wide stroke is not included, so a point on the outer edge of the
+ * ink can read as outside. Give rings a signed offset if either ever shows.
+ */
+export function coversPoint(object: PlacedObject, x: number, y: number): boolean {
+  if (object.type === "label") return true;
+  const { kind, variant } = spriteRef(object);
+  const unit = (SPRITE_HEIGHT[kind] * (GRID / BASELINE) * object.scale) / GRID;
+  if (!unit) return false;
+
+  const extent = spriteExtent(kind, variant);
+  const [dx, dy] = rotatePoint([x - object.x, y - object.y], -object.rotation);
+  const point: [number, number] = [
+    dx / unit + (extent.minX + extent.maxX) / 2,
+    dy / unit + BASELINE,
+  ];
+  return spriteRings(kind, variant).some((ring) => pointInRing(ring, point));
 }
 
 /** Union of every selectable object's box. */
