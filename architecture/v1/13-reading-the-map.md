@@ -175,28 +175,32 @@ is buried under the trunk's ribbon instead of poking out of its far bank.
 that overlap. Neither references the other; deleting the trunk leaves the tributary ending in
 open water, exactly as a deleted landmass leaves its river behind (D8).
 
-### Open decisions — settle before code
+### Decisions — all five settled
 
-- **D6 — which end snaps?** The mouth is what the request named. The source arguably wants the
-  opposite treatment (start *inside* the land, not on its edge). Recommended: **the end being
-  laid snaps, whichever it is** — you draw source-to-sea, so the last point is the mouth, and a
-  river drawn the other way still wants its coastal end tidied.
-- **D7 — does an existing river's endpoint re-snap when dragged under global Select?** Consistent
-  says yes, and it is the same code path. It also means a control point near a coast becomes
-  hard to place *deliberately* off it. Recommended yes, with the snap suppressed while a
-  modifier is held — the standard escape hatch.
-- **D8 — does the mouth survive a coastline edit?** A landmass moved or resized under WP-15
-  leaves its rivers behind; a mouth that was snapped is then snapped to nothing. Recommended:
-  **no re-snapping**, and say so — the snap is an aid at draw time, not a live constraint. A
-  live constraint means a river's geometry depends on another object's, which is a relationship
-  the scene model does not have and should not grow for this. The baked tail is ordinary control
-  points, so a stale mouth is a river the user can drag, not a broken object.
-- **D9 — does a snap target both coasts and rivers, or is one preferred when both are in range?**
-  Recommended: **nearest wins**, with no type preference. A rule like "coast beats river" is
-  unpredictable at the one place it fires — a tributary meeting a trunk near the shore.
-- **D10 — can a river snap to *itself*, or to the river being drawn?** Recommended **no** — a
-  self-snap turns a doubling-back river into a loop the user did not ask for, and the check is
-  one id comparison.
+- **D6 — which end snaps? → The end being laid, whichever it is.** You draw source-to-sea, so
+  the last point is normally the mouth; a river drawn the other way still wants its coastal end
+  tidied, and nothing in the model knows which end is downstream anyway (see §2.1).
+  **And an end that snaps to nothing is rounded.** A mouth that reaches neither a coast nor
+  another river gets a **round cap** instead of the flat cut it has today, so a river that stops
+  mid-map reads as fading out rather than being sliced off. Cheap and additive: `riverRibbon`
+  closes its outline between the last left and right bank points, so a rounded end is an arc of
+  a few points across that gap at the local half-width — no new data, no new pass.
+  *(The source cap is the same three lines if it should be rounded too; nobody has asked, so it
+  stays flat.)*
+- **D7 — does a dragged endpoint re-snap under global Select? → Yes**, with the snap suppressed
+  while a modifier is held, so a point can still be placed deliberately off a coast.
+- **D8 — does a mouth survive a coastline edit? → No re-snapping.** A landmass moved or resized
+  under WP-15 leaves its rivers where they are, and the user readjusts by hand. The snap is an
+  aid at draw time, not a live constraint — a constraint would mean a river's geometry depends
+  on another object's, which the scene model does not do. The baked tail is ordinary control
+  points, so a stale mouth is a river you can drag, not a broken object.
+  **D7 and D8 are consistent, not opposed:** a river re-snaps when *the river* is edited, and
+  never when something *else* moves. The trigger is always the user's hand on that river.
+- **D9 — coast or river when both are in range? → Nearest wins**, no type preference. "Coast
+  beats river" would be unpredictable at the one place it ever fires — a tributary meeting a
+  trunk near the shore.
+- **D10 — can a river snap to itself? → No.** A self-snap turns a doubling-back river into a
+  loop nobody asked for. One id comparison, and the river being drawn is excluded too.
 
 ### Acceptance
 
@@ -216,6 +220,11 @@ open water, exactly as a deleted landmass leaves its river behind (D8).
   no seam — the existing unstroked fill, checked because this package is what makes it visible.
 - Deleting the trunk leaves the tributary ending in open water, unmoved. Nothing references
   anything (D8).
+- A river finished **away from** any coast or river ends in a **round cap**, not a flat one, and
+  one that snapped does not — the two caps are visibly different at the same width (D6).
+- Dragging a committed endpoint near a coast re-snaps it; holding the modifier drops it exactly
+  where the pointer is (D7). Moving the *landmass* instead leaves the river untouched (D8) —
+  both directions checked, since they are the pair most likely to be confused.
 - A snapped river survives a save and reload with the same points: the snap resolves at draw
   time and stores plain geometry (D8), so there is nothing new in the scene contract — **no
   `schemaVersion` bump in this package**, and if one appears the design has gone wrong.

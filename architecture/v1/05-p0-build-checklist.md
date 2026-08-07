@@ -285,13 +285,14 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
   erasable by any tool. Reuses `landmassAt` and `river.ts`'s `distanceToSegment`. **`LAYER_TOOLS`
   loses `"erase"` here**, finishing what WP-25 started — once the tool is global the rail chip is
   the same duplication Select's was.
-  **Settle D1–D3 first** (do rivers die too; Erase beside Select or in the create row; does
-  *hidden* protect as well as *locked*). Acceptance needs a driven drag across a landmass, a
+  **`12` D1–D3 settled**: rivers die too, whole · Erase sits beside Select in the mode group · and
+  *hidden* protects **every** layer, not only terrain — ADR-28's rule with no exception, so a
+  stroke can sweep the map and take only what you left showing. Acceptance needs a driven drag across a landmass, a
   locked layer that survives it, and **a mutation proving the lock check discriminates**.
 - [ ] **WP-27 · Scatter rotation is a knob, not a constant** — `anchorAt` hardcodes
   `jitter(5)`; replace it with session state, surfaced as a slider, **defaulting to 0** so every
   sprite is upright until asked otherwise. The value is jitter *spread*, not an angle.
-  **Settle D4 first**: either the generator's scatter reads the same knob — and the world code
+  **Settle `12` D4 first**: either the generator's scatter reads the same knob — and the world code
   grows a field — or it keeps its own constant and the comment claiming it is the "same jittered
   look the scatter brush gives by hand" gets rewritten. Acceptance reads the **scene**, not the
   render.
@@ -301,7 +302,7 @@ that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
 
 - [ ] **WP-28 · The map at a glance** — two constants, judged by looking. **Mountains at
   three-quarters**: `SPRITE_HEIGHT.mountain` 190 → 142, against 84 for a tree and 165 for a
-  landmark. **Settle D5 first** — the constant is the base height for the *kind*, so changing it
+  landmark. **Settle `13` D5 first** — the constant is the base height for the *kind*, so changing it
   is silently retroactive across every saved map; the alternative is scaling at placement and
   leaving one map holding two mountain sizes. Recommended: change the constant, since "mountains
   are too big" is about the art, and nothing is deployed. Costs nothing downstream — WP-21's ink
@@ -332,8 +333,12 @@ that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
   Reuses `distanceToSegment` (which WP-26 exports anyway) and `distanceToRiver`. The overshoot is
   a **named constant, not a derivation** — it must sit right against a screen-constant stroke and
   a ring gap the user sets between 4 and 60.
-  **Settle D6–D10 first** (which end snaps; does a dragged point re-snap; does a mouth survive a
-  coastline edit; coast or river when both are in range; can a river snap to itself). Acceptance
+  **`13` D6–D10 settled**: the end *being laid* snaps, whichever it is · **an end that snaps to
+  nothing gets a round cap** instead of today's flat cut, so a river stopping mid-map fades out
+  rather than being sliced — `riverRibbon` already closes between the last two bank points, so it
+  is an arc across that gap · a *dragged* endpoint re-snaps (modifier suppresses it) while a
+  *moved coastline* re-snaps nothing, which is consistent because the trigger is always the
+  user's hand on that river · nearest wins between a coast and a river · no self-snap. Acceptance
   is driven pointer input reading the **stored points**, plus the preview differing *before* the
   click (I4).
 

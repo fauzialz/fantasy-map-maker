@@ -388,10 +388,13 @@ than buttons, which changes the tag and not the selector, and the CDP recipes in
 covering WP-26 only.
 **Prerequisite:** none. Each package ships alone, and none of them blocks Batch 5.
 
-**Settle first:** **D1–D3** before WP-26 (do rivers die to the eraser too; does Erase sit beside
-Select or in the create row; does *hidden* protect a layer as well as *locked*), and **D4**
-before WP-27 (does the generator's scatter read the same rotation knob). All four change what
-gets built, not how.
+**Settle first: `12` D4 only** — does the generator's scatter read the same rotation knob (it
+changes what a world code reproduces). **`12` D1–D3 are settled**: rivers die to the eraser too,
+whole · Erase sits beside Select in the mode group · and *hidden* protects **every** layer, not
+only terrain.
+
+> **Decision numbers are per design document**, the way `08`'s are. `12` D4 is not Batch 1's D4.
+> Cite the document when you refer to one, or the two collide in the tracker.
 
 **What this batch is about.** Four places where a tool's behaviour and what the UI says about it
 have drifted apart: a brush that shows nothing until you commit to a drag; an "Erase" that means
@@ -487,9 +490,10 @@ hand" gets rewritten. It changes what a world code reproduces.
 **Design:** `../13-reading-the-map.md` — read it in full. **Decisions:** ADR-38, ADR-39.
 **Prerequisite:** none. Both ship alone; neither blocks Batch 5 or Batch 6.
 
-**Settle first:** **D5** before WP-28 (does the mountain shrink change the sprite constant, and
-so every saved map, or only new placements), and **D6–D8** before WP-29 (which end snaps; does a
-dragged control point re-snap; does the overshoot survive a coastline edit).
+**Settle first: `13` D5 only** — does the mountain shrink change the sprite constant, and so every
+saved map, or only new placements. **`13` D6–D10 are settled**: the end being laid snaps, whichever it
+is · an end that snaps to nothing gets a **round cap** · a dragged endpoint re-snaps (modifier
+suppresses it), a moved coastline re-snaps nothing · nearest wins · no self-snap.
 
 **What this batch is about.** Three complaints about the finished picture rather than the tools
 that make it: mountains are too big for the land they stand on, you cannot pull back far enough
@@ -501,7 +505,7 @@ Two constants, together because they are the same complaint — *things are the 
 screen* — and because both are judged by looking rather than by asserting.
 
 **Mountains at three-quarters:** `SPRITE_HEIGHT.mountain` 190 → **142**, against 84 for a tree
-and 165 for a landmark. **D5 first**: the constant is the base height for the *kind*, so changing
+and 165 for a landmark. **`13` D5 first**: the constant is the base height for the *kind*, so changing
 it re-renders every mountain on every saved map. Recommended anyway — "mountains are too big" is
 a statement about the art, a per-placement scale would leave one map holding two mountain sizes
 with nothing in the UI to explain it, and nothing is deployed. Costs nothing downstream: WP-21's

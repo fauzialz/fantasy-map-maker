@@ -759,6 +759,12 @@ is deleted whole**. Layer lock and visibility are how the eraser is scoped, exac
 made them the scoping mechanism for Select. **Amends ADR-18**, and reverses ADR-28's choice to
 relabel rather than split. Ships as **WP-26**; design in `12-tools-that-say-what-they-do.md`.
 
+**Settled with it:** rivers die to the eraser too — any object, whole, since partial removal of a
+path object is a reshape and reshaping is Select's job (D1). Erase sits **beside Select in the
+mode group**, a peer of the tool it now matches rather than of the six layers (D2). And **hidden
+protects, for every layer and not just terrain** (D3): ADR-28's *visible and unlocked* applied
+without exception, so a stroke can sweep the whole map and take only what you left showing.
+
 **Why:** ADR-18's "the eraser removes whatever the active tool creates" was one predictable
 model when every tool was layer-scoped. ADR-28 then made selection, transforms and deletion all
 cross-layer and left the eraser behind, so the editor now has one tool that still believes in
@@ -828,6 +834,15 @@ along the shore instead of being cut across the flow, overshooting past the coas
 first ring band. The reshape is expressed **entirely as control points** — no stored outline, no
 polygon boolean, **no `schemaVersion` bump**. A river never holds a reference to the landmass or
 river it met. Ships as **WP-29**; design in `13-reading-the-map.md`.
+
+**Settled with it:** the end *being laid* snaps, whichever it is (D6) — nothing in the model knows
+which end is downstream, since direction is point order and not elevation. **An end that snaps to
+nothing is rounded** rather than cut flat, so a river stopping mid-map fades out instead of being
+sliced (D6); `riverRibbon` already closes its outline between the last two bank points, so the
+cap is an arc across that gap. A **dragged** endpoint re-snaps, with a modifier to suppress it
+(D7), while a **moved coastline** re-snaps nothing (D8) — consistent rather than opposed, because
+the trigger is always the user's hand on *that river*. **Nearest wins** when a coast and a river
+are both in range (D9), and a river never snaps to itself or to the one being drawn (D10).
 
 **Why:** landing a click exactly on a coastline is not possible at fit zoom, where a 4000 px
 canvas is a few hundred screen pixels wide. Every river therefore ends either short of the

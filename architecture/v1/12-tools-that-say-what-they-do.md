@@ -195,17 +195,19 @@ The table ends at create modes only — `mountains/forests: ["scatter","place"]`
 `icons/labels/rivers: ["place"]` — which is the state WP-25 deliberately stopped short of,
 because until this package the rail's chip was the only object eraser there was.
 
-### Open decisions — settle with the human before writing code
+### Decisions — all three settled
 
-- **D1 — do rivers die to the eraser too?** Consistency says yes: any object, whole, on any
-  unlocked layer. Called out because the request named landmasses, and "any object" is a wider
-  promise than was asked for.
-- **D2 — where does Erase sit in the toolbar?** Beside Select in the mode group, since it is now
-  equally global. The alternative — a seventh chip in the create row — is the eight-peers
-  flattening ADR-28 removed.
-- **D3 — does the eraser respect the terrain layer's lock only, or also refuse when Terrain is
-  hidden?** ADR-28's rule is *visible and unlocked*, so hidden should mean immune. Confirm,
-  because it means hiding a layer is now a way to protect it as well as to stop drawing it.
+- **D1 — do rivers die to the eraser too? → Yes.** Any object, whole, on any live layer. A river
+  the brush crosses is deleted entire, the same rule as a landmass: partial removal of a path
+  object is a reshape, and reshaping is Select's job.
+- **D2 — where does Erase sit in the toolbar? → Beside Select, in the mode group.** It is now
+  equally global, so it is a peer of Select rather than of the six layers. The alternative — a
+  seventh chip in the create row — is the eight-peers flattening ADR-28 removed.
+- **D3 — does hidden protect as well as locked? → Yes, and for *every* layer, not just terrain.**
+  ADR-28's rule is *visible and unlocked*, applied without exception: a hidden layer contributes
+  nothing to a click, a marquee, or now an eraser stroke. **Hiding a layer is a way to protect
+  it**, which is a second meaning for visibility and is worth saying out loud — it is the reason
+  a stroke can sweep the whole map and take only what you left showing.
 
 ### Acceptance
 
