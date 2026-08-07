@@ -698,3 +698,207 @@ the wrong thing now and be wrong later.
 New map undoable (a whole-scene step to reverse a non-loss); dropping reset entirely and
 telling people to make a new map and delete the old one (three gestures for one intention, and
 it changes the map's identity, so a P2 share slug would break).
+
+## ADR-36 — Commands live in a menu bar; the rails hold only live state
+**Decision:** The editor gains a **menu bar** — Map · Edit · View · Help — and the right rail
+drops from five sections to two. The dividing rule is: **a menu holds commands and
+rarely-changed settings; a rail holds live state you steer while looking at the map.** So the
+generator, the document actions (new / open / reset / canvas size) and export move into menus,
+while the layer list and the four render settings that re-derive live — parchment, coastal
+rings, ring count, ring gap — stay in the rail. The theme stays a **button**, not a menu item.
+The map title becomes an inline input in the menu bar, so `Rename` is a control removed rather
+than a command added. Shipped with **WP-23**; full design in `11-editor-shell.md`.
+
+**Why:** every control in the rail worked; they were filed by the order they were built in
+rather than by kind. The tell was two **Generate** buttons — one in the toolbar, one in the rail
+— which is what a panel looks like once it has become the place things go when there is nowhere
+else. `MapPanel.tsx` was 300 lines and scrolled on a laptop, with ~95 of them a one-shot command
+and its seven parameters. ADR-28 fixed the *tools* in the toolbar and deliberately left the
+chrome around them alone; this is that follow-up.
+
+**Why some things stay in the rail.** Ring count and ring gap look like settings and are not:
+they re-derive the coastal bands live, so you drag them *at* the map, and a menu that must be
+held open over the thing you are judging is the wrong container. Land amount and sea level are
+the opposite — they only apply on the next Generate — so they belong in the dialog. Bring
+forward / Send back / Delete appear in **both** the rail and the Edit menu, which is deliberate
+duplication of a command with a shortcut to advertise, unlike the two Generate buttons that were
+duplication by accident.
+
+**Consequences:** ADR-21's generate confirmation **folds into the generate dialog** — the dialog
+carries the warning line and its primary button reads "Replace map" on a non-empty scene,
+"Generate world" on an empty one. The ask still happens only when there is something to lose; a
+modal on top of a modal does not. `Canvas size ▸` becomes a **radio submenu**, which makes
+"re-picking the size you are already on is a no-op" structural rather than a guard. "My maps"
+becomes **Open Map**, because P2 puts cloud maps in the same dialog (ADR-33) and "my maps" will
+be ambiguous about whose and where. `deleteSelection` and `restackSelection` move from
+`ToolOptions.tsx` into the store — they already called `getState()` internally, and the Edit menu
+is the second caller that makes that obvious. The bottom autosave strip is absorbed into the menu
+bar, keeping `data-autosave`, so two header rows cost no height.
+
+**Also settled: the seed becomes a world code.** Generation is deterministic, but the seed is
+four of the nine inputs `generateWorld` reads, and `seaLevel` / `mountainDensity` /
+`forestDensity` are session-only by ADR's own schema rule. A bare copyable seed would reproduce
+nothing whenever another knob differed, and would fail *silently*. So the dialog exposes one
+human-readable `w1-`-tagged code carrying all seven world inputs; pasting sets every control, and
+a malformed or wrong-version code is rejected with a toast and changes nothing (ADR-30's parser
+rule). Canvas size and `coastDetail` are excluded — a code should not resize someone's canvas.
+
+**Rejected:** a single header row (it already wraps below ~1400 px and leaves the map title
+homeless); moving Appearance into the View menu too (§2's rule — those sliders are live);
+persisting the advanced trio into the scene so a bare seed would suffice (a `schemaVersion` bump
+and a `migrate()` step to make a text field shorter); keeping the generator in the rail behind a
+collapsible (treats the symptom and leaves four unrelated concerns instead of five); and a
+`Rename…` command (an inline title input is one control fewer).
+
+## ADR-37 — Erase and the sea brush are two tools; a landmass the eraser touches dies whole
+**Decision:** The contextual eraser splits. **Sea brush** keeps today's behaviour exactly —
+terrain-only, subtracts a disc of geometry, can cut a landmass in two. **Erase** becomes a
+**global object eraser**, a peer of Select: a drag removes every object the brush disc overlaps
+on **every visible, unlocked layer**, landmasses and rivers included, and **a landmass it touches
+is deleted whole**. Layer lock and visibility are how the eraser is scoped, exactly as ADR-28
+made them the scoping mechanism for Select. **Amends ADR-18**, and reverses ADR-28's choice to
+relabel rather than split. Ships as **WP-26**; design in `12-tools-that-say-what-they-do.md`.
+
+**Settled with it:** rivers die to the eraser too — any object, whole, since partial removal of a
+path object is a reshape and reshaping is Select's job (D1). Erase sits **beside Select in the
+mode group**, a peer of the tool it now matches rather than of the six layers (D2). And **hidden
+protects, for every layer and not just terrain** (D3): ADR-28's *visible and unlocked* applied
+without exception, so a stroke can sweep the whole map and take only what you left showing.
+
+**Why:** ADR-18's "the eraser removes whatever the active tool creates" was one predictable
+model when every tool was layer-scoped. ADR-28 then made selection, transforms and deletion all
+cross-layer and left the eraser behind, so the editor now has one tool that still believes in
+the old world. Worse, the object eraser's hit test refuses anything without a footprint
+(`objectHit.ts`'s `isUnderBrush`), which means **landmasses and rivers have never been erasable
+by any tool at any time** — a gap, not a policy. Splitting is what makes both halves
+describable: "removes land" and "removes objects" are two sentences, and one button was trying
+to be both.
+
+**Why whole landmasses.** Partial removal *is* the sea brush. Two tools that both nibble at a
+coastline would be one tool wearing two hats — the situation this ADR exists to end — and a
+brush that shaves a coast when you meant to delete an island is the same surprise ADR-18 was
+trying to avoid, only pointed the other way. The destructive case is already covered by
+granularity: one drag is one undo step, so a wide sweep comes back in one Ctrl+Z.
+
+**Consequences:** `isUnderBrush` grows a path branch for each type, reusing `landmassAt` for
+inside-the-coast and `distanceToSegment` (exported from `river.ts`) for near-the-coast, with
+`isOnRiver` already taking the slack argument it needs. `eraseAt` walks every live layer rather
+than `activeLayerId` and files one step across all of them, the shape `deleteSelection` already
+uses. **Hiding a layer now protects it**, not just hides it — which is ADR-28's rule applied
+consistently, and worth saying out loud because it gives visibility a second meaning.
+
+**Rejected:** keeping ADR-18 and merely widening the object eraser to all layers (leaves one
+button meaning two things, which is the complaint); making the eraser nibble landmasses like the
+sea brush (two tools with one behaviour, and no way to delete an island in one gesture); a
+confirmation before erasing land (a dialog after the press cannot promise the outcome — C6 — and
+would fire on every stroke); and putting Erase in the create row as a seventh chip (the
+eight-peers flattening ADR-28 removed).
+
+## ADR-38 — Zoom out goes past the canvas edge; the bound widens, it does not disappear
+**Decision:** `fitScale` stops being the minimum zoom. The floor becomes
+`fitScale × MIN_FIT_FRACTION`, with **`MIN_FIT_FRACTION = 0.5`** — the canvas may shrink to half
+the size at which it fills the viewport, and the space around it shows the app background.
+**Amends ADR-02**, which set a bounded canvas and no infinite zoom. Ships as **WP-28**; design in
+`13-reading-the-map.md`.
+
+**Why:** `fitScale` was doing two jobs — "the scale at which the map fits" and "the furthest you
+may pull back" — and only the first is a fact. The second made the canvas impossible to see as an
+object with edges, which is exactly the view you want when judging composition or previewing
+what an export will contain. The map filled the frame at every zoom level, so the frame was
+invisible.
+
+**Why it does not reopen ADR-02.** ADR-02 rejected *infinite* zoom because memory and export
+limits stop being predictable without a bound. A floor at half of fit is a wider bound, not the
+absence of one: it is a fixed multiple of a quantity that is already derived from the canvas and
+the viewport, so the worst case is still `MAX_SCALE` at the other end, unchanged.
+
+**Consequences:** almost none, which is why the number is a constant rather than a feature.
+`clampPan` already centres the map on any axis where the scaled map is smaller than the view — a
+branch that existed for narrow viewports and now does the letterboxing unmodified. `visibleRect`
+begins reporting a rect larger than the map, and `padRect` already clips to the map on both axes,
+so layer cache rects stay map-sized and ADR-19's memory budget is untouched. The parchment and
+vignette draw the canvas rect, so the region outside it renders as app background — the canvas
+gains a visible edge, which is the point.
+
+**Rejected:** removing the floor entirely (ADR-02's reasons hold); making the fraction a user
+setting (a preference for a number nobody wants to choose); and zooming to a *fit-with-margin*
+that simply pads `fitScale` (it moves the wall back a little and keeps the same problem — the
+canvas edge is still the frame edge at the limit).
+
+## ADR-39 — A river's end snaps at draw time, and the reshape is control points
+**Decision:** While a river is being drawn, an endpoint within a **screen-space** threshold of a
+**coastline or another river** snaps to the nearest point on it. On finish the mouth is
+*reshaped*, not merely moved: the snap bakes the final control points **along the local coast
+normal**, so the ribbon's end cap comes out parallel to the coast tangent and the mouth opens
+along the shore instead of being cut across the flow, overshooting past the coast stroke and the
+first ring band. The reshape is expressed **entirely as control points** — no stored outline, no
+polygon boolean, **no `schemaVersion` bump**. A river never holds a reference to the landmass or
+river it met. Ships as **WP-29**; design in `13-reading-the-map.md`.
+
+**Settled with it:** the end *being laid* snaps, whichever it is (D6) — nothing in the model knows
+which end is downstream, since direction is point order and not elevation. **An end that snaps to
+nothing is rounded** rather than cut flat, so a river stopping mid-map fades out instead of being
+sliced (D6); `riverRibbon` already closes its outline between the last two bank points, so the
+cap is an arc across that gap. A **dragged** endpoint re-snaps, with a modifier to suppress it
+(D7), while a **moved coastline** re-snaps nothing (D8) — consistent rather than opposed, because
+the trigger is always the user's hand on *that river*. **Nearest wins** when a coast and a river
+are both in range (D9), and a river never snaps to itself or to the one being drawn (D10).
+
+**Why:** landing a click exactly on a coastline is not possible at fit zoom, where a 4000 px
+canvas is a few hundred screen pixels wide. Every river therefore ends either short of the
+shore, leaving a stub of land between the water and the sea, or past it with a blunt cap in open
+water. Rivers draw above terrain (ADR-15's fixed order), so neither failure hides itself. The
+snap fixes the first and the overshoot fixes the second; either alone leaves a visible seam.
+
+**Why screen-space, and why the preview changes first.** The threshold is defined in screen
+pixels and converted at the current scale, so the snap feels identical at fit zoom and at 400 % —
+the same rule I8 applies to every other piece of chrome, and a map-unit threshold would be
+unusable at one end of the range. And a tip that *will* snap must draw differently from one that
+will not, **before** the click: invariant I4 says the pointer agrees with what the press will do,
+and a snap that only reveals itself afterwards is a cursor that lied.
+
+**Why the reshape is free, and why it is only control points.** Moving the endpoint onto the
+coast is not enough — the cap is still cut across the flow, so the mouth reads as a pipe ending
+at a wall whatever the point does. But `riverCentreline` is `chaikin(points, 2, false)`, which
+**pins the last points the user placed**, and the cap's direction is the tangent of the last two
+centreline points. Writing the final points along the coast normal therefore rotates the cap onto
+the coast tangent with no new machinery at all. The alternative — clipping the ribbon against the
+land polygon so the mouth edge copies the coast *arc* — buys a curved cap for either a stored
+outline (a `schemaVersion` bump to persist geometry that is otherwise derived, against ADR-13's
+grain) or a draw-time dependency on terrain (the live constraint this ADR rejects, and a rivers
+cache invalidated by every terrain edit — DEBT Q-01). The straight cap ships with a `ponytail:`
+comment naming the curve as the upgrade.
+
+**River-to-river needs the snap and no reshape at all**, because WP-8 already decided it: a river
+is *"flat, opaque and unstroked, so two overlapping ribbons paint the same colour twice and a
+confluence is seamless"* (`canvas/draw.ts`). There is no bank stroke to interrupt, so a tributary
+whose endpoint lands **inside** the trunk joins it with nothing to hide. The tributary overshoots
+past the trunk's centreline by half the trunk's local width so its cap is buried rather than
+poking through the far bank. It is not a join: two rivers that meet are two objects that overlap,
+and deleting the trunk leaves the tributary ending in open water.
+
+**Why the snap does not persist.** A river that stayed attached to a landmass would mean one
+object's geometry depends on another's — a relationship the scene model does not have. Moving or
+scaling a landmass (WP-15, WP-16) would then have to drag every river that ever met it, or leave
+them attached to a coast that has gone. So the mouth is resolved once and baked into `points`,
+and a landmass that later moves simply leaves its river behind, visibly, the way it leaves the
+mountains that stood on it.
+
+**Consequences:** nearest-point on a coast is a loop over the landmass rings through
+`distanceToSegment`, the module-private helper in `river.ts` that **WP-26 already needs
+exported** for the eraser — whichever package lands first pays for it and the other gets it free.
+The overshoot distance is a **named constant, not a derivation**: it has to sit right against a
+coast stroke that is screen-constant and a ring band whose gap is a user setting from 4 to 60, so
+it ships as the number that looked right and the design document says that is what it is. No
+scene-shape change and no `schemaVersion` bump — the output is plain points.
+
+**Rejected:** a live constraint that re-snaps when the coast moves (a cross-object geometric
+relationship the model does not support, for a drawing aid); **storing a trimmed mouth outline on
+the river** (persisting derived geometry, and a `schemaVersion` bump for a cap angle); **treating
+a confluence as a real join** with a parent/child reference (it buys nothing the overlapping fill
+does not already give, and it invents an ownership relation the scene has nowhere to put);
+snapping to the *ring band* rather than the coastline (rings are derived and never stored —
+ADR-13 — so the snap target would disappear when coastal rings are switched off); auto-extending
+every river to the nearest coast regardless of distance (a river ending in an inland lake is
+legitimate); and deriving the overshoot from `ringGap` (it must also cover the coast stroke,
+which is screen-constant, so no single map-space formula covers both).

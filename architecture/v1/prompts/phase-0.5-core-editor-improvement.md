@@ -328,6 +328,263 @@ of the UI. 22 driven checks, 5 mutations, all caught.
 
 ---
 
+## Batch 5 — The editor shell (WP-23)
+
+**Design:** `../11-editor-shell.md` — read it in full. **Decision:** ADR-36.
+**Prerequisite:** WP-13 (real UI) and WP-22 (the gallery this batch moves behind a menu).
+
+**Settle first:** nothing. The three behaviour changes inside WP-23 are decided in `11` §5.
+
+**What this batch is about.** The right rail is one scrolling column holding five unrelated
+concerns — the layer list, render settings, the whole world generator, document actions, and
+canvas presets. Every control in it works; they are filed by the order they were built in
+rather than by kind. The tell is two **Generate** buttons, one in the toolbar and one in the
+rail: that is what a panel looks like once it has become the place things go when there is
+nowhere else. ADR-28 fixed the *tools* in the toolbar and deliberately left the chrome alone.
+
+**The rule the whole batch applies:** a menu holds commands and rarely-changed settings; a rail
+holds live state you steer while looking at the map. Ring count and gap stay in the rail
+because they re-derive the bands live; land amount and sea level go in the dialog because they
+only apply on the next Generate.
+
+**Nothing here is pointer-driven geometry.** No scene-shape change, no `schemaVersion` bump, no
+new invariant. It is the largest diff in this file and the lowest risk in it.
+
+### WP-23 · The menu bar, and a rail that holds one idea
+Map · Edit · View · Help in their own row above today's tool row; the right rail drops to
+**Layers + Appearance**; the bottom autosave strip is absorbed into the menu bar, so two header
+rows cost no height. Radix `DropdownMenu`, already installed — keyboard navigation, Escape,
+typeahead, focus return and `role="menu"` come from the primitive, so write none of it.
+
+**Three behaviour changes ride along**, all in `11` §5: ADR-21's generate confirm folds into the
+generate dialog; `switchRoot` gets an off state you can actually see, which is why the sea-level
+slider looked permanently dead (the gate is correct and stays — one variant change repairs every
+toggle in the app); and the seed becomes a `w1-` **world code** carrying all seven world inputs,
+because a bare copyable seed reproduces nothing when the other knobs differ — and fails silently
+doing it.
+
+**Keep every `data-*` hook** on whichever element it moves to. They are menu items now rather
+than buttons, which changes the tag and not the selector, and the CDP recipes in
+`../07-interaction-invariants.md` drive them.
+
+- **Acceptance:** every menu opens on click, closes on Escape, and each item runs the command it
+  names — **driven input asserting the store or scene changed**, not a screenshot · New map
+  mints a fresh `meta.id` and Reset keeps it (ADR-35 unchanged; this only moves the buttons) ·
+  `Canvas size ▸` picking the active size does nothing at all · Generate on a non-empty scene
+  reads "Replace map" and carries the warning line, on an empty one neither · a world code
+  copied from one session and pasted into another produces the same scene · an **off** switch is
+  distinguishable from the panel behind it in both themes, **measured at ≥ 3:1** rather than
+  eyeballed, and the sea-level slider still enables only when its toggle is on ·
+  `Edit → Delete selected`
+  matches the rail's button, one store action and two call sites · **no rail scrollbar at 900 px
+  viewport height** with a generated world loaded.
+- **Fixtures:** `worldCode` round-trip, plus rejection of a garbage string and a `w2-` string.
+
+---
+
+## Batch 6 — Tools that say what they do (WP-24 … WP-27)
+
+**Design:** `../12-tools-that-say-what-they-do.md` — read it in full. **Decision:** ADR-37,
+covering WP-26 only.
+**Prerequisite:** none. Each package ships alone, and none of them blocks Batch 5.
+
+**Settle first: `12` D4 only** — does the generator's scatter read the same rotation knob (it
+changes what a world code reproduces). **`12` D1–D3 are settled**: rivers die to the eraser too,
+whole · Erase sits beside Select in the mode group · and *hidden* protects **every** layer, not
+only terrain.
+
+> **Decision numbers are per design document**, the way `08`'s are. `12` D4 is not Batch 1's D4.
+> Cite the document when you refer to one, or the two collide in the tracker.
+
+**What this batch is about.** Four places where a tool's behaviour and what the UI says about it
+have drifted apart: a brush that shows nothing until you commit to a drag; an "Erase" that means
+two different things by layer and cannot touch two of the five object types at all; a Select
+that exists twice because ADR-28 made it global and nothing swept up behind it; and a scatter
+rotation that is a constant pretending to be a decision.
+
+**Build order is numeric, and that is not appeal order.** WP-25 and WP-26 both edit
+`LAYER_TOOLS`; the smaller change lands first so the larger one edits a clean table.
+
+### WP-24 · The brush ring follows the cursor
+A ring at the hover point whenever a brush-shaped tool is in hand — terrain brush, sea brush,
+scatter, erase — and **none** for place (no radius) or select (I4 already governs its cursor).
+Map-space radius of `brushSize / 2`; **screen-constant stroke** per I8, so it neither vanishes
+at fit zoom nor thickens into a band up close. Sea brush and eraser rings read as removal,
+extending the preview stroke's existing rule.
+
+**This adds a circle, not a mechanism.** `MapStage` already tracks the hover point on every
+`onMouseMove` and clears it on `onMouseLeave`, for the x/y HUD readout.
+
+- **Acceptance:** moving the pointer over the stage **without pressing** shows a ring for each
+  of the four brush tools and none for the other two · dragging the size slider changes the
+  drawn radius while the pointer is still · the on-screen stroke width is the same at fit zoom
+  and at 400 % · the ring clears on `mouseleave` and does not survive a switch to place.
+
+### WP-25 · One Select, everywhere
+`LAYER_TOOLS` loses `"select"` and **nothing else** — `"erase"` stays until WP-26, because the
+rail's chip is currently the only object eraser there is and removing it first would ship a
+build with none. `RIVER_TOOL_LABEL`'s `select → "Edit"` goes with it;
+reshaping a river happens through global Select, which ADR-29 specifies and WP-20 built.
+Smaller than it looks: `setActiveLayer` already treats select as living outside the table.
+
+**Rides along: the selected coastline gets honest contrast.** `BIOME_FILL` is refreshed from CSS
+tokens whenever the theme flips; the outline is a hardcoded `#22685B`. The background moves and
+the outline does not. Two-tone stroke — wider contrasting halo under a narrower accent core,
+both screen-constant — so no single colour has to work on grassland *and* snow *and* dark-mode
+desert. It rides here because it is the same complaint, and touching one selection file twice in
+a batch is worse than once.
+
+- **Acceptance:** no Select chip in the rail on any layer, and the toolbar's Select still selects
+  across layers and survives a layer switch · on rivers the rail offers **Draw** only, and a
+  river's points are still draggable under global Select — driven, since that is the interaction
+  the removed chip used to reach · a selected landmass is legible on grassland, snow and desert
+  in **both** themes, with the theme toggle part of the check.
+
+### WP-26 · Erase is its own tool; the sea brush is terrain geometry
+**Amends ADR-18 and reverses ADR-28's relabel-rather-than-split.** Sea brush unchanged —
+terrain-only, subtracts geometry, still cuts a landmass in two. **Erase becomes a global object
+eraser**, peer of Select: a drag removes every object the disc overlaps on every visible,
+unlocked layer, and **a landmass it touches dies whole**. Lock and visibility are the scoping
+mechanism, exactly as ADR-28 made them for Select. **`LAYER_TOOLS` loses `"erase"` in this
+commit**, finishing WP-25 — once the tool is global the rail chip is the duplication Select's
+was, and this is the first moment removing it costs nothing.
+
+**This closes a real gap, not just a naming one.** `isUnderBrush` returns false for anything
+without a footprint, so **landmasses and rivers have never been erasable by any tool at any
+time**. `isUnderBrush` grows two path branches, both with their machinery already present:
+`landmassAt` for inside-the-coast, `river.ts`'s `distanceToSegment` (export the private helper
+rather than copying it) for near-the-coast, and `isOnRiver` already takes the slack argument it
+needs. `eraseAt` walks every live layer instead of `activeLayerId` and files one step across all
+of them — `deleteSelection`'s shape.
+
+**Whole landmasses, deliberately.** Partial removal *is* the sea brush; two tools that both
+nibble a coastline are one tool wearing two hats. Undo covers it — one drag is already one step.
+
+- **Acceptance:** a driven drag crossing a landmass deletes **the whole landmass**, and one undo
+  brings it back · the same drag leaves a **locked** terrain layer untouched, and a hidden one
+  too (per D3) · one drag across mountains, a river and a landmass removes all three as **one**
+  undo step · the sea brush still subtracts a disc and still cuts a landmass in two — unchanged,
+  checked because this is where it would break · **a mutation proving the lock check
+  discriminates**: remove the lock test and the locked-layer check must fail.
+
+### WP-27 · Scatter rotation is a knob, not a constant
+`anchorAt` hardcodes `rotation: scatter ? jitter(5) : 0`. Replace the `5` with session state
+`scatterRotation` in degrees, surfaced as a slider beside brush size, **defaulting to 0** so
+every sprite is upright until asked otherwise. This deliberately changes the current feel. The
+value is jitter **spread**, not an angle: 0 upright, 15 means ±15°, capped where it still reads
+as cartography rather than confetti.
+
+**D4 is not the implementer's call.** Either the generator's scatter reads the same knob — and a
+generated world's rotation follows the setting, so the world code grows a field — or it keeps its
+own constant and the comment claiming it is the "same jittered look the scatter brush gives by
+hand" gets rewritten. It changes what a world code reproduces.
+
+- **Acceptance:** at 0, every scattered object has `rotation === 0` — read the **scene**, not the
+  render · at 30, rotations fall within ±30 and are not all equal · the slider appears only for
+  the scatter tool · whatever D4 decides, `scatter.ts`'s comment matches the code afterwards.
+
+---
+
+## Batch 7 — Reading the map (WP-28, WP-29)
+
+**Design:** `../13-reading-the-map.md` — read it in full. **Decisions:** ADR-38, ADR-39.
+**Prerequisite:** none. Both ship alone; neither blocks Batch 5 or Batch 6.
+
+**Settle first: `13` D5 only** — does the mountain shrink change the sprite constant, and so every
+saved map, or only new placements. **`13` D6–D10 are settled**: the end being laid snaps, whichever it
+is · an end that snaps to nothing gets a **round cap** · a dragged endpoint re-snaps (modifier
+suppresses it), a moved coastline re-snaps nothing · nearest wins · no self-snap.
+
+**What this batch is about.** Three complaints about the finished picture rather than the tools
+that make it: mountains are too big for the land they stand on, you cannot pull back far enough
+to see the canvas as a whole, and a river stops dead at the shore. The first two are constants
+judged by looking; the third is a real feature and carries all the risk in the batch.
+
+### WP-28 · The map at a glance
+Two constants, together because they are the same complaint — *things are the wrong size on
+screen* — and because both are judged by looking rather than by asserting.
+
+**Mountains at three-quarters:** `SPRITE_HEIGHT.mountain` 190 → **142**, against 84 for a tree
+and 165 for a landmark. **`13` D5 first**: the constant is the base height for the *kind*, so changing
+it re-renders every mountain on every saved map. Recommended anyway — "mountains are too big" is
+a statement about the art, a per-placement scale would leave one map holding two mountain sizes
+with nothing in the UI to explain it, and nothing is deployed. Costs nothing downstream: WP-21's
+ink figures are ratios and stay valid, and `spriteBounds` reads the same constant so boxes,
+picking and the rbush index follow without being touched.
+
+**Zoom out past the canvas edge** (ADR-38): `fitScale` stops doubling as the minimum zoom; the
+floor becomes `fitScale × MIN_FIT_FRACTION` with the fraction at **0.5**. That is the whole
+change — `clampPan` already centres a map smaller than the view (a branch that existed for narrow
+viewports), and `padRect` already clips cache rects to the map, so ADR-19's budget is untouched.
+
+- **Acceptance:** peaks measure three-quarters of their previous height against the same
+  coastline — **two screenshots at the same zoom**, since the assertion is visual · clicking a
+  mountain still selects it and the marquee still catches it, one driven picking check at the new
+  size · zooming out past fit shows the whole canvas centred with background around it, stopping
+  at half of fit · panning below fit does not move the map · zoom in still stops at `MAX_SCALE`
+  and `zoomAt` still pins the point under the cursor at both ends.
+
+### WP-29 · Rivers meet the sea, and each other
+An endpoint within a **screen-space** threshold of a coastline **or another river** snaps to the
+nearest point on it, and the mouth is pushed past the coast stroke and the first ring band, so
+the ribbon crosses the shoreline instead of stopping on it. Landing that click by hand is
+impossible at fit zoom — a 4000 px canvas is a few hundred screen pixels — and rivers draw above
+terrain, so a stub of land or a blunt cap in open water is visible either way.
+
+**The mouth is reshaped, not just moved — and the reshape is control points.** Moving the
+endpoint onto the coast still leaves a cap cut across the flow, which is the actual thing that
+looks wrong. But `riverCentreline` is `chaikin(points, 2, false)`, which **pins the last points
+the user placed**, and the cap's direction is the tangent of the last two centreline points. So
+writing the final points **along the local coast normal** — a short approach point inland, the
+mouth point overshooting seaward — rotates the cap onto the coast tangent and the mouth opens
+along the shore. No stored outline, no polygon boolean, **no `schemaVersion` bump**, and the
+baked tail is two ordinary points the user can drag afterwards.
+
+**Record the ceiling as a `ponytail:` comment.** A straight cap matches the coast *tangent*, not
+its *arc*, so a sharply curved bay gets a chord. The upgrade is clipping the ribbon against the
+land polygon, which needs either persisted geometry (a `schemaVersion` bump for something
+derived) or a live terrain dependency at draw time (rejected — see D8, and DEBT Q-01 on cache
+cost). Ship the straight cap and name the way out.
+
+**The river-to-river half needs the snap and no reshape at all.** WP-8 already decided it, on
+`canvas/draw.ts`: a river is *"flat, opaque and unstroked, so two overlapping ribbons paint the
+same colour twice and a confluence is seamless."* There is no bank stroke to interrupt, so a
+tributary whose endpoint lands **inside** the trunk joins it with nothing to hide — overshoot
+past the trunk's centreline by half its local width so the cap is buried rather than poking
+through the far bank. **It is not a join.** Two rivers that meet are two objects that overlap;
+neither references the other, and deleting the trunk leaves the tributary ending in open water.
+
+**Screen-space, and the preview changes first.** The threshold converts at the current scale so
+the snap feels the same at fit zoom and at 400 % (I8's rule). A tip that *will* snap draws
+differently from one that will not, **before** the click — I4, because a snap revealed only
+afterwards is a cursor that lied.
+
+**The snap does not persist** (D8). It resolves at draw time and stores plain points; a river
+never references the landmass it met, so a landmass that later moves leaves its river behind the
+way it leaves the mountains that stood on it. Adding a live constraint would mean one object's
+geometry depending on another's, which the scene model does not do.
+
+Reuses `distanceToSegment`, the module-private helper in `river.ts` that **WP-26 exports anyway**
+— whichever lands first pays for it. The overshoot distance is a **named constant, not a
+derivation**: it must sit right against a screen-constant coast stroke *and* a ring gap the user
+sets anywhere from 4 to 60, so it ships as the number that looked right and says so.
+
+- **Acceptance:** a last click **near** a coast ends **on** it, and the assertion reads the
+  stored points rather than the picture · the same click far from any coast does not snap, and
+  the tip preview differs between the two cases **before** the click — driven, sweeping the
+  pointer, because the preview is half the promise (`07` §1) · the threshold in map units at
+  400 % is a quarter of what it is at 100 %, which a fixed map-unit threshold would fail · the
+  mouth crosses the coast stroke and the first band at ring gaps **4 and 60**, both ends of the
+  slider · **a river meeting a coast at 45° ends with its cap parallel to the coast tangent, not
+  perpendicular to its own last segment** — read the stored points, the last two lie on the
+  normal · a tributary finished near another river ends **inside** it and the two read as one
+  shape with no seam · deleting the trunk leaves the tributary unmoved, ending in open water · a
+  snapped river survives save and reload with the same points, since nothing new enters the
+  scene contract — **no `schemaVersion` bump in this package**, and if one appears the design has
+  gone wrong.
+
+---
+
 ## Adding a future batch
 
 Append it below Batch 1. A batch is admissible here when it (a) changes the **core editor**,

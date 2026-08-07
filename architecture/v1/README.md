@@ -55,6 +55,21 @@ prompts** used to drive an AI coding agent through the build.
   and the box is a poor stand-in for the shape — measured at 53% ink for mountains and **28%
   for the compass**. Silhouette tie-break, tighter boxes, and a parser that fails loudly.
   See ADR-30.
+- `11-editor-shell.md` — **scheduled as WP-23**, the whole of Batch 5. The right rail stacks
+  five unrelated concerns and **Generate** exists twice; commands move to a menu bar and the
+  rail keeps only what you steer while watching the map. Also folds ADR-21's generate confirm
+  into the generate dialog, gives the switch an off state you can actually see, and turns the
+  seed into a shareable world code. See ADR-36.
+- `12-tools-that-say-what-they-do.md` — **scheduled as WP-24 → WP-27.** Four places where a
+  tool's behaviour and the UI's description of it have drifted apart: a brush with no feedback
+  until you drag, an Erase that means two things and cannot touch landmasses or rivers **at
+  all**, a Select that exists twice, and a scatter rotation hardcoded at ±5°. See ADR-37, which
+  covers the eraser split only.
+- `13-reading-the-map.md` — **scheduled as WP-28 → WP-29.** Three complaints about the finished
+  picture rather than the tools: mountains too big for the land they stand on, a zoom floor that
+  makes the canvas edge unreachable, and rivers that stop dead at the shore. See ADR-38 (the
+  zoom bound widens, amending ADR-02) and ADR-39 (a river's end snaps to a coast or another
+  river at draw time, and the mouth reshape is **control points, not stored geometry**).
 - `HOW-TO-CHANGE-SPRITE-ART.md` — **procedure for replacing or adding the map's artwork.**
   What format the sprites are (SVG path `d` strings, not `.svg` files, and why the theme and
   P1's offline embed both require that), the 100×100 grid with feet on the baseline, and the
