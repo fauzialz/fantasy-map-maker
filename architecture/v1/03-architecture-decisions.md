@@ -819,12 +819,15 @@ setting (a preference for a number nobody wants to choose); and zooming to a *fi
 that simply pads `fitScale` (it moves the wall back a little and keeps the same problem — the
 canvas edge is still the frame edge at the limit).
 
-## ADR-39 — A river's mouth snaps to the coast at draw time, and crosses it
+## ADR-39 — A river's end snaps at draw time, and the reshape is control points
 **Decision:** While a river is being drawn, an endpoint within a **screen-space** threshold of a
-coastline snaps to the nearest point on it, and the drawn mouth is pushed **seaward past the
-coast stroke and the first coastal ring band** so the ribbon crosses the shoreline instead of
-stopping on it. The snap resolves **at draw time** and stores ordinary points — a river never
-holds a reference to the landmass it met. Ships as **WP-29**; design in `13-reading-the-map.md`.
+**coastline or another river** snaps to the nearest point on it. On finish the mouth is
+*reshaped*, not merely moved: the snap bakes the final control points **along the local coast
+normal**, so the ribbon's end cap comes out parallel to the coast tangent and the mouth opens
+along the shore instead of being cut across the flow, overshooting past the coast stroke and the
+first ring band. The reshape is expressed **entirely as control points** — no stored outline, no
+polygon boolean, **no `schemaVersion` bump**. A river never holds a reference to the landmass or
+river it met. Ships as **WP-29**; design in `13-reading-the-map.md`.
 
 **Why:** landing a click exactly on a coastline is not possible at fit zoom, where a 4000 px
 canvas is a few hundred screen pixels wide. Every river therefore ends either short of the
@@ -838,6 +841,26 @@ the same rule I8 applies to every other piece of chrome, and a map-unit threshol
 unusable at one end of the range. And a tip that *will* snap must draw differently from one that
 will not, **before** the click: invariant I4 says the pointer agrees with what the press will do,
 and a snap that only reveals itself afterwards is a cursor that lied.
+
+**Why the reshape is free, and why it is only control points.** Moving the endpoint onto the
+coast is not enough — the cap is still cut across the flow, so the mouth reads as a pipe ending
+at a wall whatever the point does. But `riverCentreline` is `chaikin(points, 2, false)`, which
+**pins the last points the user placed**, and the cap's direction is the tangent of the last two
+centreline points. Writing the final points along the coast normal therefore rotates the cap onto
+the coast tangent with no new machinery at all. The alternative — clipping the ribbon against the
+land polygon so the mouth edge copies the coast *arc* — buys a curved cap for either a stored
+outline (a `schemaVersion` bump to persist geometry that is otherwise derived, against ADR-13's
+grain) or a draw-time dependency on terrain (the live constraint this ADR rejects, and a rivers
+cache invalidated by every terrain edit — DEBT Q-01). The straight cap ships with a `ponytail:`
+comment naming the curve as the upgrade.
+
+**River-to-river needs the snap and no reshape at all**, because WP-8 already decided it: a river
+is *"flat, opaque and unstroked, so two overlapping ribbons paint the same colour twice and a
+confluence is seamless"* (`canvas/draw.ts`). There is no bank stroke to interrupt, so a tributary
+whose endpoint lands **inside** the trunk joins it with nothing to hide. The tributary overshoots
+past the trunk's centreline by half the trunk's local width so its cap is buried rather than
+poking through the far bank. It is not a join: two rivers that meet are two objects that overlap,
+and deleting the trunk leaves the tributary ending in open water.
 
 **Why the snap does not persist.** A river that stayed attached to a landmass would mean one
 object's geometry depends on another's — a relationship the scene model does not have. Moving or
@@ -855,9 +878,12 @@ it ships as the number that looked right and the design document says that is wh
 scene-shape change and no `schemaVersion` bump — the output is plain points.
 
 **Rejected:** a live constraint that re-snaps when the coast moves (a cross-object geometric
-relationship the model does not support, for a drawing aid); snapping to the *ring band* rather
-than the coastline (rings are derived and never stored — ADR-13 — so the snap target would
-disappear when coastal rings are switched off); auto-extending every river to the nearest coast
-regardless of distance (a river ending in an inland lake is legitimate); and deriving the
-overshoot from `ringGap` (it must also cover the coast stroke, which is screen-constant, so no
-single map-space formula covers both).
+relationship the model does not support, for a drawing aid); **storing a trimmed mouth outline on
+the river** (persisting derived geometry, and a `schemaVersion` bump for a cap angle); **treating
+a confluence as a real join** with a parent/child reference (it buys nothing the overlapping fill
+does not already give, and it invents an ownership relation the scene has nowhere to put);
+snapping to the *ring band* rather than the coastline (rings are derived and never stored —
+ADR-13 — so the snap target would disappear when coastal rings are switched off); auto-extending
+every river to the nearest coast regardless of distance (a river ending in an inland lake is
+legitimate); and deriving the overshoot from `ringGap` (it must also cover the coast stroke,
+which is screen-constant, so no single map-space formula covers both).

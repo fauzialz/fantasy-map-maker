@@ -520,12 +520,35 @@ viewports), and `padRect` already clips cache rects to the map, so ADR-19's budg
   at half of fit · panning below fit does not move the map · zoom in still stops at `MAX_SCALE`
   and `zoomAt` still pins the point under the cursor at both ends.
 
-### WP-29 · Rivers meet the sea
-An endpoint within a **screen-space** threshold of a coastline snaps to the nearest point on it,
-and the drawn mouth is pushed seaward past the coast stroke and the first ring band, so the
-ribbon crosses the shoreline instead of stopping on it. Landing that click by hand is impossible
-at fit zoom — a 4000 px canvas is a few hundred screen pixels — and rivers draw above terrain, so
-a stub of land or a blunt cap in open water is visible either way.
+### WP-29 · Rivers meet the sea, and each other
+An endpoint within a **screen-space** threshold of a coastline **or another river** snaps to the
+nearest point on it, and the mouth is pushed past the coast stroke and the first ring band, so
+the ribbon crosses the shoreline instead of stopping on it. Landing that click by hand is
+impossible at fit zoom — a 4000 px canvas is a few hundred screen pixels — and rivers draw above
+terrain, so a stub of land or a blunt cap in open water is visible either way.
+
+**The mouth is reshaped, not just moved — and the reshape is control points.** Moving the
+endpoint onto the coast still leaves a cap cut across the flow, which is the actual thing that
+looks wrong. But `riverCentreline` is `chaikin(points, 2, false)`, which **pins the last points
+the user placed**, and the cap's direction is the tangent of the last two centreline points. So
+writing the final points **along the local coast normal** — a short approach point inland, the
+mouth point overshooting seaward — rotates the cap onto the coast tangent and the mouth opens
+along the shore. No stored outline, no polygon boolean, **no `schemaVersion` bump**, and the
+baked tail is two ordinary points the user can drag afterwards.
+
+**Record the ceiling as a `ponytail:` comment.** A straight cap matches the coast *tangent*, not
+its *arc*, so a sharply curved bay gets a chord. The upgrade is clipping the ribbon against the
+land polygon, which needs either persisted geometry (a `schemaVersion` bump for something
+derived) or a live terrain dependency at draw time (rejected — see D8, and DEBT Q-01 on cache
+cost). Ship the straight cap and name the way out.
+
+**The river-to-river half needs the snap and no reshape at all.** WP-8 already decided it, on
+`canvas/draw.ts`: a river is *"flat, opaque and unstroked, so two overlapping ribbons paint the
+same colour twice and a confluence is seamless."* There is no bank stroke to interrupt, so a
+tributary whose endpoint lands **inside** the trunk joins it with nothing to hide — overshoot
+past the trunk's centreline by half its local width so the cap is buried rather than poking
+through the far bank. **It is not a join.** Two rivers that meet are two objects that overlap;
+neither references the other, and deleting the trunk leaves the tributary ending in open water.
 
 **Screen-space, and the preview changes first.** The threshold converts at the current scale so
 the snap feels the same at fit zoom and at 400 % (I8's rule). A tip that *will* snap draws
@@ -548,8 +571,13 @@ sets anywhere from 4 to 60, so it ships as the number that looked right and says
   pointer, because the preview is half the promise (`07` §1) · the threshold in map units at
   400 % is a quarter of what it is at 100 %, which a fixed map-unit threshold would fail · the
   mouth crosses the coast stroke and the first band at ring gaps **4 and 60**, both ends of the
-  slider · a snapped river survives save and reload with the same points, since nothing new
-  enters the scene contract.
+  slider · **a river meeting a coast at 45° ends with its cap parallel to the coast tangent, not
+  perpendicular to its own last segment** — read the stored points, the last two lie on the
+  normal · a tributary finished near another river ends **inside** it and the two read as one
+  shape with no seam · deleting the trunk leaves the tributary unmoved, ending in open water · a
+  snapped river survives save and reload with the same points, since nothing new enters the
+  scene contract — **no `schemaVersion` bump in this package**, and if one appears the design has
+  gone wrong.
 
 ---
 

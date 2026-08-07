@@ -68,8 +68,8 @@ prompts** used to drive an AI coding agent through the build.
 - `13-reading-the-map.md` — **scheduled as WP-28 → WP-29.** Three complaints about the finished
   picture rather than the tools: mountains too big for the land they stand on, a zoom floor that
   makes the canvas edge unreachable, and rivers that stop dead at the shore. See ADR-38 (the
-  zoom bound widens, amending ADR-02) and ADR-39 (river mouths snap at draw time and cross the
-  coast).
+  zoom bound widens, amending ADR-02) and ADR-39 (a river's end snaps to a coast or another
+  river at draw time, and the mouth reshape is **control points, not stored geometry**).
 - `HOW-TO-CHANGE-SPRITE-ART.md` — **procedure for replacing or adding the map's artwork.**
   What format the sprites are (SVG path `d` strings, not `.svg` files, and why the theme and
   P1's offline embed both require that), the 100×100 grid with feet on the baseline, and the

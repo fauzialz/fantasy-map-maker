@@ -311,18 +311,31 @@ that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
   the floor becomes `fitScale × 0.5`, so the canvas can be seen as an object with edges.
   `clampPan` already centres a map smaller than the view, and `padRect` already clips cache rects
   to the map, so ADR-19's memory budget is untouched. Still bounded — a wider bound, not none.
-- [ ] **WP-29 · Rivers meet the sea** (**ADR-39**) — an endpoint within a **screen-space**
-  threshold of a coastline snaps to it, and the drawn mouth is pushed seaward past the coast
-  stroke and the first ring band, so a river crosses the shoreline instead of stopping on it or
-  overshooting into open water with a blunt cap. Landing that click by hand is impossible at fit
-  zoom, and rivers draw above terrain, so both failures are visible. The snap resolves **at draw
-  time** and stores plain points — no cross-object reference, so a landmass that later moves
-  leaves its river behind the way it leaves its mountains. Reuses `distanceToSegment`, which
-  WP-26 exports anyway. The overshoot is a **named constant, not a derivation** — it has to sit
-  right against a screen-constant stroke and a ring gap the user sets between 4 and 60.
-  **Settle D6–D8 first** (which end snaps; does a dragged point re-snap; does the overshoot
-  survive a coastline edit). Acceptance is driven pointer input reading the **stored points**,
-  plus the preview differing *before* the click (I4).
+- [ ] **WP-29 · Rivers meet the sea, and each other** (**ADR-39**) — an endpoint within a
+  **screen-space** threshold of a coastline **or another river** snaps to it. Landing that click
+  by hand is impossible at fit zoom, and rivers draw above terrain, so a stub of land or a blunt
+  cap in open water is visible either way.
+  **The mouth is reshaped, not just moved, and the reshape is free.** Moving the point still
+  leaves a cap cut across the flow. But `riverCentreline` is `chaikin(points, 2, false)`, which
+  **pins the last points the user placed**, and the cap's direction is the tangent of the last
+  two centreline points — so writing the final points **along the coast normal** rotates the cap
+  onto the coast tangent, and the mouth opens along the shore. **Control points only**: no stored
+  outline, no polygon boolean, **no `schemaVersion` bump**, and the baked tail stays draggable.
+  Ceiling to record as a `ponytail:` comment — a straight cap matches the coast *tangent*, not
+  its *arc*; the curve costs either persisted geometry or a live terrain dependency.
+  **The river-to-river half is nearly free**, because WP-8 already decided it: rivers are "flat,
+  opaque and unstroked, so two overlapping ribbons paint the same colour twice and a confluence
+  is seamless" (`draw.ts`). A tributary needs **no reshaping** — only an endpoint that lands
+  *inside* the trunk, overshooting past its centreline by half the trunk's local width so the cap
+  is buried. It is not a join: nothing references anything, and deleting the trunk leaves the
+  tributary ending in open water.
+  Reuses `distanceToSegment` (which WP-26 exports anyway) and `distanceToRiver`. The overshoot is
+  a **named constant, not a derivation** — it must sit right against a screen-constant stroke and
+  a ring gap the user sets between 4 and 60.
+  **Settle D6–D10 first** (which end snaps; does a dragged point re-snap; does a mouth survive a
+  coastline edit; coast or river when both are in range; can a river snap to itself). Acceptance
+  is driven pointer input reading the **stored points**, plus the preview differing *before* the
+  click (I4).
 
 ## Later phases (see the phase prompts)
 

@@ -112,10 +112,22 @@ exports for the eraser, so whichever package lands first pays for it.
 that will not. Invariant **I4**: the pointer must agree with what the press will do, and a snap
 that only reveals itself after the click is the same defect as a cursor that lies.
 
-**Overshoot.** A river whose mouth sits exactly on the coastline still ends in a flat cap on the
-shoreline. The snapped endpoint is pushed **seaward along the local coast normal** far enough
-for the ribbon to cover the coast stroke and the first coastal ring band, so the mouth reads as
-water meeting water rather than a pipe ending at a wall.
+**Reshape, and it costs nothing extra.** A river whose mouth sits exactly on the coastline still
+ends in a flat cap cut across the flow, which is why "snap the point" alone does not fix the
+picture. The mouth has to *open along the shore*.
+
+It does, for free, because of how the ribbon is already built. `riverCentreline` is
+`chaikin(points, 2, false)` and **pins the last points the user placed**
+([river.ts:16](../../src/engine/river.ts#L16)), and the end cap's direction is the tangent of the
+last two centreline points ([river.ts:36-43](../../src/engine/river.ts#L36-L43)). So if the snap
+writes the final control points **along the local coast normal** — one short approach point
+inland, the mouth point pushed seaward past the coast stroke and the first ring band — the tail
+runs perpendicular to the shore and the cap comes out **parallel to the coast tangent**. The
+mouth opens along the shore, and the overshoot buries the seam.
+
+**The reshape is therefore just control points.** No new geometry, no polygon boolean, nothing
+added to the scene contract, and the result stays editable: the baked tail is two ordinary
+points the user can drag afterwards like any other.
 
 ```
         before                    after
@@ -132,6 +144,37 @@ stroke whose width is screen-constant and a ring band whose gap is a user settin
 as a named constant with the number that looked right, and the design document says so rather
 than pretending a formula chose it.
 
+**What the straight cap does not do**, stated so nobody discovers it later: it matches the coast
+*tangent*, not the coast *arc*. On a sharply curved bay the mouth edge is a chord across the
+curve rather than a copy of it. The upgrade is clipping the ribbon against the land polygon —
+which is a genuine polygon boolean, and would mean either storing the trimmed outline (a
+`schemaVersion` bump to hold geometry that is otherwise derived) or re-deriving it at draw time
+against the current terrain (a live cross-object dependency, which §2's D8 rejects, and which
+would make every terrain edit invalidate the rivers cache — see DEBT Q-01). Ships as the straight
+cap, with a `ponytail:` comment naming the ceiling and the clip as the way out.
+
+### The other target: rivers
+
+The same snap points at another river, and **the reshape half is already done** — by a decision
+taken in WP-8 and written on the drawing function:
+
+> *"A river is a filled ribbon rather than a stroked line… Flat, opaque and unstroked, so two
+> overlapping ribbons paint the same colour twice and **a confluence is seamless**."*
+> — [draw.ts:96-98](../../src/canvas/draw.ts#L96-L98)
+
+Two ribbons of `PALETTE.river` that overlap merge into one shape with no seam to hide, because
+there is no bank stroke to interrupt. So a tributary needs **no end reshaping at all**: it needs
+its endpoint to land *inside* the trunk rather than near it, and the existing fill does the join.
+
+That makes the river target the cheap half of this package: snap to the nearest point on the
+trunk's centreline via `distanceToRiver` ([river.ts:68](../../src/engine/river.ts#L68)), then
+overshoot **past the trunk's centreline by half the trunk's local width**, so the tributary's cap
+is buried under the trunk's ribbon instead of poking out of its far bank.
+
+**It is not a join, and nothing in the model says it is.** Two rivers that meet are two objects
+that overlap. Neither references the other; deleting the trunk leaves the tributary ending in
+open water, exactly as a deleted landmass leaves its river behind (D8).
+
 ### Open decisions — settle before code
 
 - **D6 — which end snaps?** The mouth is what the request named. The source arguably wants the
@@ -142,11 +185,18 @@ than pretending a formula chose it.
   says yes, and it is the same code path. It also means a control point near a coast becomes
   hard to place *deliberately* off it. Recommended yes, with the snap suppressed while a
   modifier is held — the standard escape hatch.
-- **D8 — does the overshoot survive a coastline edit?** A landmass moved or resized under WP-15
+- **D8 — does the mouth survive a coastline edit?** A landmass moved or resized under WP-15
   leaves its rivers behind; a mouth that was snapped is then snapped to nothing. Recommended:
   **no re-snapping**, and say so — the snap is an aid at draw time, not a live constraint. A
   live constraint means a river's geometry depends on another object's, which is a relationship
-  the scene model does not have and should not grow for this.
+  the scene model does not have and should not grow for this. The baked tail is ordinary control
+  points, so a stale mouth is a river the user can drag, not a broken object.
+- **D9 — does a snap target both coasts and rivers, or is one preferred when both are in range?**
+  Recommended: **nearest wins**, with no type preference. A rule like "coast beats river" is
+  unpredictable at the one place it fires — a tributary meeting a trunk near the shore.
+- **D10 — can a river snap to *itself*, or to the river being drawn?** Recommended **no** — a
+  self-snap turns a doubling-back river into a loop the user did not ask for, and the check is
+  one id comparison.
 
 ### Acceptance
 
@@ -159,8 +209,16 @@ than pretending a formula chose it.
   screen, so a fixed map-unit threshold would fail this.
 - The drawn mouth crosses the coast stroke and the first ring band, at ring gaps 4 and 60 — both
   ends of the slider, since the overshoot is a constant and the band is not.
+- **The mouth opens along the shore, not across the flow**: a river meeting a coast at 45° ends
+  with its cap parallel to the coast tangent, not perpendicular to its own last segment. Read the
+  **stored points** — the last two lie on the coast normal — and confirm it in the picture.
+- A tributary finished near another river ends **inside** it, and the two read as one shape with
+  no seam — the existing unstroked fill, checked because this package is what makes it visible.
+- Deleting the trunk leaves the tributary ending in open water, unmoved. Nothing references
+  anything (D8).
 - A snapped river survives a save and reload with the same points: the snap resolves at draw
-  time and stores plain geometry (D8), so there is nothing new in the scene contract.
+  time and stores plain geometry (D8), so there is nothing new in the scene contract — **no
+  `schemaVersion` bump in this package**, and if one appears the design has gone wrong.
 
 ---
 
