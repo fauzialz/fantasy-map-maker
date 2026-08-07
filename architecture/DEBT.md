@@ -43,7 +43,7 @@ the next free number in the series; never renumber an existing row.
 | | Where it lives |
 |---|---|
 | Deliberate shortcuts and ceilings in code | `grep -rn "ponytail:" src/` — each names its own ceiling and upgrade trigger |
-| Open design decisions | **None in `v1/08-terrain-as-objects.md` §8 — D1…D6 are all settled.** This row previously named D4 and D6 as open; D4 was settled in WP-16 and D6 shipped in WP-14, so the row was wrong. Batch 3's F1–F5 (`v1/10`) and Batch 2's E1–E15 (`v1/09`) are settled too |
+| Open design decisions | **`v1/11-around-the-canvas.md` §6 — G1…G12, none settled**, which is the point of that document: it surveys UX gaps and lists what a human has to decide before any of them becomes a package. Every *built* batch's decisions are closed — `v1/08` §8 D1…D6, `v1/09` §6 E1…E15, `v1/10` §6 F1…F5 |
 | Features deferred from v1 | `v1/01-system-design.md` §15. Absence of a feature is not debt |
 | Unbuilt work packages | **None in Batches 1–4** — WP-14…WP-22 have all shipped. `v1/05-p0-build-checklist.md` tracks P1–P3 |
 | Deploying the built SPA | WP-13's entry. **The host is now chosen** — the VPS, behind Caddy, frontend-only (ADR-34, `platform/README.md` D4). Unbuilt work, not debt |

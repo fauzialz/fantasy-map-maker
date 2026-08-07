@@ -55,6 +55,13 @@ prompts** used to drive an AI coding agent through the build.
   and the box is a poor stand-in for the shape — measured at 53% ink for mountains and **28%
   for the compass**. Silhouette tie-break, tighter boxes, and a parser that fails loudly.
   See ADR-30.
+- `11-around-the-canvas.md` — **a survey, not a work order, and nothing in it is decided.**
+  Seven UX topics found by reading the shipped editor after WP-22 — first contact, the
+  keyboard, view controls, where controls live, feedback surfaces, touch and keyboard *input*,
+  and the landing page — each with the evidence for it and the decisions (G1–G12) a human has
+  to take first. Packages get appended to phase 0.5 from **WP-23** only once a topic's
+  decisions are settled; §7 has that protocol, including the one structural question the
+  landing page raises about what phase 0.5 is allowed to contain.
 - `HOW-TO-CHANGE-SPRITE-ART.md` — **procedure for replacing or adding the map's artwork.**
   What format the sprites are (SVG path `d` strings, not `.svg` files, and why the theme and
   P1's offline embed both require that), the 100×100 grid with feet on the baseline, and the
