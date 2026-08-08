@@ -246,13 +246,21 @@ upright, 15 means ±15°, and the slider's top end is whatever still reads as ca
 than confetti — 45° is a reasonable cap and is a decision the slider bounds can carry without
 an ADR.
 
-**Open decision D4:** the generator's scatter runs its own jitter, and its comment claims it is
-the "same jittered look the scatter brush gives by hand"
-([scatter.ts:71](../../src/engine/generator/scatter.ts#L71)). Either it reads the same knob — in
-which case a generated world's rotation follows the current scatter setting, and the world code
-(`11` §5.3) has one more field — or it keeps its own constant and **that comment stops being
-true and must be rewritten**. Not left to the implementer: it changes what a world code
-reproduces.
+**D4 — settled: the generator gets its own field, shared with nothing.** Not the knob above, and
+not a hidden constant either. Its rotation spread becomes an explicit control in the generate
+dialog's Advanced drawer and an eighth value in the world code, which **bumps that code to
+`w2-`** (`11` §5.3) — a `w1-` string is now rejected by the same loud path as a garbage one.
+
+The reasoning is what a world code is *for*. It exists because a bare seed silently
+under-specifies a world, so every input that decides one has to travel inside it; a generator
+reading a live rail slider would mean the same code rebuilt a different world depending on a
+knob someone moved an hour ago. And the two questions genuinely differ — the slider above is
+about the map you are drawing by hand, this one is part of a recipe.
+
+The generator keeps **5°** as its default, so existing generated worlds look unchanged, while the
+brush defaults to 0. Which is exactly why `scatter.ts`'s comment claiming the "same jittered look
+the scatter brush gives by hand" **had to be rewritten either way** — the two stopped matching the
+moment the brush got a default of its own.
 
 ### Acceptance
 

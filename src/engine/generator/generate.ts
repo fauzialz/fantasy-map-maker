@@ -38,6 +38,8 @@ export interface GenerateRequest {
   seaLevel: number | null;
   mountainDensity: number;
   forestDensity: number;
+  /** rotation spread in degrees for scattered sprites (`12` D4) */
+  rotation: number;
   coastDetail: number;
 }
 
@@ -106,7 +108,15 @@ export function generateWorld(request: GenerateRequest): GenerateResult {
   // Scatter draws from one stream seeded off the world seed, so the same seed places the
   // same trees on the same hills.
   const rng = mulberry32(seed ^ 0x5f3759df);
-  const context = { fields, canvas, landmasses, seaLevel, peak: peakFor(fields), rng };
+  const context = {
+    fields,
+    canvas,
+    landmasses,
+    seaLevel,
+    peak: peakFor(fields),
+    rotation: request.rotation,
+    rng,
+  };
   const { mountains, trees } = capToBudget(
     scatterMountains(context, request.mountainDensity),
     scatterForests(context, request.forestDensity),

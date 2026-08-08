@@ -21,8 +21,13 @@ const anchorAt = ([x, y]: Point, scatter: boolean) => ({
   id: crypto.randomUUID(),
   x,
   y,
-  // Map sprites read as drawn-in-place; a few degrees keeps a range from looking stamped.
-  rotation: scatter ? jitter(5) : 0,
+  /**
+   * WP-27 — a knob, not a constant. This was `jitter(5)`, chosen once so a range would not
+   * look stamped and never exposed, which made "how much do scattered sprites turn?" a
+   * question with no control behind it. `scatterRotation` is a *spread*: 0 is upright, 15
+   * is ±15°. It defaults to 0, so nothing turns until asked.
+   */
+  rotation: scatter ? jitter(useEditorStore.getState().scatterRotation) : 0,
   scale: scatter ? 1 + jitter(0.28) : 1,
   z: 0,
 });

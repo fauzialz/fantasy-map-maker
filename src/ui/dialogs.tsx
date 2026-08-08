@@ -96,12 +96,19 @@ export function GenerateForm() {
   const seaLevel = useEditorStore((s) => s.seaLevel);
   const mountainDensity = useEditorStore((s) => s.mountainDensity);
   const forestDensity = useEditorStore((s) => s.forestDensity);
+  const generatorRotation = useEditorStore((s) => s.generatorRotation);
   const setGenerator = useEditorStore((s) => s.setGenerator);
   const setAdvanced = useEditorStore((s) => s.setAdvanced);
 
   /** `null` = the field is showing the live code rather than something half-typed. */
   const [draft, setDraft] = useState<string | null>(null);
-  const code = formatWorldCode({ ...generator, seaLevel, mountainDensity, forestDensity });
+  const code = formatWorldCode({
+    ...generator,
+    seaLevel,
+    mountainDensity,
+    forestDensity,
+    rotation: generatorRotation,
+  });
 
   /**
    * Applied the moment the text parses, so a paste lands on the controls with nothing else
@@ -111,9 +118,20 @@ export function GenerateForm() {
     setDraft(text);
     const world = parseWorldCode(text);
     if (!world) return;
-    const { seaLevel: sea, mountainDensity: mountain, forestDensity: forest, ...meta } = world;
+    const {
+      seaLevel: sea,
+      mountainDensity: mountain,
+      forestDensity: forest,
+      rotation,
+      ...meta
+    } = world;
     setGenerator(meta);
-    setAdvanced({ seaLevel: sea, mountainDensity: mountain, forestDensity: forest });
+    setAdvanced({
+      seaLevel: sea,
+      mountainDensity: mountain,
+      forestDensity: forest,
+      generatorRotation: rotation,
+    });
   };
 
   /**
@@ -226,6 +244,21 @@ export function GenerateForm() {
               step={0.05}
               display={forestDensity.toFixed(2)}
               onChange={(value) => setAdvanced({ forestDensity: value })}
+            />
+            <Slider
+              label="Rotation jitter"
+              value={generatorRotation}
+              min={0}
+              max={45}
+              step={1}
+              display={`±${generatorRotation}°`}
+              /**
+               * The generator's own spread, not a read of the scatter brush's (`12` D4).
+               * A world code has to rebuild the same world whatever the rail happens to be
+               * set to, so this input travels in the code and that one does not.
+               */
+              hint="How far each mountain and tree turns from upright. Separate from the scatter brush's, so a world code always rebuilds the same world."
+              onChange={(value) => setAdvanced({ generatorRotation: value })}
             />
           </Collapsible.Content>
         </Collapsible.Root>

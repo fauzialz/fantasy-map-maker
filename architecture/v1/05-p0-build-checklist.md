@@ -409,13 +409,34 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
   branch fails 3 unit fixtures and 3 driven checks. The sea brush is checked in the same run
   precisely because this is the package where it would break: a stroke through the middle still
   cuts one landmass into two.
-- [ ] **WP-27 · Scatter rotation is a knob, not a constant** — `anchorAt` hardcodes
+- [x] **WP-27 · Scatter rotation is a knob, not a constant** — `anchorAt` hardcodes
   `jitter(5)`; replace it with session state, surfaced as a slider, **defaulting to 0** so every
   sprite is upright until asked otherwise. The value is jitter *spread*, not an angle.
-  **Settle `12` D4 first**: either the generator's scatter reads the same knob — and the world code
-  grows a field — or it keeps its own constant and the comment claiming it is the "same jittered
-  look the scatter brush gives by hand" gets rewritten. Acceptance reads the **scene**, not the
-  render.
+  **`12` D4 settled — the generator gets its own field, shared with nothing.** Not the rail's knob
+  and not a hidden constant: an explicit slider in the generate dialog's Advanced drawer, and an
+  eighth value in the world code. The reasoning is what a world code is *for* — it exists because a
+  bare seed silently under-specifies a world, so a generator reading a live rail slider would mean
+  the same code rebuilt a different world depending on a knob moved an hour ago. The two questions
+  genuinely differ: the rail's is about the map you are drawing, this one is part of a recipe.
+  **So the code is `w2-` now**, and a `w1-` string is rejected by the same loud path as a garbage
+  one. A changed field count is exactly what the version tag was for; nothing had shipped, so no
+  migration is owed. The generator keeps **5°** as its default, so generated worlds look unchanged,
+  while the brush defaults to 0.
+  **`scatter.ts`'s comment had to be rewritten either way** — it claimed the "same jittered look the
+  scatter brush gives by hand", which stopped being true the moment the brush got a default of its
+  own. That was true under *both* answers to D4, which is why the doc called it out.
+  **15 driven checks reading the record, plus 17 world-code fixtures.** The decisive one is the
+  decoupling: with the rail slider at **20**, a world generated from a code ending `-0` comes back
+  with **max |rotation| 0 across 222 mountains and 793 trees** — the rail cannot leak in. Then the
+  same world at `-40` exceeds anything ±20 could produce.
+  **Two mutations, one per half of D4.** Restoring `jitter(5)` to `anchorAt` fails the upright
+  check. Pointing the generator at `scatterRotation` — the option D4 rejected — fails the
+  decoupling check at 19.98° where 0 was required, and caps the ±40 world at 20.
+  **And a driver bug worth recording**: the generate dialog remounts on every open, so its
+  `Collapsible` resets closed. Two checks were reading a rotation slider that was not in the DOM
+  and comparing `NaN` to `NaN`, which passes. Opening Advanced is now part of opening the dialog,
+  and the "changes nothing" check asserts its baseline is a real number first. **Batch 6
+  complete.**
 
 **Batch 7 — reading the map.** Three complaints about the finished picture rather than the tools
 that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.

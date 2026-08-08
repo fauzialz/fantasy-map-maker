@@ -28,6 +28,7 @@ const request = (overrides: Partial<GenerateRequest> = {}): GenerateRequest => (
   worldType: "single",
   seaLevel: null,
   mountainDensity: 0.5,
+  rotation: 5,
   forestDensity: 0.5,
   coastDetail: 0.5,
   ...overrides,

@@ -3,9 +3,9 @@ import type { GeneratorMeta, WorldType } from "../../scene/types";
 /**
  * The world code — `11-editor-shell.md` §5.3.
  *
- * Generation is deterministic from a seed, but the seed is only four of the nine inputs
- * `generateWorld` reads, and three of the rest (`seaLevel`, `mountainDensity`,
- * `forestDensity`) are session-only editor state deliberately outside the scene schema.
+ * Generation is deterministic from a seed, but the seed is only four of the ten inputs
+ * `generateWorld` reads, and four of the rest (`seaLevel`, `mountainDensity`,
+ * `forestDensity`, `rotation`) are session-only editor state outside the scene schema.
  * A bare copyable seed would therefore reproduce nothing whenever another knob differed,
  * and would look broken rather than under-specified. So the shareable unit is every input
  * that decides the world, in one string.
@@ -24,18 +24,28 @@ export interface WorldInputs extends GeneratorMeta {
   seaLevel: number | null;
   mountainDensity: number;
   forestDensity: number;
+  /** rotation spread in degrees for scattered sprites — WP-27 settled `12` D4 */
+  rotation: number;
 }
 
-const VERSION = "w1";
+/**
+ * **`w2` since WP-27.** `12` D4 gave the generator its own rotation spread rather than a
+ * read of the scatter brush's knob, and a world code has to carry *every* input that decides
+ * a world or it silently under-specifies one — the whole reason a bare seed was not enough.
+ * So the field count changed, and the version with it: a `w1` code is now rejected by the
+ * same loud path as a garbage string, which is what the tag is for.
+ */
+const VERSION = "w2";
 const WORLD_TYPES: WorldType[] = ["single", "archipelago", "multiple"];
 const AUTO = "auto";
 
 /**
- * `w1-483920104-0.40-0.60-single-auto-0.50-0.50`
- *      seed      land  rough  type   sea  mtn  forest
+ * `w2-483920104-0.40-0.60-single-auto-0.50-0.50-5`
+ *      seed      land  rough  type   sea  mtn  forest rot
  *
- * Fixed order and dash-joined behind a version tag. Two decimals everywhere, so a slider
- * value carrying float drift (0.30000000000000004) round-trips to the step it was on.
+ * Fixed order and dash-joined behind a version tag. Two decimals on the fractions, so a
+ * slider value carrying float drift (0.30000000000000004) round-trips to the step it was
+ * on; rotation is whole degrees, because that is what its slider steps in.
  */
 export const formatWorldCode = (w: WorldInputs): string =>
   [
@@ -47,6 +57,7 @@ export const formatWorldCode = (w: WorldInputs): string =>
     w.seaLevel === null ? AUTO : w.seaLevel.toFixed(2),
     w.mountainDensity.toFixed(2),
     w.forestDensity.toFixed(2),
+    Math.round(w.rotation),
   ].join("-");
 
 /** In range and finite, or nothing. The bounds are the dialog's own slider bounds — a value
@@ -70,8 +81,8 @@ const num = (text: string, min: number, max: number): number | null => {
  */
 export function parseWorldCode(code: string): WorldInputs | null {
   const parts = code.trim().toLowerCase().split("-");
-  if (parts.length !== 8 || parts[0] !== VERSION) return null;
-  const [, seedText, land, rough, type, sea, mountain, forest] = parts;
+  if (parts.length !== 9 || parts[0] !== VERSION) return null;
+  const [, seedText, land, rough, type, sea, mountain, forest, spin] = parts;
 
   const seed = num(seedText, 0, Number.MAX_SAFE_INTEGER);
   const landAmount = num(land, 0.1, 0.9);
@@ -79,11 +90,13 @@ export function parseWorldCode(code: string): WorldInputs | null {
   const seaLevel = sea === AUTO ? null : num(sea, 0.05, 0.95);
   const mountainDensity = num(mountain, 0, 1);
   const forestDensity = num(forest, 0, 1);
+  const rotation = num(spin, 0, 45);
 
   if (seed === null || !Number.isInteger(seed)) return null;
   if (landAmount === null || roughness === null) return null;
   if (sea !== AUTO && seaLevel === null) return null;
   if (mountainDensity === null || forestDensity === null) return null;
+  if (rotation === null) return null;
   if (!WORLD_TYPES.includes(type as WorldType)) return null;
 
   return {
@@ -94,5 +107,6 @@ export function parseWorldCode(code: string): WorldInputs | null {
     seaLevel,
     mountainDensity,
     forestDensity,
+    rotation,
   };
 }

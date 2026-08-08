@@ -84,6 +84,17 @@ interface EditorState {
    * disappears, while sliding back changes only a position.
    */
   overlapPolicy: OverlapPolicy;
+  /**
+   * How far the scatter brush turns each sprite, as a **spread in degrees** rather than an
+   * angle: 0 leaves everything upright, 15 means ±15°. Was a hardcoded `jitter(5)` in
+   * `anchorAt` (WP-27); the default is now **0**, which is what "no rotation" should mean
+   * and what a stylised map usually wants.
+   *
+   * Deliberately *not* shared with the generator's own spread (`12` D4). They are two
+   * different questions: this one is about the map you are drawing by hand, and
+   * `generatorRotation` is part of a world recipe a world code has to reproduce exactly.
+   */
+  scatterRotation: number;
   /** font size for the next label, in map units */
   labelSize: number;
   /** width of the next river at its mouth, in map units */
@@ -100,6 +111,13 @@ interface EditorState {
   seaLevel: number | null;
   mountainDensity: number;
   forestDensity: number;
+  /**
+   * The generator's own rotation spread, in degrees (`12` D4). Its own field rather than a
+   * read of `scatterRotation`: the world code is a reproducibility contract, so every input
+   * that decides a world has to travel *in the code* — a generated world must not change
+   * because a brush slider moved an hour ago.
+   */
+  generatorRotation: number;
   /** undo stack, oldest first; the last entry is what `undo()` reverses */
   past: Step[];
   /** steps undone and still redoable, cleared by the next edit */
@@ -111,6 +129,7 @@ interface EditorState {
   setIconKind: (kind: string) => void;
   setTerrainBiome: (biome: Biome) => void;
   setOverlapPolicy: (policy: OverlapPolicy) => void;
+  setScatterRotation: (degrees: number) => void;
   setLabelSize: (size: number) => void;
   setRiverWidth: (width: number) => void;
   setRiverTaper: (taper: boolean) => void;
@@ -141,6 +160,7 @@ interface EditorState {
     seaLevel?: number | null;
     mountainDensity?: number;
     forestDensity?: number;
+    generatorRotation?: number;
   }) => void;
   /**
    * 10h — the generated world replaces the canvas as **one** undoable command, carrying the
@@ -184,11 +204,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   iconKind: ICON_KINDS[0],
   terrainBiome: "grassland",
   overlapPolicy: "apart",
+  scatterRotation: 0,
   labelSize: 96,
   riverWidth: 26,
   riverTaper: true,
   selection: [],
   seaLevel: null,
+  generatorRotation: 5,
   mountainDensity: 0.5,
   forestDensity: 0.5,
   past: [],
@@ -216,6 +238,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setIconKind: (iconKind) => set({ iconKind }),
   setTerrainBiome: (terrainBiome) => set({ terrainBiome }),
   setOverlapPolicy: (overlapPolicy) => set({ overlapPolicy }),
+  setScatterRotation: (scatterRotation) => set({ scatterRotation }),
   setLabelSize: (labelSize) => set({ labelSize }),
   setRiverWidth: (riverWidth) => set({ riverWidth }),
   setRiverTaper: (riverTaper) => set({ riverTaper }),
