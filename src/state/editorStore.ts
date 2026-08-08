@@ -29,13 +29,22 @@ export const LAYER_OBJECT: Partial<Record<LayerId, "mountain" | "tree" | "landma
  * Which tools each layer offers. Scattering suits the types that come in ranges and
  * forests — nobody wants a hundred jittered castles, and a scattered label is nonsense.
  * Rivers are absent because they are drawn point-by-point by their own tool, not brushed.
+ *
+ * **`select` is not in here (WP-25).** ADR-28 made Select a global mode in the toolbar,
+ * acting on every visible, unlocked layer; the per-layer copies survived that change and
+ * the rail went on rendering a second chip for it — a control that looks layer-scoped for
+ * a mode that is not, which is exactly the model ADR-28 removed.
+ *
+ * **`erase` is still here, and leaves with WP-26.** Not caution: until the global object
+ * eraser exists, this chip is the only way to erase an object at all, so removing it first
+ * would ship a release with no object eraser.
  */
 export const LAYER_TOOLS: Partial<Record<LayerId, ObjectTool[]>> = {
-  mountains: ["select", "scatter", "place", "erase"],
-  forests: ["select", "scatter", "place", "erase"],
-  icons: ["select", "place", "erase"],
-  labels: ["select", "place"],
-  rivers: ["select", "place"],
+  mountains: ["scatter", "place", "erase"],
+  forests: ["scatter", "place", "erase"],
+  icons: ["place", "erase"],
+  labels: ["place"],
+  rivers: ["place"],
 };
 
 /**

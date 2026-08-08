@@ -311,7 +311,7 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
   `aria-valuenow` off the root and got nothing. One line in `ui/controls.tsx` — the label now goes
   on the thumb, and the root keeps its inert copy because it is the handle every driver so far
   selects on.
-- [ ] **WP-25 · One Select, everywhere** — ADR-28 made Select global and the per-layer copies
+- [x] **WP-25 · One Select, everywhere** — ADR-28 made Select global and the per-layer copies
   were never removed, so `LAYER_TOOLS` still lists `"select"` on all five object layers and the
   rail renders a second chip (a third name on rivers, `Edit`). Drop `"select"` and **nothing
   else** — `"erase"` stays until WP-26, because the rail's chip is currently the only object
@@ -321,6 +321,27 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
   CSS tokens per theme while the outline is a hardcoded `#22685B`, so the background moves and
   the outline does not. Fix is a two-tone halo-plus-core stroke rather than a better single
   colour, so no colour has to work on grassland *and* snow *and* dark-mode desert.
+  **Measured, and the design named the wrong background.** The complaint was contrast against the
+  biome fills — but `#22685B` clears **3.4:1 to 5.8:1** against grassland, snow, desert and forest
+  in *both* themes, so the fills were never the problem. The highlight traces the **coastline**,
+  so it lands on `--map-coast`, and dark teal on dark brown measures **1.83:1 light / 2.20:1
+  dark**. The halo is what pays for that (10.4:1 / 9.3:1) while the core is what still reads over
+  a pale fill, where the halo itself is 1.02:1 against snow. Between the two, one always wins —
+  which is the design's actual claim, now with the numbers attached to the right surface.
+  **The rail table is exact, not just Select-free**: rivers offers `Draw` alone, labels `Place
+  one`, icons and the scatter layers keep Erase for WP-26.
+  **30 driven checks and two mutations.** Putting `"select"` back fails the chip check; deleting
+  the halo fails the width check at 3–4 px against 7. **The second mutation improved a check**:
+  "the accent is in the middle and the halo at the edge" *passed* with the halo deleted, because
+  a lone accent stroke also has its purest colour at the centre — it asserted the core and
+  nothing about the halo. It now asserts the edge is nearer the halo tone than the accent, and
+  fails as it should.
+  **And the river check had to aim at the stored point, not the clicked one.** `riverCentreline`
+  is `chaikin(points, 2, false)`, which pins only the ends, so an interior control point sits
+  well off the ribbon it produced — pressing at the coordinate that created it hits open water at
+  a river's ~6 screen px width. Select by an endpoint, reshape by the middle: the real order
+  anyway, since control points are only drawn once the river is chosen. The point then moves
+  **603 map units against an expected 609**.
 - [ ] **WP-26 · Erase is its own tool; the sea brush is terrain geometry** (**ADR-37**) — the
   contextual eraser splits. Sea brush unchanged; **Erase becomes a global object eraser**, peer
   of Select, removing every object the disc overlaps on every visible, unlocked layer, and **a

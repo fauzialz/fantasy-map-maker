@@ -25,7 +25,9 @@ const TOOL_LABEL: Record<ObjectTool, string> = {
   place: "Place one",
   erase: "Erase",
 };
-const RIVER_TOOL_LABEL: Partial<Record<ObjectTool, string>> = { select: "Edit", place: "Draw" };
+// `select: "Edit"` left with WP-25. It was a third name for the global mode, and reshaping a
+// river is Select's job now — dragging a control point outranks the frame's handles (WP-20).
+const RIVER_TOOL_LABEL: Partial<Record<ObjectTool, string>> = { place: "Draw" };
 
 /**
  * The contextual left rail — options for whatever tool is in hand, and nothing else. It is
