@@ -239,7 +239,7 @@ deleting them a package later. **WP-23** (`11` §5) goes first because WP-30's `
 mounts the same generate form; **WP-32** (`11` §3–§4) lands after Batch 8. Build order for the two
 batches is therefore **WP-23 → WP-30 → WP-31 → WP-32**.
 
-- [ ] **WP-23 · The generate dialog and the world code** (`11` §5) — ADR-21's generate confirm
+- [x] **WP-23 · The generate dialog and the world code** (`11` §5) — ADR-21's generate confirm
   **folds into the generate dialog** (warning line plus a primary button reading "Replace map" on a
   non-empty scene, "Generate world" on an empty one), so a modal on top of a modal goes away.
   **The switch gets visible contrast**: `switchRoot` fills its off state with `bg-sink`, a hair from
@@ -256,6 +256,35 @@ batches is therefore **WP-23 → WP-30 → WP-31 → WP-32**.
   Acceptance: a `worldCode` round-trip plus rejection of a garbage string and a `w2-` string; an
   **off** switch measured at **≥ 3:1** against the panel in both themes, not eyeballed; the
   sea-level slider still enabling only when its toggle is on.
+  **Measured, and the number is worse than the design assumed.** `--muted` gives the off track
+  **5.28:1** light and **6.26:1** dark against `--panel`; the thumb clears both track states —
+  5.28 / 6.26 off, **6.38 / 6.58** on. But `bg-sink` measured **1.16:1 and 1.06:1**, which is not
+  low contrast, it is *no* contrast: 1.06 is at the threshold of what an eye can separate at all.
+  §5.2 read as a polish item and was a control nobody could see. Taken two ways that agree — the
+  computed style, and the **pixel actually painted** (a 1×1 `Page.captureScreenshot` clip), so an
+  overdrawn or translucent fill could not hide behind a resolved token.
+  **The border forced a second change**: with `border` on the track the thumb sat off-centre in
+  the remaining 16 px, so `switchRoot` gained `flex items-center` — a block child was riding the
+  top of the box and had only looked right while the box had no border.
+  **The generator left the rail entirely** (−95 lines there), so `Generate` exists once rather
+  than twice; WP-32 takes the rest of `MapPanel`. `GenerateForm` and `GenerateDialog` are separate
+  exports, which is the seam WP-30 mounts.
+  **The code applies as you type, the moment it parses** — not behind an Apply button. A paste
+  lands on the controls with nothing else to press, a half-typed code simply has not parsed yet,
+  and the complaint waits for blur or Enter. A rejected code snaps the field back to the live one,
+  so "changes nothing" is *visible* rather than promised.
+  **Layout finding: the code has to sit outside the scrolling parameters.** With the whole form in
+  one scroll box, the hint carrying §5.3's "canvas size is not in the code" promise scrolled out
+  of view exactly when the Advanced drawer was open — the one case where the promise is worth
+  reading. Only the parameters scroll now, and nothing scrolls at all at 900 px.
+  **40 driven checks, three of them built to discriminate**: the old `bg-sink` fill fails the same
+  measurement · a rejection check counts toasts as well as matching text, because they stack for
+  8 s and the previous one satisfies a text match on its own · one field changed in the code gives
+  a different world. **And one probe was wrong in a way worth recording**: the scene fingerprint
+  first hashed the terrain objects whole, which can never match — `applyGenerated` mints a fresh
+  uuid per object, so two runs of the same world differ in every id. A comparison that can never
+  pass is as useless as one that can never fail, and it looks like a real defect while it lasts.
+  Hash the geometry, not the identity.
 - [ ] **WP-32 · The menu bar, and a rail that holds one idea** (`11` §3–§4) — Map · Edit · View ·
   Help, in their own row above today's tool row; the right rail drops to **Layers + Appearance**;
   the bottom autosave strip is absorbed into the menu bar so two rows cost no height. New

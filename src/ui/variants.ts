@@ -89,10 +89,22 @@ export const sliderThumb = tv({
     "mbf:focus-visible:outline-accent mbf:focus-visible:outline-2 mbf:focus-visible:outline-offset-1",
 });
 
+/**
+ * The off state used to be `bg-sink` with no border, and `--sink` sits a hair from `--panel`
+ * in both themes (`#E7ECE5` on `#FBFCFA` light, `#131A19` on `#18201F` dark) — so an off
+ * switch was very nearly invisible against the panel it sits on, and any control it gated
+ * read as permanently dead with nothing visible explaining why (`11-editor-shell.md` §5.2).
+ *
+ * `--muted` clears the WCAG 2.2 non-text minimum of 3:1 against `--panel` in both themes
+ * (5.4:1 light, 6.3:1 dark), and the `bg-panel` thumb clears it against *both* track states
+ * at once. `Toggle` is the only switch in the app, so this one variant repairs parchment,
+ * coastal rings, river taper and sea level together.
+ */
 export const switchRoot = tv({
   base:
-    "mbf:bg-sink mbf:data-[state=checked]:bg-accent mbf:relative mbf:h-4.5 mbf:w-8 mbf:shrink-0 mbf:cursor-pointer " +
-    "mbf:rounded-full mbf:transition-colors mbf:focus-visible:outline-accent mbf:focus-visible:outline-2 " +
+    "mbf:bg-muted mbf:data-[state=checked]:bg-accent mbf:border-line-strong mbf:data-[state=checked]:border-accent " +
+    "mbf:relative mbf:flex mbf:h-4.5 mbf:w-8 mbf:shrink-0 mbf:cursor-pointer mbf:items-center mbf:rounded-full " +
+    "mbf:border mbf:transition-colors mbf:focus-visible:outline-accent mbf:focus-visible:outline-2 " +
     "mbf:disabled:pointer-events-none mbf:disabled:opacity-40",
 });
 export const switchThumb = tv({
