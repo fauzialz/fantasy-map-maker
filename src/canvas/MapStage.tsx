@@ -6,6 +6,7 @@ import { LAYER_ORDER, type Label, type LayerId, type Point } from "../scene/type
 import { LabelEditor } from "../ui/LabelEditor";
 import { statusBar } from "../ui/variants";
 import { BackgroundLayer } from "./BackgroundLayer";
+import { BrushRing, type BrushTone } from "./BrushRing";
 import { RingsLayer } from "./RingsLayer";
 import { RiverOverlay } from "./RiverOverlay";
 import { VignetteLayer } from "./VignetteLayer";
@@ -179,14 +180,21 @@ export function MapStage({ editing }: { editing?: Label }) {
    * so the layer's own creation tool has to stand down while it is on.
    */
   const selecting = objectTool === "select";
+  /**
+   * WP-26 — Erase is the second global mode (ADR-37), so it reads like `selecting`: it is
+   * live on every layer, the layer's own creation tool stands down while it is on, and the
+   * **active layer's lock does not gate it** — `eraseAt` skips locked and hidden layers
+   * itself, which is the same arrangement selection already uses.
+   */
+  const erasing = objectTool === "erase";
   const brush = useTerrainBrush({
-    enabled: activeLayerId === "terrain" && !selecting && live,
+    enabled: activeLayerId === "terrain" && !selecting && !erasing && live,
     map,
     toMapPoint,
   });
   const objects = useObjectBrush({
     activeLayerId,
-    enabled: onObjectLayer && !selecting && live,
+    enabled: erasing ? ready : onObjectLayer && !selecting && live,
     toMapPoint,
     onPlaceLabel: openLabelDraft,
   });
@@ -309,6 +317,30 @@ export function MapStage({ editing }: { editing?: Label }) {
   const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
   /**
+   * WP-24 — which brush-shaped tool is in hand, if any (`12` §1).
+   *
+   * `place` and `select` are absent because neither has a radius: one makes a single object
+   * at a click, and the other's hit shape *is* the pointer, which I4 already governs through
+   * the cursor. A **locked** layer is absent for the same reason the cursor reads
+   * `not-allowed` there — a ring is a promise that a press will paint, and on a locked layer
+   * it would be a lie. Panning is absent because the press belongs to the pan, not the brush.
+   */
+  const brushTone: BrushTone | null =
+    !cursor || selecting || panning || spaceHeld
+      ? null
+      : erasing
+        ? "erase" // global since WP-26, so it shows on terrain and rivers too, lock or not
+        : !unlocked
+          ? null
+          : activeLayerId === "terrain"
+            ? terrainTool === "sea"
+              ? "sea"
+              : "paint"
+            : objectTool === "scatter"
+              ? "paint"
+              : null;
+
+  /**
    * Panning and the space-drag override everything; otherwise whichever tool owns the layer
    * supplies its own handle-aware cursor, and a painting tool falls back to a crosshair.
    * Same precedence as `onMouseDown`, so the pointer promises what a press does (I4).
@@ -323,11 +355,13 @@ export function MapStage({ editing }: { editing?: Label }) {
     ? "grabbing"
     : spaceHeld
       ? "grab"
-      : !unlocked && !selecting
+      : !unlocked && !selecting && !erasing
         ? "not-allowed"
         : (selection.cursor ??
           river.cursor ??
-          (!selecting && (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId])
+          // The eraser is global, so it promises a crosshair on every layer — including
+          // rivers, which creates nothing through the object brush (I4).
+          (erasing || (!selecting && (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId]))
             ? "crosshair"
             : "default"));
 
@@ -450,6 +484,11 @@ export function MapStage({ editing }: { editing?: Label }) {
             )}
             {river.active && (
               <RiverOverlay preview={river.preview} points={river.points} scale={vp.scale} />
+            )}
+            {brushTone && cursor && (
+              // Radius, not diameter: the terrain preview strokes `brushSize` wide, and both
+              // the scatter spread and the eraser's disc are `brushSize / 2`.
+              <BrushRing at={cursor} radius={brushSize / 2} scale={vp.scale} tone={brushTone} />
             )}
           </Layer>
         </Stage>

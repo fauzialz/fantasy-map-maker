@@ -66,7 +66,15 @@ export function Slider({
         <RadixSlider.Track className={sliderTrack()}>
           <RadixSlider.Range className={sliderRange()} />
         </RadixSlider.Track>
-        <RadixSlider.Thumb className={sliderThumb()} />
+        {/*
+          The name has to be on the **thumb**. Radix puts `role="slider"` and `aria-valuenow`
+          there, while `Root` is a plain span — so an `aria-label` on the root alone is inert,
+          and a screen reader announced every slider in this app as an unnamed "slider, 260".
+          Found by WP-24's driver, which read `aria-valuenow` off the root and got nothing.
+          The root keeps its copy: it is inert for assistive tech but it is the handle every
+          driver written so far selects on.
+        */}
+        <RadixSlider.Thumb className={sliderThumb()} aria-label={label} />
       </RadixSlider.Root>
       {hint && <p className="mbf:text-muted mbf:text-[11px] mbf:leading-snug">{hint}</p>}
     </div>

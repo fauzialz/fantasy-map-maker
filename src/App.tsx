@@ -64,6 +64,7 @@ export default function App() {
         seaLevel: state.seaLevel,
         mountainDensity: state.mountainDensity,
         forestDensity: state.forestDensity,
+        rotation: state.generatorRotation,
         coastDetail: state.scene.settings.coastDetail,
       });
       useEditorStore.getState().applyGenerated(result);

@@ -306,13 +306,41 @@ description of it have drifted apart. Design in `12-tools-that-say-what-they-do.
 covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both edit
 `LAYER_TOOLS` and the smaller change should land first.
 
-- [ ] **WP-24 · The brush ring follows the cursor** — a ring at the hover point for every
+- [x] **WP-24 · The brush ring follows the cursor** — a ring at the hover point for every
   brush-shaped tool (terrain, sea, scatter, erase) and none for place or select. Today nothing
   shows until a drag is under way, so the only way to learn what `brush size 240` means at this
   zoom is to make an edit and undo it. **Reuses the hover point `MapStage` already tracks** for
   the x/y readout — this adds a circle, not a mechanism. Map-space radius, screen-constant
   stroke (I8). Acceptance: driven pointer movement **without pressing**.
-- [ ] **WP-25 · One Select, everywhere** — ADR-28 made Select global and the per-layer copies
+  **A locked layer was added to the "no ring" list.** The design named place and select; lock is
+  the same rule for the same reason — I4 says the pointer promises what a press will do, the
+  cursor already reads `not-allowed` there, and a ring would be the one thing on screen still
+  claiming the press will paint. Panning and the space-drag are out for the same reason.
+  **The weights are set against the art, not picked from a scale.** At the first pass (3 px halo,
+  1.25 px core) the ring was *thinner than the outlines the sprites are drawn with*: over a dense
+  mountain field the paint ring read as one more contour line and the dashed eraser ring
+  disappeared outright — reinstating the very defect the package removes. 5 px and 2 px. The
+  tones stay the palette's brightest and darkest (`peakLit` over `ink`), so the ring never has to
+  know what is under it and both follow the theme.
+  **17 driven checks, and the pixels are the evidence** — the ring is a Konva shape with no DOM
+  node, so every assertion reads `getImageData` on the tool-chrome canvas, which holds nothing
+  else at rest. The diameter is checked *absolutely* (60.0 px drawn against 260 map units ×
+  0.23 scale), not just "it changed".
+  **Three mutations, and the second one is the lesson.** Radius `brushSize` instead of
+  `brushSize / 2` fails two checks; deleting the dash fails the removal check at 100% ink against
+  58%. But **deleting `/ scale` from the stroke — the I8 violation — passed a full green run**:
+  the driver compared fit zoom against 50%, where a 3-unit map-space stroke draws 1.5 px and a
+  screen-space one draws 3 px, and antialiasing spans that gap. `07` §1's overshoot rule, hit for
+  the third time in this repo. At **400%** the same mutation draws a 12 px band and fails
+  decisively — so the driver now **asserts the zoom it reached** before trusting the comparison,
+  because a measurement taken where two implementations agree is true of both and means nothing.
+  **Rides along: every slider in the app was unnamed to a screen reader.** `aria-label` sat on
+  Radix's `Slider.Root`, which is a plain span with no role, while the `role="slider"` thumb that
+  carries `aria-valuenow` had no accessible name at all. Found because the driver read
+  `aria-valuenow` off the root and got nothing. One line in `ui/controls.tsx` — the label now goes
+  on the thumb, and the root keeps its inert copy because it is the handle every driver so far
+  selects on.
+- [x] **WP-25 · One Select, everywhere** — ADR-28 made Select global and the per-layer copies
   were never removed, so `LAYER_TOOLS` still lists `"select"` on all five object layers and the
   rail renders a second chip (a third name on rivers, `Edit`). Drop `"select"` and **nothing
   else** — `"erase"` stays until WP-26, because the rail's chip is currently the only object
@@ -322,7 +350,28 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
   CSS tokens per theme while the outline is a hardcoded `#22685B`, so the background moves and
   the outline does not. Fix is a two-tone halo-plus-core stroke rather than a better single
   colour, so no colour has to work on grassland *and* snow *and* dark-mode desert.
-- [ ] **WP-26 · Erase is its own tool; the sea brush is terrain geometry** (**ADR-37**) — the
+  **Measured, and the design named the wrong background.** The complaint was contrast against the
+  biome fills — but `#22685B` clears **3.4:1 to 5.8:1** against grassland, snow, desert and forest
+  in *both* themes, so the fills were never the problem. The highlight traces the **coastline**,
+  so it lands on `--map-coast`, and dark teal on dark brown measures **1.83:1 light / 2.20:1
+  dark**. The halo is what pays for that (10.4:1 / 9.3:1) while the core is what still reads over
+  a pale fill, where the halo itself is 1.02:1 against snow. Between the two, one always wins —
+  which is the design's actual claim, now with the numbers attached to the right surface.
+  **The rail table is exact, not just Select-free**: rivers offers `Draw` alone, labels `Place
+  one`, icons and the scatter layers keep Erase for WP-26.
+  **30 driven checks and two mutations.** Putting `"select"` back fails the chip check; deleting
+  the halo fails the width check at 3–4 px against 7. **The second mutation improved a check**:
+  "the accent is in the middle and the halo at the edge" *passed* with the halo deleted, because
+  a lone accent stroke also has its purest colour at the centre — it asserted the core and
+  nothing about the halo. It now asserts the edge is nearer the halo tone than the accent, and
+  fails as it should.
+  **And the river check had to aim at the stored point, not the clicked one.** `riverCentreline`
+  is `chaikin(points, 2, false)`, which pins only the ends, so an interior control point sits
+  well off the ribbon it produced — pressing at the coordinate that created it hits open water at
+  a river's ~6 screen px width. Select by an endpoint, reshape by the middle: the real order
+  anyway, since control points are only drawn once the river is chosen. The point then moves
+  **603 map units against an expected 609**.
+- [x] **WP-26 · Erase is its own tool; the sea brush is terrain geometry** (**ADR-37**) — the
   contextual eraser splits. Sea brush unchanged; **Erase becomes a global object eraser**, peer
   of Select, removing every object the disc overlaps on every visible, unlocked layer, and **a
   landmass it touches dies whole** (partial removal *is* the sea brush). Fixes a real gap:
@@ -334,13 +383,60 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
   *hidden* protects **every** layer, not only terrain — ADR-28's rule with no exception, so a
   stroke can sweep the map and take only what you left showing. Acceptance needs a driven drag across a landmass, a
   locked layer that survives it, and **a mutation proving the lock check discriminates**.
-- [ ] **WP-27 · Scatter rotation is a knob, not a constant** — `anchorAt` hardcodes
+  **The split needed a third button, which the design did not say.** "Sea brush stays where it is
+  and keeps its name" was written when it *was* the Erase button on terrain; once Erase stopped
+  being contextual, one button could not be both. Sea brush is now its own `data-tool="sea"` in
+  the mode group, rendered only on terrain — where there is geometry to edit — and Erase is
+  always present and never disabled.
+  **`GLOBAL_TOOLS` is the generalisation this package earned.** `setActiveLayer` and the toolbar's
+  `leaveSelect` both special-cased `"select"` by name; erase is the second member, so the rule is
+  now a list rather than a comparison, and `leaveSelect` became `leaveGlobalMode`. The active
+  layer's **lock no longer gates the eraser** either — `eraseAt` skips locked and hidden layers
+  itself, which is exactly the arrangement selection already used.
+  **Two follow-ons the design did not name, both found by building it.** The rail's brush-size
+  slider was gated on *object* layers, so it vanished on **rivers** — the one layer that is not an
+  object layer and where the eraser now works, leaving its only control unreachable. And WP-24's
+  brush ring had to follow the tool: the erase ring shows on terrain and rivers now, and a locked
+  active layer no longer suppresses it, since the lock stopped meaning anything to this tool.
+  **A green unit test was encoding the defect.** `objectHit.test.ts` asserted *"ignores path-based
+  objects, which have no footprint"* — the exact behaviour ADR-37 reverses. "No footprint" is
+  still true and is why the branches are needed; it just stopped meaning "not erasable". Replaced
+  with four fixtures: on the land, reaching from offshore and failing to, a **lake shore counting
+  as coastline** (even-odd puts the lake outside the land, so only the reach finds it), and a
+  river taken whole.
+  **17 driven checks, 8 unit fixtures, 2 mutations.** Dropping the `visible || locked` guard fails
+  **both** the locked and the hidden checks — D3 proved, not asserted. Dropping the landmass
+  branch fails 3 unit fixtures and 3 driven checks. The sea brush is checked in the same run
+  precisely because this is the package where it would break: a stroke through the middle still
+  cuts one landmass into two.
+- [x] **WP-27 · Scatter rotation is a knob, not a constant** — `anchorAt` hardcodes
   `jitter(5)`; replace it with session state, surfaced as a slider, **defaulting to 0** so every
   sprite is upright until asked otherwise. The value is jitter *spread*, not an angle.
-  **Settle `12` D4 first**: either the generator's scatter reads the same knob — and the world code
-  grows a field — or it keeps its own constant and the comment claiming it is the "same jittered
-  look the scatter brush gives by hand" gets rewritten. Acceptance reads the **scene**, not the
-  render.
+  **`12` D4 settled — the generator gets its own field, shared with nothing.** Not the rail's knob
+  and not a hidden constant: an explicit slider in the generate dialog's Advanced drawer, and an
+  eighth value in the world code. The reasoning is what a world code is *for* — it exists because a
+  bare seed silently under-specifies a world, so a generator reading a live rail slider would mean
+  the same code rebuilt a different world depending on a knob moved an hour ago. The two questions
+  genuinely differ: the rail's is about the map you are drawing, this one is part of a recipe.
+  **So the code is `w2-` now**, and a `w1-` string is rejected by the same loud path as a garbage
+  one. A changed field count is exactly what the version tag was for; nothing had shipped, so no
+  migration is owed. The generator keeps **5°** as its default, so generated worlds look unchanged,
+  while the brush defaults to 0.
+  **`scatter.ts`'s comment had to be rewritten either way** — it claimed the "same jittered look the
+  scatter brush gives by hand", which stopped being true the moment the brush got a default of its
+  own. That was true under *both* answers to D4, which is why the doc called it out.
+  **15 driven checks reading the record, plus 17 world-code fixtures.** The decisive one is the
+  decoupling: with the rail slider at **20**, a world generated from a code ending `-0` comes back
+  with **max |rotation| 0 across 222 mountains and 793 trees** — the rail cannot leak in. Then the
+  same world at `-40` exceeds anything ±20 could produce.
+  **Two mutations, one per half of D4.** Restoring `jitter(5)` to `anchorAt` fails the upright
+  check. Pointing the generator at `scatterRotation` — the option D4 rejected — fails the
+  decoupling check at 19.98° where 0 was required, and caps the ±40 world at 20.
+  **And a driver bug worth recording**: the generate dialog remounts on every open, so its
+  `Collapsible` resets closed. Two checks were reading a rotation slider that was not in the DOM
+  and comparing `NaN` to `NaN`, which passes. Opening Advanced is now part of opening the dialog,
+  and the "changes nothing" check asserts its baseline is a real number first. **Batch 6
+  complete.**
 
 **Batch 7 — reading the map.** Three complaints about the finished picture rather than the tools
 that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.

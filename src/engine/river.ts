@@ -49,8 +49,13 @@ export function riverRibbon(river: River): Point[] {
   return [...left, ...right.reverse()];
 }
 
-/** Distance from a point to the segment ab. */
-function distanceToSegment([px, py]: Point, [ax, ay]: Point, [bx, by]: Point): number {
+/**
+ * Distance from a point to the segment ab.
+ *
+ * Exported since WP-26: the global eraser needs the same question asked of a *coastline
+ * ring*, and a second copy of this would be a second place for it to be wrong.
+ */
+export function distanceToSegment([px, py]: Point, [ax, ay]: Point, [bx, by]: Point): number {
   const dx = bx - ax;
   const dy = by - ay;
   const lengthSquared = dx * dx + dy * dy;

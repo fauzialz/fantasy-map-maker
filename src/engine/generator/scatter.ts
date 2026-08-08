@@ -68,13 +68,22 @@ export function scatterPoints({
 
 const jitter = (rng: () => number, spread: number) => (rng() - 0.5) * 2 * spread;
 
-/** Same jittered look the scatter brush gives by hand (WP-6), from a seeded rng. */
-function placed(rng: () => number, [x, y]: Point) {
+/**
+ * A scattered anchor, from a seeded rng.
+ *
+ * **`rotation` is an input, not a constant (WP-27, `12` D4).** This used to say it gave the
+ * "same jittered look the scatter brush gives by hand" and take a hardcoded 5 — which stopped
+ * being true the moment the brush's spread became a knob defaulting to 0. The two are
+ * deliberately separate now: the brush's spread belongs to the map you are drawing, and this
+ * one belongs to the world *recipe*, so it travels in the world code and a generated world
+ * cannot change because a rail slider moved.
+ */
+function placed(rng: () => number, [x, y]: Point, rotation: number) {
   return {
     id: crypto.randomUUID(),
     x,
     y,
-    rotation: jitter(rng, 5),
+    rotation: jitter(rng, rotation),
     scale: 1 + jitter(rng, 0.28),
     z: 0,
   };
@@ -87,6 +96,8 @@ export interface ScatterFields {
   seaLevel: number;
   /** what counts as the top of this world — the elevation field's near-maximum */
   peak: number;
+  /** rotation spread in degrees, ±, applied to every scattered sprite */
+  rotation: number;
   rng: () => number;
 }
 
@@ -116,7 +127,7 @@ const darts = (
 
 /** 10e — mountains ride the ridges: the top of what is above sea level, and only on land. */
 export function scatterMountains(
-  { fields, canvas, landmasses, seaLevel, peak, rng }: ScatterFields,
+  { fields, canvas, landmasses, seaLevel, peak, rotation, rng }: ScatterFields,
   density: number,
 ): Mountain[] {
   const ridge = ridgeLevel(seaLevel, peak);
@@ -131,7 +142,7 @@ export function scatterMountains(
   });
 
   return points.map((point) => ({
-    ...placed(rng, point),
+    ...placed(rng, point, rotation),
     type: "mountain" as const,
     variant: Math.floor(rng() * variantCount("mountain")),
   }));
@@ -147,7 +158,7 @@ export function scatterMountains(
  * generated worlds start reading under-forested.
  */
 export function scatterForests(
-  { fields, canvas, landmasses, seaLevel, peak, rng }: ScatterFields,
+  { fields, canvas, landmasses, seaLevel, peak, rotation, rng }: ScatterFields,
   density: number,
 ): Tree[] {
   const limit = treeLine(seaLevel, peak);
@@ -168,7 +179,7 @@ export function scatterForests(
   });
 
   return points.map((point) => ({
-    ...placed(rng, point),
+    ...placed(rng, point, rotation),
     type: "tree" as const,
     variant: Math.floor(rng() * variantCount("tree")),
   }));

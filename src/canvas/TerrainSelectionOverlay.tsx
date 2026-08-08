@@ -1,6 +1,7 @@
 import { Shape } from "react-konva";
 import type { DrawContext } from "./draw";
 import type { Landmass, Ring } from "../scene/types";
+import { PALETTE } from "./palette";
 
 const ACCENT = "#22685B";
 
@@ -14,6 +15,14 @@ const ACCENT = "#22685B";
  *
  * Drawn at a screen-constant width like every other piece of selection chrome (I8), so it
  * neither vanishes at fit zoom nor swamps the coast up close.
+ *
+ * **Two-tone since WP-25 — halo under, accent core over.** A single stroke had to be legible
+ * against whatever it lands on, and what it lands on is not the biome fill: the highlight
+ * traces the *coastline*, so it sits directly over `PALETTE.coast`, and dark teal on dark
+ * brown measures **1.81:1**. The halo is what fixes that (10.9:1), and the core is what still
+ * says "selected" over a pale fill where the halo itself would disappear. Between them one
+ * always wins, which is why the question "what colour works on grassland *and* snow *and*
+ * dark-mode desert" no longer needs an answer — the same reason marching ants are two-tone.
  */
 export function TerrainSelectionOverlay({
   landmasses,
@@ -44,9 +53,13 @@ export function TerrainSelectionOverlay({
           // read as one outlined shape, hole included.
           for (const hole of landmass.holes) trace(ctx, hole);
         }
+        ctx.lineJoin = "round";
+        // One path, stroked twice — both screen-constant (I8).
+        ctx.strokeStyle = PALETTE.peakLit;
+        ctx.lineWidth = 6 / scale;
+        ctx.stroke();
         ctx.strokeStyle = ACCENT;
         ctx.lineWidth = 2.5 / scale;
-        ctx.lineJoin = "round";
         ctx.stroke();
         ctx.restore();
       }}
