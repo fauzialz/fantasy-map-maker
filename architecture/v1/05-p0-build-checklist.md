@@ -239,7 +239,7 @@ deleting them a package later. **WP-23** (`11` §5) goes first because WP-30's `
 mounts the same generate form; **WP-32** (`11` §3–§4) lands after Batch 8. Build order for the two
 batches is therefore **WP-23 → WP-30 → WP-31 → WP-32**.
 
-- [ ] **WP-23 · The generate dialog and the world code** (`11` §5) — ADR-21's generate confirm
+- [x] **WP-23 · The generate dialog and the world code** (`11` §5) — ADR-21's generate confirm
   **folds into the generate dialog** (warning line plus a primary button reading "Replace map" on a
   non-empty scene, "Generate world" on an empty one), so a modal on top of a modal goes away.
   **The switch gets visible contrast**: `switchRoot` fills its off state with `bg-sink`, a hair from
@@ -256,6 +256,35 @@ batches is therefore **WP-23 → WP-30 → WP-31 → WP-32**.
   Acceptance: a `worldCode` round-trip plus rejection of a garbage string and a `w2-` string; an
   **off** switch measured at **≥ 3:1** against the panel in both themes, not eyeballed; the
   sea-level slider still enabling only when its toggle is on.
+  **Measured, and the number is worse than the design assumed.** `--muted` gives the off track
+  **5.28:1** light and **6.26:1** dark against `--panel`; the thumb clears both track states —
+  5.28 / 6.26 off, **6.38 / 6.58** on. But `bg-sink` measured **1.16:1 and 1.06:1**, which is not
+  low contrast, it is *no* contrast: 1.06 is at the threshold of what an eye can separate at all.
+  §5.2 read as a polish item and was a control nobody could see. Taken two ways that agree — the
+  computed style, and the **pixel actually painted** (a 1×1 `Page.captureScreenshot` clip), so an
+  overdrawn or translucent fill could not hide behind a resolved token.
+  **The border forced a second change**: with `border` on the track the thumb sat off-centre in
+  the remaining 16 px, so `switchRoot` gained `flex items-center` — a block child was riding the
+  top of the box and had only looked right while the box had no border.
+  **The generator left the rail entirely** (−95 lines there), so `Generate` exists once rather
+  than twice; WP-32 takes the rest of `MapPanel`. `GenerateForm` and `GenerateDialog` are separate
+  exports, which is the seam WP-30 mounts.
+  **The code applies as you type, the moment it parses** — not behind an Apply button. A paste
+  lands on the controls with nothing else to press, a half-typed code simply has not parsed yet,
+  and the complaint waits for blur or Enter. A rejected code snaps the field back to the live one,
+  so "changes nothing" is *visible* rather than promised.
+  **Layout finding: the code has to sit outside the scrolling parameters.** With the whole form in
+  one scroll box, the hint carrying §5.3's "canvas size is not in the code" promise scrolled out
+  of view exactly when the Advanced drawer was open — the one case where the promise is worth
+  reading. Only the parameters scroll now, and nothing scrolls at all at 900 px.
+  **40 driven checks, three of them built to discriminate**: the old `bg-sink` fill fails the same
+  measurement · a rejection check counts toasts as well as matching text, because they stack for
+  8 s and the previous one satisfies a text match on its own · one field changed in the code gives
+  a different world. **And one probe was wrong in a way worth recording**: the scene fingerprint
+  first hashed the terrain objects whole, which can never match — `applyGenerated` mints a fresh
+  uuid per object, so two runs of the same world differ in every id. A comparison that can never
+  pass is as useless as one that can never fail, and it looks like a real defect while it lasts.
+  Hash the geometry, not the identity.
 - [ ] **WP-32 · The menu bar, and a rail that holds one idea** (`11` §3–§4) — Map · Edit · View ·
   Help, in their own row above today's tool row; the right rail drops to **Layers + Appearance**;
   the bottom autosave strip is absorbed into the menu bar so two rows cost no height. New
@@ -380,13 +409,34 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
   branch fails 3 unit fixtures and 3 driven checks. The sea brush is checked in the same run
   precisely because this is the package where it would break: a stroke through the middle still
   cuts one landmass into two.
-- [ ] **WP-27 · Scatter rotation is a knob, not a constant** — `anchorAt` hardcodes
+- [x] **WP-27 · Scatter rotation is a knob, not a constant** — `anchorAt` hardcodes
   `jitter(5)`; replace it with session state, surfaced as a slider, **defaulting to 0** so every
   sprite is upright until asked otherwise. The value is jitter *spread*, not an angle.
-  **Settle `12` D4 first**: either the generator's scatter reads the same knob — and the world code
-  grows a field — or it keeps its own constant and the comment claiming it is the "same jittered
-  look the scatter brush gives by hand" gets rewritten. Acceptance reads the **scene**, not the
-  render.
+  **`12` D4 settled — the generator gets its own field, shared with nothing.** Not the rail's knob
+  and not a hidden constant: an explicit slider in the generate dialog's Advanced drawer, and an
+  eighth value in the world code. The reasoning is what a world code is *for* — it exists because a
+  bare seed silently under-specifies a world, so a generator reading a live rail slider would mean
+  the same code rebuilt a different world depending on a knob moved an hour ago. The two questions
+  genuinely differ: the rail's is about the map you are drawing, this one is part of a recipe.
+  **So the code is `w2-` now**, and a `w1-` string is rejected by the same loud path as a garbage
+  one. A changed field count is exactly what the version tag was for; nothing had shipped, so no
+  migration is owed. The generator keeps **5°** as its default, so generated worlds look unchanged,
+  while the brush defaults to 0.
+  **`scatter.ts`'s comment had to be rewritten either way** — it claimed the "same jittered look the
+  scatter brush gives by hand", which stopped being true the moment the brush got a default of its
+  own. That was true under *both* answers to D4, which is why the doc called it out.
+  **15 driven checks reading the record, plus 17 world-code fixtures.** The decisive one is the
+  decoupling: with the rail slider at **20**, a world generated from a code ending `-0` comes back
+  with **max |rotation| 0 across 222 mountains and 793 trees** — the rail cannot leak in. Then the
+  same world at `-40` exceeds anything ±20 could produce.
+  **Two mutations, one per half of D4.** Restoring `jitter(5)` to `anchorAt` fails the upright
+  check. Pointing the generator at `scatterRotation` — the option D4 rejected — fails the
+  decoupling check at 19.98° where 0 was required, and caps the ±40 world at 20.
+  **And a driver bug worth recording**: the generate dialog remounts on every open, so its
+  `Collapsible` resets closed. Two checks were reading a rotation slider that was not in the DOM
+  and comparing `NaN` to `NaN`, which passes. Opening Advanced is now part of opening the dialog,
+  and the "changes nothing" check asserts its baseline is a real number first. **Batch 6
+  complete.**
 
 **Batch 7 — reading the map.** Three complaints about the finished picture rather than the tools
 that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
