@@ -277,12 +277,40 @@ description of it have drifted apart. Design in `12-tools-that-say-what-they-do.
 covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both edit
 `LAYER_TOOLS` and the smaller change should land first.
 
-- [ ] **WP-24 · The brush ring follows the cursor** — a ring at the hover point for every
+- [x] **WP-24 · The brush ring follows the cursor** — a ring at the hover point for every
   brush-shaped tool (terrain, sea, scatter, erase) and none for place or select. Today nothing
   shows until a drag is under way, so the only way to learn what `brush size 240` means at this
   zoom is to make an edit and undo it. **Reuses the hover point `MapStage` already tracks** for
   the x/y readout — this adds a circle, not a mechanism. Map-space radius, screen-constant
   stroke (I8). Acceptance: driven pointer movement **without pressing**.
+  **A locked layer was added to the "no ring" list.** The design named place and select; lock is
+  the same rule for the same reason — I4 says the pointer promises what a press will do, the
+  cursor already reads `not-allowed` there, and a ring would be the one thing on screen still
+  claiming the press will paint. Panning and the space-drag are out for the same reason.
+  **The weights are set against the art, not picked from a scale.** At the first pass (3 px halo,
+  1.25 px core) the ring was *thinner than the outlines the sprites are drawn with*: over a dense
+  mountain field the paint ring read as one more contour line and the dashed eraser ring
+  disappeared outright — reinstating the very defect the package removes. 5 px and 2 px. The
+  tones stay the palette's brightest and darkest (`peakLit` over `ink`), so the ring never has to
+  know what is under it and both follow the theme.
+  **17 driven checks, and the pixels are the evidence** — the ring is a Konva shape with no DOM
+  node, so every assertion reads `getImageData` on the tool-chrome canvas, which holds nothing
+  else at rest. The diameter is checked *absolutely* (60.0 px drawn against 260 map units ×
+  0.23 scale), not just "it changed".
+  **Three mutations, and the second one is the lesson.** Radius `brushSize` instead of
+  `brushSize / 2` fails two checks; deleting the dash fails the removal check at 100% ink against
+  58%. But **deleting `/ scale` from the stroke — the I8 violation — passed a full green run**:
+  the driver compared fit zoom against 50%, where a 3-unit map-space stroke draws 1.5 px and a
+  screen-space one draws 3 px, and antialiasing spans that gap. `07` §1's overshoot rule, hit for
+  the third time in this repo. At **400%** the same mutation draws a 12 px band and fails
+  decisively — so the driver now **asserts the zoom it reached** before trusting the comparison,
+  because a measurement taken where two implementations agree is true of both and means nothing.
+  **Rides along: every slider in the app was unnamed to a screen reader.** `aria-label` sat on
+  Radix's `Slider.Root`, which is a plain span with no role, while the `role="slider"` thumb that
+  carries `aria-valuenow` had no accessible name at all. Found because the driver read
+  `aria-valuenow` off the root and got nothing. One line in `ui/controls.tsx` — the label now goes
+  on the thumb, and the root keeps its inert copy because it is the handle every driver so far
+  selects on.
 - [ ] **WP-25 · One Select, everywhere** — ADR-28 made Select global and the per-layer copies
   were never removed, so `LAYER_TOOLS` still lists `"select"` on all five object layers and the
   rail renders a second chip (a third name on rivers, `Edit`). Drop `"select"` and **nothing
