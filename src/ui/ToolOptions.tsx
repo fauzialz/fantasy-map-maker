@@ -153,7 +153,12 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </div>
       )}
 
-      {(onTerrain || (isObjectLayer && objectTool !== "select" && objectTool !== "place")) && (
+      {/* The eraser is global since WP-26, so its size has to be reachable from any layer —
+          including rivers, which is not an object layer and would otherwise hide the slider
+          for the one tool that now works there. */}
+      {(objectTool === "erase" ||
+        onTerrain ||
+        (isObjectLayer && objectTool !== "select" && objectTool !== "place")) && (
         <Slider
           label="Brush size"
           value={brushSize}

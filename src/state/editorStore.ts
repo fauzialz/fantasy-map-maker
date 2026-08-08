@@ -35,17 +35,23 @@ export const LAYER_OBJECT: Partial<Record<LayerId, "mountain" | "tree" | "landma
  * the rail went on rendering a second chip for it — a control that looks layer-scoped for
  * a mode that is not, which is exactly the model ADR-28 removed.
  *
- * **`erase` is still here, and leaves with WP-26.** Not caution: until the global object
- * eraser exists, this chip is the only way to erase an object at all, so removing it first
- * would ship a release with no object eraser.
+ * **`erase` left with WP-26**, once the eraser became global (ADR-37) — the same duplication
+ * Select's chip was. The table is create modes only now.
  */
 export const LAYER_TOOLS: Partial<Record<LayerId, ObjectTool[]>> = {
-  mountains: ["scatter", "place", "erase"],
-  forests: ["scatter", "place", "erase"],
-  icons: ["place", "erase"],
+  mountains: ["scatter", "place"],
+  forests: ["scatter", "place"],
+  icons: ["place"],
   labels: ["place"],
   rivers: ["place"],
 };
+
+/**
+ * The modes that act on what is already on the map rather than on the active layer, so
+ * they outlive a layer switch and are never in `LAYER_TOOLS`. Select since ADR-28, Erase
+ * since ADR-37.
+ */
+export const GLOBAL_TOOLS: ObjectTool[] = ["select", "erase"];
 
 /**
  * Session state for the editor. The scene is the serialized part; everything else here
@@ -192,15 +198,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
    * Switching layers changes what a press *creates*, and nothing else (ADR-28).
    *
    * The selection survives, because it is no longer per-layer — dropping it here would
-   * throw away a cross-layer selection the moment you reached for another tool. And
-   * `select` survives too, on any layer including terrain: it is a mode, not a capability
-   * the layer grants. Any other tool still falls back to one the new layer offers, or a
-   * press would land on a tool with no buttons behind it.
+   * throw away a cross-layer selection the moment you reached for another tool. And the
+   * **global modes** survive too, on any layer including terrain: they are modes, not
+   * capabilities the layer grants. Any other tool still falls back to one the new layer
+   * offers, or a press would land on a tool with no buttons behind it.
    */
   setActiveLayer: (activeLayerId) =>
     set((state) => {
       const tools = LAYER_TOOLS[activeLayerId];
-      const keep = state.objectTool === "select" || !tools || tools.includes(state.objectTool);
+      const keep =
+        GLOBAL_TOOLS.includes(state.objectTool) || !tools || tools.includes(state.objectTool);
       return { activeLayerId, objectTool: keep ? state.objectTool : tools[0] };
     }),
   setBrushSize: (brushSize) => set({ brushSize }),

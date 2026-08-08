@@ -342,7 +342,7 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
   a river's ~6 screen px width. Select by an endpoint, reshape by the middle: the real order
   anyway, since control points are only drawn once the river is chosen. The point then moves
   **603 map units against an expected 609**.
-- [ ] **WP-26 · Erase is its own tool; the sea brush is terrain geometry** (**ADR-37**) — the
+- [x] **WP-26 · Erase is its own tool; the sea brush is terrain geometry** (**ADR-37**) — the
   contextual eraser splits. Sea brush unchanged; **Erase becomes a global object eraser**, peer
   of Select, removing every object the disc overlaps on every visible, unlocked layer, and **a
   landmass it touches dies whole** (partial removal *is* the sea brush). Fixes a real gap:
@@ -354,6 +354,32 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
   *hidden* protects **every** layer, not only terrain — ADR-28's rule with no exception, so a
   stroke can sweep the map and take only what you left showing. Acceptance needs a driven drag across a landmass, a
   locked layer that survives it, and **a mutation proving the lock check discriminates**.
+  **The split needed a third button, which the design did not say.** "Sea brush stays where it is
+  and keeps its name" was written when it *was* the Erase button on terrain; once Erase stopped
+  being contextual, one button could not be both. Sea brush is now its own `data-tool="sea"` in
+  the mode group, rendered only on terrain — where there is geometry to edit — and Erase is
+  always present and never disabled.
+  **`GLOBAL_TOOLS` is the generalisation this package earned.** `setActiveLayer` and the toolbar's
+  `leaveSelect` both special-cased `"select"` by name; erase is the second member, so the rule is
+  now a list rather than a comparison, and `leaveSelect` became `leaveGlobalMode`. The active
+  layer's **lock no longer gates the eraser** either — `eraseAt` skips locked and hidden layers
+  itself, which is exactly the arrangement selection already used.
+  **Two follow-ons the design did not name, both found by building it.** The rail's brush-size
+  slider was gated on *object* layers, so it vanished on **rivers** — the one layer that is not an
+  object layer and where the eraser now works, leaving its only control unreachable. And WP-24's
+  brush ring had to follow the tool: the erase ring shows on terrain and rivers now, and a locked
+  active layer no longer suppresses it, since the lock stopped meaning anything to this tool.
+  **A green unit test was encoding the defect.** `objectHit.test.ts` asserted *"ignores path-based
+  objects, which have no footprint"* — the exact behaviour ADR-37 reverses. "No footprint" is
+  still true and is why the branches are needed; it just stopped meaning "not erasable". Replaced
+  with four fixtures: on the land, reaching from offshore and failing to, a **lake shore counting
+  as coastline** (even-odd puts the lake outside the land, so only the reach finds it), and a
+  river taken whole.
+  **17 driven checks, 8 unit fixtures, 2 mutations.** Dropping the `visible || locked` guard fails
+  **both** the locked and the hidden checks — D3 proved, not asserted. Dropping the landmass
+  branch fails 3 unit fixtures and 3 driven checks. The sea brush is checked in the same run
+  precisely because this is the package where it would break: a stroke through the middle still
+  cuts one landmass into two.
 - [ ] **WP-27 · Scatter rotation is a knob, not a constant** — `anchorAt` hardcodes
   `jitter(5)`; replace it with session state, surfaced as a slider, **defaulting to 0** so every
   sprite is upright until asked otherwise. The value is jitter *spread*, not an angle.
