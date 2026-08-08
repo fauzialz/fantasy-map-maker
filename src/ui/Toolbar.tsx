@@ -76,29 +76,32 @@ export function Toolbar({ onGenerate, onExport }: Props) {
   const toggleTheme = useThemeStore((s) => s.toggle);
 
   const onTerrain = activeLayerId === "terrain";
-  const tools = LAYER_TOOLS[activeLayerId];
-  const erasing = onTerrain ? terrainTool === "sea" : objectTool === "erase";
   // Select is a mode on every layer now, terrain included (ADR-28) — it is never a
-  // capability the active layer has to grant.
+  // capability the active layer has to grant. Since WP-26 the same is true of Erase
+  // (ADR-37), so the two are peers in the mode group and neither is ever disabled.
   const selecting = objectTool === "select";
+  const erasing = objectTool === "erase";
+  /** A create tool is in hand — neither global mode is on. */
+  const creating = !selecting && !erasing;
+  const seaBrush = creating && onTerrain && terrainTool === "sea";
 
   /**
-   * Reaching for a create tool always leaves Select.
+   * Reaching for a create tool always leaves the global modes.
    *
    * Since WP-18, `select` is a mode that survives a layer switch — which is right when you
    * are moving between layers to select on them, and wrong the moment you pick up a *tool*.
    * On the object layers the default tool overwrote it anyway; on terrain nothing did, so
    * clicking "Terrain" while selecting left the brush disabled and painting silently did
-   * nothing. Terrain has no `objectTool` of its own, so any non-select value means "not
-   * selecting".
+   * nothing. Terrain has no `objectTool` of its own, so any non-global value means "not
+   * selecting and not erasing" — which is why `erase` joined this check with WP-26.
    */
-  const leaveSelect = () => objectTool === "select" && setObjectTool("scatter");
+  const leaveGlobalMode = () => !creating && setObjectTool("scatter");
 
   const pickLayer = (layer: LayerId) => {
     setActiveLayer(layer);
     if (layer === "terrain") {
       setTerrainTool("brush");
-      leaveSelect();
+      leaveGlobalMode();
     } else setObjectTool(DEFAULT_TOOL(layer));
   };
 
@@ -137,32 +140,37 @@ export function Toolbar({ onGenerate, onExport }: Props) {
           </button>
         </Hint>
 
-        <Hint
-          text={
-            onTerrain
-              ? "Erases land — can cut a landmass in two"
-              : `Erase ${activeLayerId} under the brush`
-          }
-        >
-          <span>
+        {/*
+          Two tools, not one tool in two costumes (ADR-37). Erase is global and always
+          available; the sea brush edits terrain *geometry*, so it appears only where there
+          is geometry to edit and keeps its own name.
+        */}
+        <Hint text="Erase whole objects on every visible, unlocked layer">
+          <button
+            type="button"
+            data-tool="erase"
+            className={toolButton({ active: erasing })}
+            onClick={() => setObjectTool("erase")}
+          >
+            <Eraser size={14} /> Erase
+          </button>
+        </Hint>
+
+        {onTerrain && (
+          <Hint text="Paints sea over land — can cut a landmass in two">
             <button
               type="button"
-              data-tool="erase"
-              className={toolButton({ active: erasing })}
-              disabled={!onTerrain && !tools?.includes("erase")}
+              data-tool="sea"
+              className={toolButton({ active: seaBrush })}
               onClick={() => {
-                if (!onTerrain) return setObjectTool("erase");
                 setTerrainTool("sea");
-                leaveSelect(); // same trap as pickLayer: the sea brush is a create tool too
+                leaveGlobalMode(); // same trap as pickLayer: the sea brush is a create tool
               }}
             >
-              {onTerrain ? <Waves size={14} /> : <Eraser size={14} />}
-              {/* The label says which of the two operations this is, so a contextual button
-                  stops looking like a fixed peer of a now-global Select. */}
-              {onTerrain ? "Sea brush" : "Erase"}
+              <Waves size={14} /> Sea brush
             </button>
-          </span>
-        </Hint>
+          </Hint>
+        )}
       </div>
 
       <span className={divider()} />
@@ -174,7 +182,7 @@ export function Toolbar({ onGenerate, onExport }: Props) {
               type="button"
               data-tool={id}
               className={toolButton({
-                active: activeLayerId === layer && !erasing && !selecting,
+                active: activeLayerId === layer && creating && !(layer === "terrain" && seaBrush),
               })}
               onClick={() => layer && pickLayer(layer)}
             >

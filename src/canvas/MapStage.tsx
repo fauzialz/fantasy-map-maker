@@ -180,14 +180,21 @@ export function MapStage({ editing }: { editing?: Label }) {
    * so the layer's own creation tool has to stand down while it is on.
    */
   const selecting = objectTool === "select";
+  /**
+   * WP-26 — Erase is the second global mode (ADR-37), so it reads like `selecting`: it is
+   * live on every layer, the layer's own creation tool stands down while it is on, and the
+   * **active layer's lock does not gate it** — `eraseAt` skips locked and hidden layers
+   * itself, which is the same arrangement selection already uses.
+   */
+  const erasing = objectTool === "erase";
   const brush = useTerrainBrush({
-    enabled: activeLayerId === "terrain" && !selecting && live,
+    enabled: activeLayerId === "terrain" && !selecting && !erasing && live,
     map,
     toMapPoint,
   });
   const objects = useObjectBrush({
     activeLayerId,
-    enabled: onObjectLayer && !selecting && live,
+    enabled: erasing ? ready : onObjectLayer && !selecting && live,
     toMapPoint,
     onPlaceLabel: openLabelDraft,
   });
@@ -319,17 +326,19 @@ export function MapStage({ editing }: { editing?: Label }) {
    * it would be a lie. Panning is absent because the press belongs to the pan, not the brush.
    */
   const brushTone: BrushTone | null =
-    !cursor || selecting || !unlocked || panning || spaceHeld
+    !cursor || selecting || panning || spaceHeld
       ? null
-      : activeLayerId === "terrain"
-        ? terrainTool === "sea"
-          ? "sea"
-          : "paint"
-        : objectTool === "scatter"
-          ? "paint"
-          : objectTool === "erase"
-            ? "erase"
-            : null;
+      : erasing
+        ? "erase" // global since WP-26, so it shows on terrain and rivers too, lock or not
+        : !unlocked
+          ? null
+          : activeLayerId === "terrain"
+            ? terrainTool === "sea"
+              ? "sea"
+              : "paint"
+            : objectTool === "scatter"
+              ? "paint"
+              : null;
 
   /**
    * Panning and the space-drag override everything; otherwise whichever tool owns the layer
@@ -346,11 +355,13 @@ export function MapStage({ editing }: { editing?: Label }) {
     ? "grabbing"
     : spaceHeld
       ? "grab"
-      : !unlocked && !selecting
+      : !unlocked && !selecting && !erasing
         ? "not-allowed"
         : (selection.cursor ??
           river.cursor ??
-          (!selecting && (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId])
+          // The eraser is global, so it promises a crosshair on every layer — including
+          // rivers, which creates nothing through the object brush (I4).
+          (erasing || (!selecting && (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId]))
             ? "crosshair"
             : "default"));
 

@@ -40,6 +40,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const setBrushSize = useEditorStore((s) => s.setBrushSize);
   const terrainTool = useEditorStore((s) => s.terrainTool);
   const objectTool = useEditorStore((s) => s.objectTool);
+  const scatterRotation = useEditorStore((s) => s.scatterRotation);
+  const setScatterRotation = useEditorStore((s) => s.setScatterRotation);
   const setObjectTool = useEditorStore((s) => s.setObjectTool);
   const iconKind = useEditorStore((s) => s.iconKind);
   const setIconKind = useEditorStore((s) => s.setIconKind);
@@ -153,7 +155,12 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </div>
       )}
 
-      {(onTerrain || (isObjectLayer && objectTool !== "select" && objectTool !== "place")) && (
+      {/* The eraser is global since WP-26, so its size has to be reachable from any layer —
+          including rivers, which is not an object layer and would otherwise hide the slider
+          for the one tool that now works there. */}
+      {(objectTool === "erase" ||
+        onTerrain ||
+        (isObjectLayer && objectTool !== "select" && objectTool !== "place")) && (
         <Slider
           label="Brush size"
           value={brushSize}
@@ -162,6 +169,24 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           step={10}
           display={`${brushSize} px`}
           onChange={setBrushSize}
+        />
+      )}
+
+      {/*
+        WP-27 — this was `jitter(5)` hardcoded in `anchorAt`, so the only way to find out how
+        much a scatter turned things was to scatter some. It is a *spread*, not an angle, and
+        it defaults to 0: upright is what "no rotation" should mean, and a stylised map often
+        wants exactly that. The generator keeps its own (`12` D4), in the generate dialog.
+      */}
+      {objectTool === "scatter" && (
+        <Slider
+          label="Rotation jitter"
+          value={scatterRotation}
+          min={0}
+          max={45}
+          step={1}
+          display={scatterRotation === 0 ? "upright" : `±${scatterRotation}°`}
+          onChange={setScatterRotation}
         />
       )}
 

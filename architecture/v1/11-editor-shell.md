@@ -211,9 +211,14 @@ under-specified.
 carrying every input that defines the world, fixed-order and dash-joined behind a version tag:
 
 ```
-w1-483920104-0.40-0.60-single-auto-0.50-0.50
-    seed      land  rough  type   sea  mtn  forest
+w2-483920104-0.40-0.60-single-auto-0.50-0.50-5
+    seed      land  rough  type   sea  mtn  forest rot
 ```
+
+> **Shipped as `w1-` with seven values; `w2-` since WP-27**, which settled `12` D4 by giving the
+> generator its own rotation spread. That is an input which decides a world, so by this section's
+> own rule it has to be *in* the code — and a changed field count is exactly what the version tag
+> is for. `w1-` strings are rejected by the same loud path as a garbage one.
 
 - **Human-readable on purpose.** No base64, no JSON. Someone can see their seed in it, and a
   code that arrives mangled by a chat client is diagnosable by eye.
