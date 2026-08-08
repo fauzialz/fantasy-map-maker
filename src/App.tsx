@@ -14,7 +14,7 @@ import type { Label } from "./scene/types";
 import { selectLandmasses, useEditorStore } from "./state/editorStore";
 import { useToastStore } from "./state/toastStore";
 import { TooltipProvider } from "./ui/controls";
-import { ConfirmDialog, ExportDialog } from "./ui/dialogs";
+import { ExportDialog, GenerateDialog } from "./ui/dialogs";
 import { MapPanel } from "./ui/MapPanel";
 import { Toasts } from "./ui/Toasts";
 import { Toolbar } from "./ui/Toolbar";
@@ -44,7 +44,7 @@ export default function App() {
   const saveStatus = useAutosave();
 
   const [generating, setGenerating] = useState(false);
-  const [confirmGenerate, setConfirmGenerate] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   /** The label the rail asked to rename; the stage opens its editor on it. */
@@ -55,7 +55,6 @@ export default function App() {
    * Rings need no special handling: they are derived from the landmasses, so they follow.
    */
   const generate = async () => {
-    setConfirmGenerate(false);
     setGenerating(true);
     try {
       const state = useEditorStore.getState();
@@ -68,6 +67,7 @@ export default function App() {
         coastDetail: state.scene.settings.coastDetail,
       });
       useEditorStore.getState().applyGenerated(result);
+      setGenerateOpen(false);
       useToastStore
         .getState()
         .show(
@@ -79,13 +79,6 @@ export default function App() {
     } finally {
       setGenerating(false);
     }
-  };
-
-  /** Ask first only when there is something to lose (ADR-21). */
-  const requestGenerate = () => {
-    if (useEditorStore.getState().scene.layers.some((layer) => layer.objects.length > 0))
-      setConfirmGenerate(true);
-    else void generate();
   };
 
   /**
@@ -149,12 +142,12 @@ export default function App() {
   return (
     <TooltipProvider>
       <div className="mbf:flex mbf:h-full mbf:flex-col">
-        <Toolbar onGenerate={requestGenerate} onExport={() => setExportOpen(true)} />
+        <Toolbar onGenerate={() => setGenerateOpen(true)} onExport={() => setExportOpen(true)} />
 
         <div className="mbf:flex mbf:min-h-0 mbf:grow">
           <ToolOptions onEditLabel={setEditingLabel} />
           <MapStage editing={editingLabel} />
-          <MapPanel generating={generating} onGenerate={requestGenerate} />
+          <MapPanel />
         </div>
 
         <p
@@ -165,13 +158,11 @@ export default function App() {
         </p>
       </div>
 
-      <ConfirmDialog
-        open={confirmGenerate}
-        title="Generate a new map?"
-        description="This replaces everything on the canvas. You can undo it in one step."
-        confirmLabel="Replace map"
-        onConfirm={() => void generate()}
-        onOpenChange={setConfirmGenerate}
+      <GenerateDialog
+        open={generateOpen}
+        busy={generating}
+        onGenerate={() => void generate()}
+        onOpenChange={setGenerateOpen}
       />
       <ExportDialog
         open={exportOpen}
