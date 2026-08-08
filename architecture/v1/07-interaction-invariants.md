@@ -61,11 +61,24 @@ npm run dev
 
 # 2. a browser with the debug port open
 chrome --headless --disable-gpu --remote-debugging-port=9223 \
-       --user-data-dir=<temp> http://localhost:5173/
+       --user-data-dir=<temp> http://localhost:5173/maps/create
 
 # 3. the driver
 node --experimental-websocket drive.mjs
 ```
+
+> **The URL changed with WP-30, and it changes for every driver at once.** Until then the recipe
+> above ended in `http://localhost:5173/`, which was the editor. ADR-40 makes `/` the **landing
+> page** — a static file with no canvas on it — so a driver pointed there finds no stage, no HUD
+> and no tools, and fails in a way that looks like the app is broken. Target `/maps/create` to
+> start clean, or `/maps/edit/{uuid}` to drive a specific map. Anything that navigates as part of
+> the check should use `Page.navigate` rather than clicking through, unless the navigation *is*
+> what is being tested.
+>
+> Two consequences of routing that a driver has to respect: **`Page.navigate` is a full reload, so
+> the undo stack is gone** on the other side (history is session state, ADR-35) — assert on the
+> scene or the record, not on undo depth, across one. And **a client-side navigation flushes
+> autosave** (`14` §4.7), so a check measuring the flush must drive the *link*, not `Page.navigate`.
 
 ```js
 // the whole recipe: find the page, open the socket, send CDP commands

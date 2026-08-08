@@ -43,7 +43,7 @@ the next free number in the series; never renumber an existing row.
 | | Where it lives |
 |---|---|
 | Deliberate shortcuts and ceilings in code | `grep -rn "ponytail:" src/` — each names its own ceiling and upgrade trigger |
-| Open design decisions | **None in `v1/08-terrain-as-objects.md` §8 — D1…D6 are all settled.** This row previously named D4 and D6 as open; D4 was settled in WP-16 and D6 shipped in WP-14, so the row was wrong. Batch 3's F1–F5 (`v1/10`) and Batch 2's E1–E15 (`v1/09`) are settled too |
+| Open design decisions | **Two are open, both in unbuilt packages:** `v1/12` **D4** (does the generator's scatter read WP-27's rotation knob — it changes what a world code reproduces) and `v1/13` **D5** (does the mountain shrink change the sprite constant, and so every saved map, or only new placements). Both are named as *settle first* in their checklist entries, so they have an owner and are not rows here. **Settled and needing no attention:** `v1/08` D1–D6, `v1/09` E1–E15, `v1/10` F1–F5, `v1/12` D1–D3, `v1/13` D6–D10, `v1/14` D1–D12 |
 | Features deferred from v1 | `v1/01-system-design.md` §15. Absence of a feature is not debt |
 | Unbuilt work packages | **None in Batches 1–4** — WP-14…WP-22 have all shipped. `v1/05-p0-build-checklist.md` tracks P1–P3 |
 | Deploying the built SPA | WP-13's entry. **The host is now chosen** — the VPS, behind Caddy, frontend-only (ADR-34, `platform/README.md` D4). Unbuilt work, not debt |

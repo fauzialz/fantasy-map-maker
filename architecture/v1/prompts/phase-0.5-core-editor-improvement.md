@@ -328,12 +328,22 @@ of the UI. 22 driven checks, 5 mutations, all caught.
 
 ---
 
-## Batch 5 — The editor shell (WP-23)
+## Batch 5 — The editor shell (WP-23, WP-32)
 
-**Design:** `../11-editor-shell.md` — read it in full. **Decision:** ADR-36.
-**Prerequisite:** WP-13 (real UI) and WP-22 (the gallery this batch moves behind a menu).
+**Design:** `../11-editor-shell.md` — read it in full. **Decision:** ADR-36, amended by ADR-40.
+**Prerequisite:** WP-13 (real UI) and WP-22 (the gallery).
 
-**Settle first:** nothing. The three behaviour changes inside WP-23 are decided in `11` §5.
+**Settle first:** nothing. The three behaviour changes inside WP-23 are decided in `11` §5, and
+ADR-40 settles what the menu bar contains.
+
+> **This batch is split, and Batch 8 lands between its halves.** ADR-40 gives the app routes,
+> which changes what the menu bar holds — building all of `11` first would mean building two menu
+> items and deleting them a package later. **WP-23 is `11` §5** (the generate dialog, the world
+> code, the switch contrast fix) and goes **first**, because WP-30's `/maps/create` page mounts the
+> same generate form. **WP-32 is `11` §3–§4** (the menu bar and the slimmed rail) and lands
+> **after** Batch 8.
+>
+> **Build order across the two batches: WP-23 → WP-30 → WP-31 → WP-32.**
 
 **What this batch is about.** The right rail is one scrolling column holding five unrelated
 concerns — the layer list, render settings, the whole world generator, document actions, and
@@ -350,35 +360,52 @@ only apply on the next Generate.
 **Nothing here is pointer-driven geometry.** No scene-shape change, no `schemaVersion` bump, no
 new invariant. It is the largest diff in this file and the lowest risk in it.
 
-### WP-23 · The menu bar, and a rail that holds one idea
+### WP-23 · The generate dialog and the world code  *(`11` §5)*
+ADR-21's generate confirm folds into the generate dialog — the dialog carries the warning line and
+its primary button reads **"Replace map"** on a non-empty scene, **"Generate world"** on an empty
+one, so a modal on top of a modal goes away. `switchRoot` gets an off state you can actually see,
+which is why the sea-level slider looked permanently dead (the gate is correct and stays — one
+variant change repairs every toggle in the app). And the seed becomes a `w1-` **world code**
+carrying all seven world inputs, because a bare copyable seed reproduces nothing when the other
+knobs differ — and fails silently doing it.
+
+**Build the generate form as one component with two containers.** WP-30's `/maps/create` mounts the
+same thing on a page where the scene is always empty, and §5.1's branch is already exactly that
+difference. Two forms would be two places to change a generator parameter.
+
+**Canvas size and `coastDetail` stay out of the world code**, as `11` §5.3 specifies. That is what
+lets the create page pick the canvas first and then accept a code for everything else.
+
+- **Acceptance:** Generate on a non-empty scene reads "Replace map" and carries the warning line,
+  on an empty one neither · a world code copied from one session and pasted into another produces
+  the same scene · an **off** switch is distinguishable from the panel behind it in both themes,
+  **measured at ≥ 3:1** rather than eyeballed, and the sea-level slider still enables only when its
+  toggle is on.
+- **Fixtures:** `worldCode` round-trip, plus rejection of a garbage string and a `w2-` string.
+
+### WP-32 · The menu bar, and a rail that holds one idea  *(`11` §3–§4 — after Batch 8)*
 Map · Edit · View · Help in their own row above today's tool row; the right rail drops to
 **Layers + Appearance**; the bottom autosave strip is absorbed into the menu bar, so two header
 rows cost no height. Radix `DropdownMenu`, already installed — keyboard navigation, Escape,
 typeahead, focus return and `role="menu"` come from the primitive, so write none of it.
 
-**Three behaviour changes ride along**, all in `11` §5: ADR-21's generate confirm folds into the
-generate dialog; `switchRoot` gets an off state you can actually see, which is why the sea-level
-slider looked permanently dead (the gate is correct and stays — one variant change repairs every
-toggle in the app); and the seed becomes a `w1-` **world code** carrying all seven world inputs,
-because a bare copyable seed reproduces nothing when the other knobs differ — and fails silently
-doing it.
+**The `Map` menu holds four items, not six** (ADR-40): `Canvas size ▸`, `Reset canvas…`,
+`Generate world…`, `Export image…`. `New map` and `Open Map…` belong to WP-30's gallery page — a
+menu holds commands about **this** map, the gallery owns **which** map. The **brand mark `[M]`
+links to `/maps`**, and it is load-bearing rather than decorative: Back only works if you arrived
+from `/maps`, which a bookmark straight to `/maps/edit/{uuid}` did not.
 
 **Keep every `data-*` hook** on whichever element it moves to. They are menu items now rather
 than buttons, which changes the tag and not the selector, and the CDP recipes in
-`../07-interaction-invariants.md` drive them.
+`../07-interaction-invariants.md` drive them. `data-action="new-map"` and `"gallery"` keep their
+values on **WP-30's** surfaces.
 
 - **Acceptance:** every menu opens on click, closes on Escape, and each item runs the command it
-  names — **driven input asserting the store or scene changed**, not a screenshot · New map
-  mints a fresh `meta.id` and Reset keeps it (ADR-35 unchanged; this only moves the buttons) ·
-  `Canvas size ▸` picking the active size does nothing at all · Generate on a non-empty scene
-  reads "Replace map" and carries the warning line, on an empty one neither · a world code
-  copied from one session and pasted into another produces the same scene · an **off** switch is
-  distinguishable from the panel behind it in both themes, **measured at ≥ 3:1** rather than
-  eyeballed, and the sea-level slider still enables only when its toggle is on ·
-  `Edit → Delete selected`
-  matches the rail's button, one store action and two call sites · **no rail scrollbar at 900 px
-  viewport height** with a generated world loaded.
-- **Fixtures:** `worldCode` round-trip, plus rejection of a garbage string and a `w2-` string.
+  names — **driven input asserting the store or scene changed**, not a screenshot ·
+  `Canvas size ▸` picking the active size does nothing at all · `Reset canvas…` keeps `meta.id`
+  and its confirm carries the New map signpost (`14` §4.9) · the `Map` menu offers **no** New map
+  and **no** Open Map… · `Edit → Delete selected` matches the rail's button, one store action and
+  two call sites · **no rail scrollbar at 900 px viewport height** with a generated world loaded.
 
 ---
 
@@ -582,6 +609,112 @@ sets anywhere from 4 to 60, so it ships as the number that looked right and says
   snapped river survives save and reload with the same points, since nothing new enters the
   scene contract — **no `schemaVersion` bump in this package**, and if one appears the design has
   gone wrong.
+
+---
+
+## Batch 8 — Routes, a front door, and a page to start from (WP-30, WP-31)
+
+**Design:** `../14-routing-and-landing.md` — read it in full. **Decision:** ADR-40.
+**Prerequisite:** WP-22 (the gallery this batch turns into a page) and **WP-23** (the generate form
+the create page mounts).
+
+**Settle first:** nothing. `14` §6 records **D1–D12, all settled.**
+
+> **Decision numbers are per design document.** `14` D1 is not Batch 1's D1 or `12`'s D1. Cite the
+> document.
+
+**What this batch is about.** The editor has no routes at all. `App.tsx` is the whole application,
+one URL is the whole address space, and the only way to reach a second map is a dialog over the
+editor. A map cannot be linked, bookmarked or opened in a second tab, and which map is open is
+kept in a **localStorage id** ([useAutosave.ts:70-73](../../src/persistence/useAutosave.ts#L70-L73))
+— the app *remembering* what an address could simply *say*.
+
+**The rule, and it is ADR-36's one level out:** that document sorted controls by **kind** (a menu
+holds commands, a rail holds live state). This one sorts them by **scope** — *the menu bar owns
+this map; the gallery owns which map.*
+
+**None of this needs a host.** The deploy is WP-13's separate unfinished half and needs a domain;
+every package here is built and driven at `localhost`. That is not incidental: **every CDP driver
+in the repo runs against the dev server** (`07` §1), so the dev-server routing is this batch's
+deliverable and not its polish.
+
+### WP-30 · The routes
+`/maps` (the gallery as a page, **Your maps**), `/maps/create` (a setup page),
+`/maps/edit/{uuid}` (the editor), a static 404 for an unknown path and an in-app redirect for an
+unknown uuid. **Hand-rolled router, ~30 lines**, plus a `<Link>` helper — no new dependency, the
+same call the repo made for IndexedDB and for driving a browser. It also owns the three things the
+primitive does not give you: per-route `document.title`, scroll restoration on Back to `/maps`, and
+focus management.
+
+**The dialog is replaced, not duplicated.** ADR-35 already makes switching maps clear the undo
+stack, so it is a navigation in everything but presentation. `/maps` gains an **empty state** it
+never needed as a modal, and `replaceState`s to `/maps/create` when the list is empty *and known* —
+at P2, "known" means both local and cloud answered, or a signed-in user with five cloud maps gets
+told to create their first one.
+
+**`/maps/create` is a page, not a redirect**, because `resetCanvas(preset)` doubles as *change
+canvas size* and discards every object — canvas size is free exactly once, at creation, and there
+was no screen there to offer it. Defaults to **landscape**. Generation runs **in the editor after
+the navigation**, reusing the existing path and its "Generated N landmasses" toast. Nothing reaches
+IndexedDB until the user clicks through.
+
+**This package deletes more than it adds where it can.** `rememberOpen` / `rememberedOpen` and the
+`loadLatestScene()` fallback go — the route parameter is already the IDB keyPath (WP-22). The
+editor route does **nothing at all** when `store.scene.meta.id` already matches, which is what
+makes Back preserve the undo stack, since `useEditorStore` is a module singleton that survives an
+unmount.
+
+**Four traps, each one line with a delayed symptom** (`14` §4.7). The create page must
+**`replaceState` on completion** — `pushState` leaves a finished setup step behind Back, and
+completing it a second time mints a **second map**. `pushState` on the empty-`/maps` redirect
+**traps Back in a loop**. `location.assign` anywhere is a full reload — the blink, and the bundle
+paid for twice. And **client-side navigation must flush autosave**: the throttle is 800 ms and
+flushes on `pagehide`, which a route change does not fire.
+
+**Two tabs on one map** get a `BroadcastChannel` warning. The local save path has never had a
+version check — ADR-33's is cloud-only — and linkable URLs make the collision easy. Warn rather
+than block: a two-monitor workflow is legitimate, and silent data loss is the one thing that does
+not get simplified away.
+
+**Dev and production hold the same routing rule twice.** Vite's default `appType: "spa"` would
+serve the *landing page* at `/maps/create`; `"mpa"` 404s it. What is needed is `"mpa"` plus a
+~10-line `configureServer` middleware, mirrored in the Caddyfile. *Works locally, 404s in
+production* has exactly one signal, and it is a deploy.
+
+- **Acceptance:** every route renders its own screen and **Back/Forward move between them** ·
+  backing out of `/maps/create` **without choosing** returns the previous map **with its undo
+  stack**, while **completing** it returns that same map with an **empty** one (a different
+  `meta.id` is in the store, so ADR-35 clears history) — the pair pulls opposite ways, which is
+  what makes it discriminating · **a mutation proving the flush discriminates** — remove it, and a check that
+  edits, navigates within 800 ms and reads the **record** must fail (`07` §1) · `/maps/create`
+  writes **no draft** until the user clicks through, and exactly one after — read the record, not
+  the UI (WP-22's lesson) · empty `/maps` redirects, and Back from there reaches the landing page
+  rather than bouncing · right-click → *Open in new tab* works and leaves the first tab unchanged ·
+  two tabs on the same uuid warn, two tabs on different maps do not · an unknown uuid redirects and
+  **creates no record with that id** · a reload at `/maps/edit/{uuid}` restores that map with
+  `rememberOpen` deleted — **age another draft so "newest" and "this one" differ**, or the check
+  cannot fail · `vite preview` routes identically to `npm run dev` · driven input throughout.
+
+### WP-31 · The landing page
+A static HTML file at `/`, styled with the Tailwind build and `tokens.css` the app already uses, so
+the page cannot drift from the application and a visitor reaches `/maps` with the stylesheet
+cached. **No React, no router, no editor bundle.** Hero is a **WebP exported from the editor
+itself**; one primary CTA → `/maps`; six sections, one sentence and one exported image each, and
+**only shipped exports advertised**. `/how-it-works` is **reserved, shell only**.
+
+**No `/login` or `/signup` pages.** ADR-06's PKCE redirects to Zitadel's hosted login, so there is
+no form to build — P2 needs a Sign in *button*, a signup hint parameter (**verified against a live
+Zitadel at P2 WP-1**, not assumed), and `/auth/callback` landing on `/maps`. A static page cannot
+know it is signed in, because `platform/README.md` D2 keeps no refresh token in the browser: the
+header reads a **localStorage hint**, which is a label and **never** an authorization decision.
+Ship the slot now, the buttons at P2, and keep it quiet — ADR-07's "no login wall" is a promise
+about how the product feels.
+
+- **Acceptance:** the headline and every section heading appear **in the HTML body** before any
+  JavaScript runs — assert on the response text · the page loads **no editor bundle**, asserted on
+  the network requests rather than on feel · the CTA reaches `/maps` and the theme matches the
+  app's in both light and dark, since both read the same tokens · `/how-it-works` and the 404 both
+  render and both link home.
 
 ---
 

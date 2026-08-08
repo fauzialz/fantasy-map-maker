@@ -1,7 +1,25 @@
 # The editor shell — menu bar, and a rail that holds one idea
 
-**Batch 5.** Design document for **WP-23**. Decision: **ADR-36**.
-**Prerequisite:** WP-13 (the real UI) and WP-22 (the gallery this batch moves behind a menu).
+**Batch 5.** Decision: **ADR-36**, amended by **ADR-40**.
+**Prerequisite:** WP-13 (the real UI) and WP-22 (the gallery).
+
+> **This document ships in two packages, with WP-30 between them.** ADR-40 gives the app routes,
+> which changes what the menu bar contains — so building the whole of this document first would
+> mean building two menu items and deleting them a package later.
+>
+> | Package | What | Sections |
+> |---|---|---|
+> | **WP-23** | the generate dialog, the world code, the `switchRoot` contrast fix | **§5** entire |
+> | **WP-32** | the menu bar and the slimmed rail | **§3, §4**, §6–§9 |
+>
+> **WP-23 goes first**, because ADR-40's `/maps/create` page mounts the same generate form and
+> would otherwise have to build one. §5.1's empty-scene branch is exactly the difference between
+> the two containers, so it costs nothing extra there.
+>
+> **And the menu bar loses two items** (ADR-40): **`New map`** and **`Open Map…`** move to the
+> gallery *page* at `/maps`. The rule is this document's own, one level out — a menu holds
+> commands about **this** map; the gallery owns **which** map. §3 below is marked up accordingly.
+> Everything else here is unchanged.
 
 Nothing here touches the scene contract, the geometry pipeline, or a pointer-driven
 interaction. It is the chrome *around* the editor, and it is the one document in this series
@@ -57,15 +75,27 @@ Two consequences worth stating, because they are where the rule earns its keep:
 ```
 Map ▾                 Edit ▾                    View ▾              Help ▾
 ────────────────────  ────────────────────────  ──────────────────  ─────────────
-New map               Undo              Ctrl+Z  ✓ Tool options      Keyboard
-Open Map…             Redo        Ctrl+Shift+Z  ✓ Layers panel      shortcuts…
+Canvas size        ▸  Undo              Ctrl+Z  ✓ Tool options      Keyboard
+Reset canvas…         Redo        Ctrl+Shift+Z  ✓ Layers panel      shortcuts…
 ────────────────────  ────────────────────────                      About
-Canvas size        ▸  Bring forward
-Reset canvas…         Send back
-────────────────────  Delete selected      Del
-Generate world…
-Export image…
+Generate world…       Bring forward
+Export image…         Send back
+                      Delete selected      Del
 ```
+
+> **`New map` and `Open Map…` used to head that first column and were removed by ADR-40**, which
+> puts them on the gallery page at `/maps`. What is left is four items that all act on the map in
+> front of you, which is the same rule §2 states, applied to scope instead of kind. The way back
+> to the gallery is the **brand mark `[M]`**, linked to `/maps` — necessary rather than decorative,
+> because Back only works if you *arrived* from `/maps`, which a bookmark straight to
+> `/maps/edit/{uuid}` did not.
+>
+> **One thing has to move with them.** `MapPanel`'s hint *"A new map keeps this one — both live in
+> My maps. Reset empties this one."* ([MapPanel.tsx:256](../../src/ui/MapPanel.tsx#L256)) is the
+> only place that distinction is explained, and it dies with the rail. It goes into the reset
+> confirm — see `14-routing-and-landing.md` §4.9 for the wording — because without the signpost a
+> user wanting a fresh map reaches for `Reset canvas…`, the only nearby thing that sounds close,
+> and empties their work instead.
 
 - **Theme stays a button**, on the menu bar, not a menu item. It is one click today and a menu
   item would make it two. A menu bar is for grouping *many* commands, not for hiding the one
@@ -74,8 +104,11 @@ Export image…
   [MapPanel.tsx:270](../../src/ui/MapPanel.tsx#L270) documents: **re-picking the size you are
   already on is a no-op, not a reset.** A radio item makes that structural rather than a guard,
   since a radio group's current value is not a command.
-- **`Open Map…`** is the gallery WP-22 built, renamed from "My maps". P2 adds cloud maps to the
-  same dialog (ADR-33), and "my maps" will then be ambiguous about *whose* and *where*.
+- ~~**`Open Map…`** is the gallery WP-22 built, renamed from "My maps".~~ **Retired by ADR-40**
+  along with the item itself. The gallery is a *page* at `/maps` titled **Your maps**, and P2's
+  cloud maps merge into it there (ADR-33). The whose/where ambiguity this bullet worried about was
+  a property of a **command label** competing with "Open"; a page heading is a noun, and the
+  possessive is the convention everywhere (`Your repositories`, `My Drive`).
 - **No `Rename`.** The map title becomes an inline input in the menu bar, which is where a
   document's name lives in every editor and removes a command instead of adding one.
 
@@ -230,15 +263,25 @@ rather than buttons, which changes the tag and not the selector:
 `data-action="new-map" | "gallery" | "reset" | "undo" | "redo" | "theme"` ·
 `data-preset` · `data-preset-active` · `data-map-title` · `data-autosave`
 
+**Two of those leave this package with their items (ADR-40), and keep their values elsewhere:**
+`data-action="new-map"` follows the button to the gallery page, and `data-action="gallery"` moves
+to the brand mark that links there. Same selectors, different home — which is the rule this
+section already states, applied across a package boundary rather than within one.
+
 The title input keeps its `onKeyDown` `stopPropagation`, because `App`'s global Ctrl+Z handler
 only bails on `INPUT|TEXTAREA|SELECT` and the input must not have its undo stolen.
 
 ## 8. Acceptance
 
+> **Acceptance splits with the packages.** Everything about the generate dialog, the world code and
+> the switch belongs to **WP-23**; everything about menus, the rail and the layout belongs to
+> **WP-32**. Two bullets below changed with ADR-40 and are marked.
+
 - Every menu opens on click and closes on Escape, and each item runs the command it names —
   **driven input, asserting the store or the scene changed**, not a screenshot.
-- `Map → New map` mints a fresh `meta.id`; `Reset canvas…` keeps it. (ADR-35's split, unchanged
-  — this package only moves the buttons.)
+- **Amended (ADR-40):** `Reset canvas…` keeps `meta.id` and carries the New map signpost in its
+  confirm. The `New map` half of this check moves to WP-30, where the button lives. (ADR-35's split
+  is unchanged; only its two halves now sit on different surfaces.)
 - `Map → Canvas size ▸ portrait` raises the confirm and changes `meta.canvas` only after it;
   picking the size already active does nothing at all.
 - `Map → Generate world…` runs the worker, applies as one command, and the toast undoes it. On a
