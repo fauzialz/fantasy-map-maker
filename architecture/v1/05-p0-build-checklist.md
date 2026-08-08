@@ -231,30 +231,46 @@ is unreachable. Became load-bearing when cloud sync went opt-in per map. Decided
 **Batch 5 — the editor shell.** The right rail stacks five unrelated concerns in one scrolling
 column, `MapPanel.tsx` is 300 lines, and **Generate** exists twice — in the toolbar and in the
 rail. Commands move to a menu bar; the rail keeps only what you steer while watching the map.
-Design in `11-editor-shell.md`; decided in **ADR-36**.
+Design in `11-editor-shell.md`; decided in **ADR-36**, **amended by ADR-40**.
 
-- [ ] **WP-23 · The menu bar, and a rail that holds one idea** — Map · Edit · View · Help, in
-  their own row above today's tool row; the right rail drops to **Layers + Appearance**; the
-  bottom autosave strip is absorbed into the menu bar so two rows cost no height. New
+**Split into two packages, with Batch 8 between them.** ADR-40 gives the app routes, which changes
+what the menu bar contains — so building all of `11` first would mean building two menu items and
+deleting them a package later. **WP-23** (`11` §5) goes first because WP-30's `/maps/create` page
+mounts the same generate form; **WP-32** (`11` §3–§4) lands after Batch 8. Build order for the two
+batches is therefore **WP-23 → WP-30 → WP-31 → WP-32**.
+
+- [ ] **WP-23 · The generate dialog and the world code** (`11` §5) — ADR-21's generate confirm
+  **folds into the generate dialog** (warning line plus a primary button reading "Replace map" on a
+  non-empty scene, "Generate world" on an empty one), so a modal on top of a modal goes away.
+  **The switch gets visible contrast**: `switchRoot` fills its off state with `bg-sink`, a hair from
+  `--panel` in both themes, so an off toggle is invisible and the sea-level slider below it looks
+  permanently dead for no visible reason. The gate stays — the slider really does nothing until the
+  override is on — and the **switch** is fixed to ≥ 3:1 against the panel, which repairs every
+  toggle in the app at once. And **the seed becomes a world code**: a human-readable `w1-` string
+  carrying all seven world inputs, because the seed is four of the nine `generateWorld` reads and
+  three of the rest are session-only, so a bare copyable seed would fail *silently*. Canvas size
+  and `coastDetail` are deliberately **out** of the code — which is what lets WP-30's create page
+  pick the canvas first and then accept a code for everything else.
+  **Build the form as one component with two containers**, since WP-30 mounts it on a page where
+  the scene is always empty. §5.1's branch is already exactly that difference.
+  Acceptance: a `worldCode` round-trip plus rejection of a garbage string and a `w2-` string; an
+  **off** switch measured at **≥ 3:1** against the panel in both themes, not eyeballed; the
+  sea-level slider still enabling only when its toggle is on.
+- [ ] **WP-32 · The menu bar, and a rail that holds one idea** (`11` §3–§4) — Map · Edit · View ·
+  Help, in their own row above today's tool row; the right rail drops to **Layers + Appearance**;
+  the bottom autosave strip is absorbed into the menu bar so two rows cost no height. New
   `ui/MenuBar.tsx` on Radix `DropdownMenu` (already installed — keyboard nav, Escape, typeahead
   and roles come from the primitive). `Canvas size ▸` becomes a **radio submenu**, which makes
-  "re-picking your current size is a no-op" structural rather than a guard; **My maps → Open
-  Map**, because P2 puts cloud maps in the same dialog (ADR-33); the map title becomes an inline
-  input, so `Rename` is a control removed. `deleteSelection` / `restackSelection` lift into the
-  store — they already called `getState()` internally.
-  **Three behaviour changes ride along.** ADR-21's generate confirm **folds into the generate
-  dialog** (warning line plus a primary button reading "Replace map" on a non-empty scene), so a
-  modal on top of a modal goes away. **The switch gets visible contrast**: `switchRoot` fills its
-  off state with `bg-sink`, a hair from `--panel` in both themes, so an off toggle is invisible
-  and the sea-level slider below it looks permanently dead for no visible reason. The gate stays
-  — the slider really does nothing until the override is on — and the **switch** is fixed to
-  ≥ 3:1 against the panel, which repairs every toggle in the app at once. And **the seed becomes a
-  world code**: a human-readable `w1-` string carrying all seven world inputs, because the seed
-  is four of the nine `generateWorld` reads and three of the rest are session-only, so a bare
-  copyable seed would fail *silently*.
-  **Every `data-*` hook keeps its value** on whichever element it moves to — the CDP recipes in
-  `07-interaction-invariants.md` drive them. Acceptance is driven input per menu item, a
-  `worldCode` round-trip plus rejection tests, and no rail scrollbar at 900 px.
+  "re-picking your current size is a no-op" structural rather than a guard; the map title becomes
+  an inline input, so `Rename` is a control removed. `deleteSelection` / `restackSelection` lift
+  into the store — they already called `getState()` internally.
+  **The `Map` menu holds four items, not six** (ADR-40): `Canvas size ▸`, `Reset canvas…`,
+  `Generate world…`, `Export image…`. **`New map` and `Open Map…` are WP-30's**, on the gallery
+  page — the menu owns *this* map, the gallery owns *which*. The **brand mark `[M]` links to
+  `/maps`** and is the way back. `data-action="new-map"` and `"gallery"` keep their values on their
+  new homes; every other `data-*` hook keeps its value here, since the CDP recipes in
+  `07-interaction-invariants.md` drive them.
+  Acceptance is driven input per menu item and no rail scrollbar at 900 px.
 
 **Batch 6 — tools that say what they do.** Four places where a tool's behaviour and the UI's
 description of it have drifted apart. Design in `12-tools-that-say-what-they-do.md`; **ADR-37**
@@ -341,6 +357,57 @@ that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
   user's hand on that river · nearest wins between a coast and a river · no self-snap. Acceptance
   is driven pointer input reading the **stored points**, plus the preview differing *before* the
   click (I4).
+
+**Batch 8 — routes, a front door, and a page to start from.** The editor has no routes at all:
+`App.tsx` is the whole app, one URL is the whole address space, a map cannot be linked or
+bookmarked, and the only way to reach a second map is a dialog over the editor. Design in
+`14-routing-and-landing.md`; decided in **ADR-40**, which records D1–D12 (all settled).
+**Prerequisite:** WP-22, and **WP-23** for the generate form the create page reuses.
+**None of this needs a host** — the deploy is WP-13's separate unfinished half.
+
+- [ ] **WP-30 · The routes** — `/maps` (the gallery as a page, titled **Your maps**),
+  `/maps/create` (a setup page), `/maps/edit/{uuid}` (the editor), plus two kinds of not-found.
+  **Hand-rolled router, ~30 lines**, no new dependency — revisit at P2's nested or guarded routes,
+  or on a measurement. It also owns the three things the primitive does not give you: per-route
+  `document.title`, scroll restoration on Back to `/maps`, and focus management.
+  **The gallery dialog is replaced, not duplicated** — ADR-35 already makes switching maps clear
+  the undo stack, so it is a navigation in everything but presentation. `/maps` gains an **empty
+  state** it never needed as a modal, and when the list is empty *and known* it `replaceState`s to
+  `/maps/create`.
+  **`/maps/create` is a page, not a redirect**, because `resetCanvas(preset)` doubles as *change
+  canvas size* and discards every object — so canvas size is free exactly once, at creation, and
+  there was no screen there to offer it. Defaults to **landscape**; generation runs **in the
+  editor after the navigation**, reusing the existing toast. Nothing is written to IndexedDB until
+  the user clicks through, so a landing-page bounce leaves no empty draft. Completing the page
+  **replaces** its history entry; abandoning it leaves the entry alone, so Back means the right
+  thing in both directions.
+  **`rememberOpen` / `rememberedOpen` and the `loadLatestScene()` fallback are deleted** — the
+  route parameter is already the IDB keyPath, so this removes a mechanism. The editor route does
+  **nothing** when `store.scene.meta.id` already matches, which is what makes Back preserve the
+  undo stack (the store is a module singleton).
+  **Four traps, each a one-line mistake with a delayed symptom** (`14` §4.7): the create page must
+  **`replaceState` on completion** (`pushState` puts a finished setup step behind Back, and
+  completing it again mints a second map) · `pushState` on the empty-`/maps` redirect traps Back in
+  a loop · `location.assign` anywhere is a full reload · and **client-side navigation must flush
+  autosave**, because `pagehide` does not fire on a route change and the throttle is 800 ms.
+  **Two tabs on one map** get a `BroadcastChannel` warning — the local save path has never had a
+  version check, and linkable URLs make the collision easy.
+  **Dev and production hold the same routing rule twice** — a Vite `configureServer` middleware and
+  the Caddyfile — and must agree; every CDP driver runs against the dev server, so this is not
+  polish. Acceptance is driven throughout, including **a mutation proving the flush discriminates**.
+- [ ] **WP-31 · The landing page** — a static HTML file at `/`, styled with the Tailwind build and
+  `tokens.css` the app already uses, so the page cannot drift from the application and a visitor
+  arrives at `/maps` with the stylesheet cached. **No React, no router, no editor bundle.** Hero is
+  a **WebP exported from the editor itself**, one primary CTA → `/maps`, six sections each with one
+  sentence and one exported image, and only shipped exports advertised. `/how-it-works` is
+  **reserved, shell only** — content when the rest is done. **No `/login` or `/signup` pages**:
+  ADR-06's PKCE redirects to Zitadel's hosted login, so P2 needs a Sign in *button*, a signup hint
+  parameter (verified against a live Zitadel, not assumed) and `/auth/callback`. A static page
+  cannot know it is signed in — `platform/README.md` D2 keeps no refresh token in the browser — so
+  the header reads a **localStorage hint**, which is a label and never an authorization decision.
+  Ship the sign-in slot now, the buttons at P2. Acceptance: the headline and every section heading
+  are **in the HTML body** before any JavaScript, and the page loads **no editor bundle** —
+  asserted on the response and the network, not on feel.
 
 ## Later phases (see the phase prompts)
 

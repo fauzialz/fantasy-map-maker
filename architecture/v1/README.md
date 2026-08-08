@@ -55,11 +55,12 @@ prompts** used to drive an AI coding agent through the build.
   and the box is a poor stand-in for the shape — measured at 53% ink for mountains and **28%
   for the compass**. Silhouette tie-break, tighter boxes, and a parser that fails loudly.
   See ADR-30.
-- `11-editor-shell.md` — **scheduled as WP-23**, the whole of Batch 5. The right rail stacks
-  five unrelated concerns and **Generate** exists twice; commands move to a menu bar and the
-  rail keeps only what you steer while watching the map. Also folds ADR-21's generate confirm
-  into the generate dialog, gives the switch an off state you can actually see, and turns the
-  seed into a shareable world code. See ADR-36.
+- `11-editor-shell.md` — **Batch 5, and it ships in two packages** (ADR-40): **WP-23** is §5 —
+  ADR-21's generate confirm folded into the generate dialog, an off switch you can actually see,
+  and the seed turned into a shareable world code — and **WP-32** is §3–§4, the menu bar and the
+  slimmed rail. The right rail stacks five unrelated concerns and **Generate** exists twice;
+  commands move to a menu bar and the rail keeps only what you steer while watching the map.
+  **WP-30 lands between them**, so no menu item is built and then deleted. See ADR-36 and ADR-40.
 - `12-tools-that-say-what-they-do.md` — **scheduled as WP-24 → WP-27.** Four places where a
   tool's behaviour and the UI's description of it have drifted apart: a brush with no feedback
   until you drag, an Erase that means two things and cannot touch landmasses or rivers **at
@@ -70,6 +71,13 @@ prompts** used to drive an AI coding agent through the build.
   makes the canvas edge unreachable, and rivers that stop dead at the shore. See ADR-38 (the
   zoom bound widens, amending ADR-02) and ADR-39 (a river's end snaps to a coast or another
   river at draw time, and the mouth reshape is **control points, not stored geometry**).
+- `14-routing-and-landing.md` — **scheduled as WP-30 → WP-31**, Batch 8. The editor has no routes
+  at all: one URL is the whole address space, a map cannot be linked or bookmarked, and which map
+  is open is kept in a localStorage id — the app remembering what an address could say. Adds a
+  static landing page at `/` and the SPA under `/maps`, turns the gallery **dialog into a page**,
+  and gives map creation a screen — the one place canvas size is free, since changing it later
+  empties the map. **None of it needs a host.** See ADR-40, which also removes `New map` and
+  `Open Map…` from the menu bar: *the menu owns this map, the gallery owns which map.*
 - `HOW-TO-CHANGE-SPRITE-ART.md` — **procedure for replacing or adding the map's artwork.**
   What format the sprites are (SVG path `d` strings, not `.svg` files, and why the theme and
   P1's offline embed both require that), the 100×100 grid with feet on the baseline, and the
@@ -115,7 +123,7 @@ prompts** used to drive an AI coding agent through the build.
 | Phase | Goal | Backend? | Headline deliverables |
 |---|---|---|---|
 | **P0 — Core editor** | A complete, deployable editor | No | Terrain brush, coastal rings, mountains/forests/icons/rivers, multi-select, undo/redo, noise generator, image export, local-first autosave |
-| **0.5 — Core-editor improvement** (ongoing, never closes) | Editor enhancements after P0 | No | Batch 1: terrain as objects — select / colour / name / delete land, move + rotate, resize, overlap policy (`08-terrain-as-objects.md`). Batch 2: selection across layers — one Select tool over every layer, then frames for path objects, rivers before land (`09-selection-across-layers.md`). Work order `prompts/phase-0.5-core-editor-improvement.md` |
+| **0.5 — Core-editor improvement** (ongoing, never closes) | Editor enhancements after P0 | No | **1** terrain as objects (`08`) · **2** selection across layers (`09`) · **3** hit-testing precision (`10`) · **4** more than one map (ADR-33) · **5** the editor shell (`11`) · **6** tools that say what they do (`12`) · **7** reading the map (`13`) · **8** routes and a landing page (`14`). Work order `prompts/phase-0.5-core-editor-improvement.md` |
 | **P1 — Distribution** | Get maps out, no server | No | Self-contained HTML embed export, `.map.json` import/export |
 | **P2 — Accounts & sharing** | Persistence + hosted sharing | Yes (Go + Postgres + Zitadel) | Login, **opt-in per-map cloud sync** under a server-enforced cap, "my maps", the claim *offer*, share page + hosted iframe, SVG/PDF export (free — client-side) |
 | **P3 — React library** | Reusable component | No | `@byfauzi/map-viewer` then `@byfauzi/map-editor` npm packages |
@@ -161,6 +169,10 @@ P0 alone is a complete portfolio piece.
 - **v1 design: complete.** All load-bearing decisions locked (see the ADR log).
 - **Phase 0: built.** WP-0 … WP-13 all pass their acceptance criteria; the one part not
   done is the deploy itself, which needs a host and a domain. See the tracker.
+- **0.5: Batches 1–4 built** (WP-14 … WP-22). **Batches 5–8 are designed and unbuilt** — build
+  order across them is **WP-23 → WP-24…WP-29 → WP-30 → WP-31 → WP-32**, because ADR-40's routes
+  change what the menu bar contains and Batches 6 and 7 are independent of both. None of it needs
+  a host.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
   first-class water bodies/canals, auto-generated rivers, rich blended biome
   transitions, tile-render export, WebGL renderer.

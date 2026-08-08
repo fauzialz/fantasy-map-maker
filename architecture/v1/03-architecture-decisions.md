@@ -594,6 +594,14 @@ per-device. Local drafts are LRU-pruned to the ~20 most recent, evicting **only*
 synced maps; anything local-only or ahead of cloud is never evicted. Opt-in sync also makes
 a **merged local+cloud gallery mandatory** rather than optional — scheduled as WP-22.
 
+**Where that gallery lives changed with ADR-40:** it is the **page** at `/maps`, not a dialog, so
+the merged list, the sync badges and the **claim offer** all surface there. One consequence is
+worth stating precisely, because getting it wrong is that page's worst failure: ADR-40 has `/maps`
+redirect to `/maps/create` when the list is empty, and for a signed-in user "empty" means **both
+sources empty and both known**. If the API call fails or the browser is offline, show the gallery
+with an error state and **do not redirect** — a user with five cloud maps must never be told to
+create their first one.
+
 **Rejected:** a cap dialog at map creation (local maps cost nothing and are unlimited; a
 dialog there is a wall in front of *creating*, which ADR-07 forbids); automatic bulk claim
 on login; overwrite-in-place; auto-resolving conflicts by newest timestamp (silent data
@@ -707,7 +715,8 @@ generator, the document actions (new / open / reset / canvas size) and export mo
 while the layer list and the four render settings that re-derive live — parchment, coastal
 rings, ring count, ring gap — stay in the rail. The theme stays a **button**, not a menu item.
 The map title becomes an inline input in the menu bar, so `Rename` is a control removed rather
-than a command added. Shipped with **WP-23**; full design in `11-editor-shell.md`.
+than a command added. Full design in `11-editor-shell.md`, which **ships in two packages** —
+**WP-23** (§5) and **WP-32** (§3–§4) — see the ADR-40 amendment at the end of this entry.
 
 **Why:** every control in the rail worked; they were filed by the order they were built in
 rather than by kind. The tell was two **Generate** buttons — one in the toolbar, one in the rail
@@ -749,6 +758,18 @@ persisting the advanced trio into the scene so a bare seed would suffice (a `sch
 and a `migrate()` step to make a text field shorter); keeping the generator in the rail behind a
 collapsible (treats the symptom and leaves four unrelated concerns instead of five); and a
 `Rename…` command (an inline title input is one control fewer).
+
+**Amended by ADR-40, before either half was built.** Two changes, both of which *remove* from this
+design rather than revise it. **`New map` and `Open Map…` leave the `Map` menu** — ADR-40 sorts
+controls by scope as well as kind, so "which map" commands live on the gallery page and the menu
+keeps only what acts on the map in front of you: `Canvas size ▸`, `Reset canvas…`,
+`Generate world…`, `Export image…`. The "My maps → **Open Map**" rename above is therefore
+retired along with the item; the *page* is titled **Your maps**, and the ambiguity this ADR
+objected to was a property of a command label, not of a heading. And **this document now ships as
+two packages** — **WP-23** (the generate dialog, the world code, and the `switchRoot` contrast fix
+— §5 entire) and **WP-32** (the menu bar and the slimmed rail — §3 and §4) — with WP-30 in
+between, so no menu item is built and then deleted. WP-23 goes first because ADR-40's create page
+mounts the same generate form.
 
 ## ADR-37 — Erase and the sea brush are two tools; a landmass the eraser touches dies whole
 **Decision:** The contextual eraser splits. **Sea brush** keeps today's behaviour exactly —
@@ -902,3 +923,66 @@ ADR-13 — so the snap target would disappear when coastal rings are switched of
 every river to the nearest coast regardless of distance (a river ending in an inland lake is
 legitimate); and deriving the overshoot from `ringGap` (it must also cover the coast stroke,
 which is screen-constant, so no single map-space formula covers both).
+
+## ADR-40 — The app gets an address space; the menu owns *this* map, the gallery owns *which*
+**Decision:** The editor gains routes. A **static landing page** at `/`, and the SPA under
+`/maps` — **`/maps`** (the gallery, as a page titled *Your maps*), **`/maps/create`** (a setup
+page), **`/maps/edit/{uuid}`** (the editor). One origin, `map.byfauzi.com`, so ADR-34's
+same-origin `/api/*` survives. The router is **hand-rolled**, about thirty lines, with no new
+dependency. The gallery **dialog is replaced**, not duplicated, and **`New map` and `Open Map…`
+leave the menu bar** for the gallery page. Ships as **WP-30** and **WP-31**; full design in
+`14-routing-and-landing.md`, which records D1–D12.
+
+**The rule, and it is ADR-36's one level out:** *a menu holds commands and rarely-changed
+settings; a rail holds live state* sorted controls by **kind**. This sorts them by **scope** —
+everything acting on the document in front of you stays in the chrome around it, everything that
+chooses *between* documents lives on a page. The `Map` menu lands on four items, all about the
+map you are looking at.
+
+**Why a page rather than the dialog, stated because the dialog worked.** ADR-35 already
+establishes that switching maps **clears the undo stack**, since a step carries scenes belonging
+to the map that produced them. That is a navigation in everything but presentation: a modal says
+"a small thing you can back out of" and the model says the opposite. Making it a route also gives
+a map a URL, which is what removes `rememberedOpen()` — the app had been *remembering* what an
+address could simply *say*.
+
+**Why `/maps/create` is a page and not a redirect.** `resetCanvas(preset)` does double duty as
+*Reset canvas* and *change canvas size*, discarding every object
+([editorStore.ts:380-401](../../src/state/editorStore.ts#L380-L401)) — which is why ADR-36 puts a
+confirm on `Canvas size ▸`. **Canvas size is free exactly once, at creation**, and there was no
+screen at creation on which to offer it. The page also stops a landing-page bounce from writing an
+empty draft, which the first-drafted mint-and-redirect would have done on every click.
+
+**Consequences.** `rememberOpen` / `rememberedOpen` and the `loadLatestScene()` fallback are
+**deleted** — the route parameter is already the IndexedDB keyPath (WP-22), so the URL is the
+source of truth and this package removes a mechanism rather than adding one. The editor route
+does nothing at all when `store.scene.meta.id` already matches, which is what lets **Back preserve
+the undo stack** — `useEditorStore` is a module singleton and survives an unmount. Every
+navigation is a real `<a href>` so *Open in new tab* works, and **every plain left click must
+flush autosave first**, because the throttle's `pagehide` flush does not fire on a route change.
+Linkable URLs also make **two tabs on one map** easy, which the local save path has never guarded:
+a `BroadcastChannel` warns rather than blocking. `11-editor-shell.md` therefore ships in **two
+packages** — WP-23 (the generate dialog and world code, which the create page reuses) and WP-32
+(the menu bar and rail) — so no menu item is built and then deleted. Dev and production hold the
+same routing rule in two places (a Vite middleware and the Caddyfile) and must agree; *works
+locally, 404s in production* has exactly one signal, and it is a deploy.
+
+**Auth is unaffected and gains nothing to build.** ADR-06's OIDC + PKCE redirects to Zitadel's
+hosted login, so there are **no `/login` or `/signup` pages** — a Sign in *button*, a signup hint
+parameter, and `/auth/callback` landing on `/maps`. Because `platform/README.md` D2 keeps no
+refresh token in the browser, a static landing page cannot know it is signed in; it reads a
+**localStorage hint**, which is a label and never an authorization decision — ADR-31 already makes
+the server's 402 the authority, and 401 is the same.
+
+**Rejected:** `/` as the editor with no landing page (ADR-04 asks for indexable prose, and P2's
+share links need somewhere to send "what is this?" traffic); **react-router** (four routes at P2,
+none nested — revisit on a measurement or on guarded routes); prerendering the landing out of the
+SPA with an SSG plugin (a dependency and a build step to produce a file we can write, and it puts
+the editor's shell behind a marketing page); keeping the dialog alongside the page (two renderings
+of one list, which is ADR-36's two-Generate-buttons story repeating); a separate app subdomain
+(costs a certificate and same-origin `/api/*`, and moves no bytes); a `/maps/create?w=<code>`
+parameter (with a real page the code is a field, and a parameter surviving the URL adoption would
+re-run the generator on every reload); a live map viewer in the hero (P3's `@byfauzi/map-viewer`
+arriving early — revisit when it exists, at which point it is a mount rather than a package); and
+keeping `/edit` as a redirect (nothing is deployed, and two spellings of one route from day one is
+how an address space rots).
