@@ -21,8 +21,13 @@ const anchorAt = ([x, y]: Point, scatter: boolean) => ({
   id: crypto.randomUUID(),
   x,
   y,
-  // Map sprites read as drawn-in-place; a few degrees keeps a range from looking stamped.
-  rotation: scatter ? jitter(5) : 0,
+  /**
+   * WP-27 — a knob, not a constant. This was `jitter(5)`, chosen once so a range would not
+   * look stamped and never exposed, which made "how much do scattered sprites turn?" a
+   * question with no control behind it. `scatterRotation` is a *spread*: 0 is upright, 15
+   * is ±15°. It defaults to 0, so nothing turns until asked.
+   */
+  rotation: scatter ? jitter(useEditorStore.getState().scatterRotation) : 0,
   scale: scatter ? 1 + jitter(0.28) : 1,
   z: 0,
 });
@@ -76,25 +81,30 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint, onPlaceLabe
     [activeLayerId, kind],
   );
 
-  const eraseAt = useCallback(
-    (point: Point) => {
-      const state = useEditorStore.getState();
-      const layer = state.scene.layers.find((l) => l.id === activeLayerId);
-      if (!layer) return;
-
-      // ponytail: linear scan, and deliberately still one after WP-7. The rbush index serves
-      // the marquee, which tests a box against every object per drag frame; the eraser tests
-      // one small disc, so at the ~1-2k budget a distance check per object costs less than
-      // keeping an index in step with each removal. Revisit if the budget grows.
-      const radius = state.brushSize / 2;
+  /**
+   * WP-26 — the eraser is global (ADR-37). It walks **every visible, unlocked layer**
+   * rather than the active one, which is ADR-28's rule for Select applied to the second
+   * global tool: lock is how you protect a layer, and hiding one protects it too (`12` D3).
+   * That is what lets a stroke sweep the whole map and take only what you left showing.
+   *
+   * Still one undo step for the whole drag, across however many layers it touched — the
+   * commit is opened at `begin` and closed at mouse-up, so this needs nothing extra.
+   */
+  const eraseAt = useCallback((point: Point) => {
+    const state = useEditorStore.getState();
+    // ponytail: linear scan, and deliberately still one after WP-7. The rbush index serves
+    // the marquee, which tests a box against every object per drag frame; the eraser tests
+    // one small disc, so at the ~1-2k budget a distance check per object costs less than
+    // keeping an index in step with each removal. Revisit if the budget grows.
+    const radius = state.brushSize / 2;
+    for (const layer of state.scene.layers) {
+      if (!layer.visible || layer.locked) continue;
       const doomed = layer.objects
         .filter((object) => isUnderBrush(object, point, radius))
         .map((object) => object.id);
-
-      if (doomed.length > 0) state.removeObjects(activeLayerId, doomed);
-    },
-    [activeLayerId],
-  );
+      if (doomed.length > 0) state.removeObjects(layer.id, doomed);
+    }
+  }, []);
 
   const step = useCallback(
     (point: Point, first: boolean) => {
@@ -127,9 +137,12 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint, onPlaceLabe
 
   const begin = useCallback(
     (clientX: number, clientY: number) => {
-      if (!enabled || !kind) return false;
-      last.current = null;
+      if (!enabled) return false;
       const { scene, objectTool } = useEditorStore.getState();
+      // Erasing needs no `kind`: it removes what is already there rather than making
+      // something, so it works on terrain and rivers, which create nothing through here.
+      if (objectTool !== "erase" && !kind) return false;
+      last.current = null;
       pending.current = { scene, label: objectTool === "erase" ? "erase objects" : objectTool };
       step(toMapPoint(clientX, clientY), true);
       setStroking(true);
