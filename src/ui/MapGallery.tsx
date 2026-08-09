@@ -1,39 +1,35 @@
-import { Dialog } from "radix-ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Pencil, Trash2 } from "lucide-react";
 import {
   deleteDraft,
   listDrafts,
-  loadScene,
   putThumb,
   renameDraft,
   type DraftSummary,
 } from "../persistence/drafts";
 import { callGeometry } from "../engine/worker/client";
 import { planExport, renderScene, toBlob } from "../export/image";
+import { savedScroll } from "../routes";
 import type { Scene } from "../scene/types";
 import { selectLandmasses, useEditorStore } from "../state/editorStore";
 import { useToastStore } from "../state/toastStore";
 import { ConfirmDialog } from "./dialogs";
-import {
-  button,
-  dialogActions,
-  dialogContent,
-  dialogDescription,
-  dialogOverlay,
-  dialogTitle,
-  hint,
-  toolButton,
-} from "./variants";
+import { Link } from "./Link";
+import { hint, toolButton } from "./variants";
 
 /**
- * The local map gallery — WP-22.
+ * The local map list — WP-22, and the body of `/maps` since WP-30.
  *
  * `drafts.ts` has stored a **keyed collection** since WP-12: `meta.id` is the keyPath,
  * deliberately, so P2 can claim drafts into an account. What was missing was the query and
- * a way in. Until now `newScene` minted a fresh `meta.id` on every "new canvas", so each
+ * a way in. Until WP-22, `newScene` minted a fresh `meta.id` on every "new canvas", so each
  * click wrote a *new* record and left the previous map on disk with nothing pointing at it —
- * this dialog is as much about surfacing maps that already exist as about making new ones.
+ * this list is as much about surfacing maps that already exist as about making new ones.
+ *
+ * **The dialog shell is gone** (`14` D3). Opening a map already clears the undo stack
+ * (ADR-35), which makes it a navigation in everything but presentation — so a row is now a
+ * real `<a href="/maps/edit/{id}">`, which also means Ctrl-click opens a second map in a
+ * second tab, for free.
  *
  * **Local only.** P2's WP-3 folds cloud maps into the same list with sync badges, so the row
  * takes a plain summary and nothing here assumes where a map came from — but no seam is
@@ -60,15 +56,8 @@ const when = (iso: string) => {
   return new Date(iso).toLocaleDateString();
 };
 
-export function MapGallery({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
+export function MapGallery({ onEmpty }: { onEmpty: () => void }) {
   const scene = useEditorStore((s) => s.scene);
-  const openScene = useEditorStore((s) => s.openScene);
   const setTitle = useEditorStore((s) => s.setTitle);
   const [drafts, setDrafts] = useState<DraftSummary[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -88,24 +77,38 @@ export function MapGallery({
   }, []);
 
   useEffect(() => {
-    if (open) void refresh();
-  }, [open, refresh, scene.meta.title]);
+    void refresh();
+  }, [refresh, scene.meta.title]);
 
   /**
-   * The open map's thumbnail, rendered when the gallery opens and not before.
+   * Nothing to show, and we know it — hand the page over to the create page (§4.2). This
+   * fires only once the read has *resolved*: `null` is "still asking", and telling a
+   * returning user they have no maps because IndexedDB has not answered yet would be the
+   * worst mistake this page can make. At P2 the same guard grows a second source.
+   *
+   * The scroll restoration rides along here for the same reason — Back to a list can only
+   * be put back where it was once the list exists to scroll.
+   */
+  useEffect(() => {
+    if (!drafts) return;
+    if (drafts.length === 0) onEmpty();
+    else window.scrollTo(0, savedScroll());
+  }, [drafts, onEmpty]);
+
+  /**
+   * The last-opened map's thumbnail, rendered when this page opens and not before.
    *
    * Deliberately **not** on the autosave tick: a derivation costs 119–488 ms (`08` C2) and
    * a render is a full-map draw, so paying it every 800 ms to keep a picture nobody is
    * looking at current would be the worst trade in the app. Paying it when the gallery
    * opens is once per look.
    *
-   * It runs *after* the dialog is up and refreshes the row when it lands, so an expensive
-   * map never delays the list. Other drafts keep a placeholder rather than getting a
+   * It runs *after* the list is up and refreshes the row when it lands, so an expensive
+   * map never delays the page. Other drafts keep a placeholder rather than getting a
    * ringless render — `renderScene` needs worker-derived bands, and a map missing its
    * coastal rings is a *wrong* picture, not a missing one.
    */
   useEffect(() => {
-    if (!open) return;
     const current = useEditorStore.getState().scene;
     if (captured.current === current) return;
     captured.current = current;
@@ -142,26 +145,11 @@ export function MapGallery({
     return () => {
       cancelled = true;
     };
-  }, [open, refresh]);
+  }, [refresh]);
 
   useEffect(() => {
     if (editing) nameInput.current?.select();
   }, [editing]);
-
-  const openMap = async (id: string) => {
-    if (id === scene.meta.id) return onOpenChange(false);
-    try {
-      const next = await loadScene(id);
-      if (!next) {
-        useToastStore.getState().show("That map is no longer on this device.");
-        return void refresh();
-      }
-      openScene(next);
-      onOpenChange(false);
-    } catch (err) {
-      useToastStore.getState().show(`Could not open that map: ${(err as Error).message}`);
-    }
-  };
 
   /**
    * One rename, two destinations. The open map has to go through the store or the editor
@@ -185,15 +173,11 @@ export function MapGallery({
     setConfirming(null);
     try {
       await deleteDraft(target.id);
-      // Deleting the map you are looking at leaves the editor holding a scene with no
-      // record. Autosave would write it straight back, so step to the newest survivor —
-      // or to a blank map if that was the last one.
-      if (target.id === scene.meta.id) {
-        const rest = await listDrafts();
-        const next = rest[0] ? await loadScene(rest[0].id) : null;
-        if (next) openScene(next);
-        else useEditorStore.getState().newMap(scene.meta.canvas.preset);
-      }
+      // Deleting the map the store still holds would let a Back to its address resurrect it:
+      // the editor route's "same id, do nothing" rule would show it, and autosave would write
+      // it straight back. Standing the store on a fresh scene makes that address genuinely
+      // unknown, which is the answer §4.4 wants for a stale one.
+      if (target.id === scene.meta.id) useEditorStore.getState().newMap(scene.meta.canvas.preset);
       await refresh();
       useToastStore.getState().show(`Deleted “${target.title}”.`);
     } catch (err) {
@@ -203,105 +187,97 @@ export function MapGallery({
 
   return (
     <>
-      <Dialog.Root open={open} onOpenChange={onOpenChange}>
-        <Dialog.Portal>
-          <Dialog.Overlay className={dialogOverlay()} />
-          <Dialog.Content className={dialogContent()} data-dialog="gallery">
-            <Dialog.Title className={dialogTitle()}>My maps</Dialog.Title>
-            <Dialog.Description className={dialogDescription()}>
-              Every map saved on this device, newest first.
-            </Dialog.Description>
-
-            <ul
-              data-gallery-list
-              data-gallery-count={drafts?.length ?? -1}
-              className="mbf:flex mbf:max-h-80 mbf:flex-col mbf:gap-1 mbf:overflow-y-auto"
-            >
-              {drafts?.map((draft) => {
-                const current = draft.id === scene.meta.id;
-                return (
-                  <li
-                    key={draft.id}
-                    data-draft={draft.id}
-                    data-draft-current={current || undefined}
-                    className={
-                      "mbf:border-line mbf:flex mbf:items-center mbf:gap-2 mbf:rounded-md " +
-                      "mbf:border mbf:p-2 " +
-                      (current ? "mbf:border-accent" : "")
-                    }
+      {/* `null` is "still asking". Rendering an empty grid first would flash "no maps" at a
+          returning user for as long as IndexedDB takes to answer, and then redirect. */}
+      {!drafts ? (
+        <p className={hint()}>Looking for your maps…</p>
+      ) : (
+        <ul
+          data-gallery-list
+          data-gallery-count={drafts.length}
+          className="mbf:grid mbf:grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] mbf:gap-3"
+        >
+          {drafts.map((draft) => {
+            const current = draft.id === scene.meta.id;
+            return (
+              <li
+                key={draft.id}
+                data-draft={draft.id}
+                data-draft-current={current || undefined}
+                className={
+                  "mbf:bg-panel mbf:border-line mbf:flex mbf:flex-col mbf:gap-2 mbf:rounded-lg " +
+                  "mbf:border mbf:p-2 " +
+                  (current ? "mbf:border-accent" : "")
+                }
+              >
+                <Link
+                  to={`/maps/edit/${draft.id}`}
+                  data-open-draft={draft.id}
+                  className="mbf:focus-visible:outline-accent mbf:block mbf:rounded-md mbf:focus-visible:outline-2"
+                >
+                  <Thumb draft={draft} />
+                </Link>
+                <div className="mbf:flex mbf:items-center mbf:gap-1">
+                  <div className="mbf:flex mbf:min-w-0 mbf:grow mbf:flex-col">
+                    {editing === draft.id ? (
+                      <input
+                        ref={nameInput}
+                        data-rename-input
+                        aria-label="Map name"
+                        value={draftName}
+                        onChange={(e) => setDraftName(e.target.value)}
+                        onBlur={() => void commitRename(draft.id)}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === "Enter") void commitRename(draft.id);
+                          if (e.key === "Escape") setEditing(null);
+                        }}
+                        className={
+                          "mbf:bg-panel mbf:border-accent mbf:text-ink mbf:rounded mbf:border " +
+                          "mbf:px-1 mbf:py-0.5 mbf:text-xs mbf:outline-none"
+                        }
+                      />
+                    ) : (
+                      <Link
+                        to={`/maps/edit/${draft.id}`}
+                        className="mbf:truncate mbf:text-xs mbf:font-medium"
+                      >
+                        {draft.title || "Untitled Map"}
+                        {current && <span className="mbf:text-accent"> · open</span>}
+                      </Link>
+                    )}
+                    <span className="mbf:text-muted mbf:font-mono mbf:text-[10px]">
+                      {draft.canvas ? `${draft.canvas.w}×${draft.canvas.h} · ` : ""}
+                      {when(draft.updatedAt)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    data-rename-draft={draft.id}
+                    aria-label={`Rename ${draft.title}`}
+                    className={toolButton()}
+                    onClick={() => {
+                      setDraftName(draft.title);
+                      setEditing(draft.id);
+                    }}
                   >
-                    <Thumb draft={draft} />
-                    <div className="mbf:flex mbf:min-w-0 mbf:grow mbf:flex-col">
-                      {editing === draft.id ? (
-                        <input
-                          ref={nameInput}
-                          data-rename-input
-                          aria-label="Map name"
-                          value={draftName}
-                          onChange={(e) => setDraftName(e.target.value)}
-                          onBlur={() => void commitRename(draft.id)}
-                          onKeyDown={(e) => {
-                            e.stopPropagation();
-                            if (e.key === "Enter") void commitRename(draft.id);
-                            if (e.key === "Escape") setEditing(null);
-                          }}
-                          className={
-                            "mbf:bg-panel mbf:border-accent mbf:text-ink mbf:rounded mbf:border " +
-                            "mbf:px-1 mbf:py-0.5 mbf:text-xs mbf:outline-none"
-                          }
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          data-open-draft={draft.id}
-                          className="mbf:cursor-pointer mbf:truncate mbf:text-left mbf:text-xs"
-                          onClick={() => void openMap(draft.id)}
-                        >
-                          {draft.title || "Untitled Map"}
-                          {current && <span className="mbf:text-accent"> · open</span>}
-                        </button>
-                      )}
-                      <span className="mbf:text-muted mbf:font-mono mbf:text-[10px]">
-                        {draft.canvas ? `${draft.canvas.w}×${draft.canvas.h} · ` : ""}
-                        {when(draft.updatedAt)}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      data-rename-draft={draft.id}
-                      aria-label={`Rename ${draft.title}`}
-                      className={toolButton()}
-                      onClick={() => {
-                        setDraftName(draft.title);
-                        setEditing(draft.id);
-                      }}
-                    >
-                      {editing === draft.id ? <Check size={13} /> : <Pencil size={13} />}
-                    </button>
-                    <button
-                      type="button"
-                      data-delete-draft={draft.id}
-                      aria-label={`Delete ${draft.title}`}
-                      className={toolButton()}
-                      onClick={() => setConfirming(draft)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-
-            {drafts?.length === 0 && (
-              <p className={hint()}>No saved maps yet — this one saves as soon as you draw.</p>
-            )}
-
-            <div className={dialogActions()}>
-              <Dialog.Close className={button({ tone: "ghost" })}>Close</Dialog.Close>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+                    {editing === draft.id ? <Check size={13} /> : <Pencil size={13} />}
+                  </button>
+                  <button
+                    type="button"
+                    data-delete-draft={draft.id}
+                    aria-label={`Delete ${draft.title}`}
+                    className={toolButton()}
+                    onClick={() => setConfirming(draft)}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       <ConfirmDialog
         open={confirming !== null}
@@ -338,7 +314,7 @@ function Thumb({ draft }: { draft: DraftSummary }) {
   return (
     <span
       data-thumb={url ? "image" : "placeholder"}
-      className="mbf:bg-panel mbf:border-line mbf:h-9 mbf:w-12 mbf:shrink-0 mbf:overflow-hidden mbf:rounded mbf:border"
+      className="mbf:bg-sink mbf:border-line mbf:block mbf:aspect-4/3 mbf:overflow-hidden mbf:rounded-md mbf:border"
     >
       {url && <img src={url} alt="" className="mbf:h-full mbf:w-full mbf:object-cover" />}
     </span>

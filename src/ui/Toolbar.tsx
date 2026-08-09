@@ -18,6 +18,7 @@ import type { LayerId } from "../scene/types";
 import { LAYER_TOOLS, useEditorStore } from "../state/editorStore";
 import { useThemeStore } from "../state/themeStore";
 import { Hint } from "./controls";
+import { Link } from "./Link";
 import { button, divider, iconButton, toolbar, toolButton } from "./variants";
 
 /**
@@ -108,9 +109,21 @@ export function Toolbar({ onGenerate, onExport }: Props) {
   return (
     <header className={toolbar()}>
       <div className="mbf:mr-1 mbf:flex mbf:min-w-0 mbf:items-center mbf:gap-2">
-        <span className="mbf:bg-accent mbf:text-panel mbf:font-display mbf:grid mbf:size-7 mbf:shrink-0 mbf:place-items-center mbf:rounded-md mbf:text-sm">
-          M
-        </span>
+        {/*
+          The way back to the gallery, now that `My maps` has left the rail (`14` §4.6). Back
+          only works if you *arrived* from `/maps`, which a bookmarked map did not and a create
+          page that replaced its own entry did not either — so the mark has to be a real link.
+        */}
+        <Hint text="Your maps">
+          <Link
+            to="/maps"
+            data-action="gallery"
+            aria-label="Your maps"
+            className="mbf:bg-accent mbf:text-panel mbf:font-display mbf:grid mbf:size-7 mbf:shrink-0 mbf:place-items-center mbf:rounded-md mbf:text-sm"
+          >
+            M
+          </Link>
+        </Hint>
         <span className="mbf:min-w-0 mbf:leading-tight">
           <span className="mbf:block mbf:truncate mbf:text-xs mbf:font-medium">
             {scene.meta.title}

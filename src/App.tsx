@@ -1,178 +1,26 @@
-import { useEffect, useState } from "react";
-import { MapStage } from "./canvas/MapStage";
-import { callGeometry } from "./engine/worker/client";
-import {
-  download,
-  exportFilename,
-  planExport,
-  renderScene,
-  toBlob,
-  type Format,
-} from "./export/image";
-import { useAutosave, type SaveStatus } from "./persistence/useAutosave";
-import type { Label } from "./scene/types";
-import { selectLandmasses, useEditorStore } from "./state/editorStore";
-import { useToastStore } from "./state/toastStore";
-import { TooltipProvider } from "./ui/controls";
-import { ExportDialog, GenerateDialog } from "./ui/dialogs";
-import { MapPanel } from "./ui/MapPanel";
-import { Toasts } from "./ui/Toasts";
-import { Toolbar } from "./ui/Toolbar";
-import { ToolOptions } from "./ui/ToolOptions";
-
-const fileSize = (bytes: number) =>
-  bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-
-const SAVE_LABEL: Record<SaveStatus, string> = {
-  loading: "opening your last map…",
-  new: "saves as you work",
-  restored: "restored your last map",
-  saving: "saving…",
-  saved: "saved",
-  failed: "not saved",
-};
+import { useEffect } from "react";
+import { navigate, useRoute } from "./routes";
+import { CreatePage } from "./ui/CreatePage";
+import { EditorRoute } from "./ui/Editor";
+import { MapsPage } from "./ui/MapsPage";
 
 /**
- * The shell: toolbar across the top, contextual tool options left, the map, and what the
- * map *is* on the right (`ux-wireframe.html`). It owns nothing but the two modals and the
- * two async actions they run — every control below reads and writes the store directly.
+ * The route, and nothing else (`14` §3).
+ *
+ * Everything the SPA serves lives under `/maps`, so an unknown path here is one Caddy — and
+ * the dev middleware that mirrors it — has already decided belongs to the app: `/maps/nonsense`
+ * rather than `/mapz`, which never loads this bundle at all. It redirects rather than
+ * rendering a second not-found surface (§4.5).
  */
 export default function App() {
-  const scene = useEditorStore((s) => s.scene);
-  const undo = useEditorStore((s) => s.undo);
-  const redo = useEditorStore((s) => s.redo);
-  const saveStatus = useAutosave();
+  const route = useRoute();
+  const unknown = route.name === "unknown";
 
-  const [generating, setGenerating] = useState(false);
-  const [generateOpen, setGenerateOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  /** The label the rail asked to rename; the stage opens its editor on it. */
-  const [editingLabel, setEditingLabel] = useState<Label | undefined>();
-
-  /**
-   * 10h — generate the world in the worker, then apply the whole replace as one command.
-   * Rings need no special handling: they are derived from the landmasses, so they follow.
-   */
-  const generate = async () => {
-    setGenerating(true);
-    try {
-      const state = useEditorStore.getState();
-      const result = await callGeometry("generate", {
-        canvas: { w: state.scene.meta.canvas.w, h: state.scene.meta.canvas.h },
-        ...state.scene.generator,
-        seaLevel: state.seaLevel,
-        mountainDensity: state.mountainDensity,
-        forestDensity: state.forestDensity,
-        rotation: state.generatorRotation,
-        coastDetail: state.scene.settings.coastDetail,
-      });
-      useEditorStore.getState().applyGenerated(result);
-      setGenerateOpen(false);
-      useToastStore
-        .getState()
-        .show(
-          `Generated ${result.landmasses.length} landmasses, ${result.mountains.length} mountains, ${result.trees.length} trees`,
-          () => useEditorStore.getState().undo(),
-        );
-    } catch (err) {
-      useToastStore.getState().show(`Generate failed: ${(err as Error).message}`);
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  /**
-   * WP-11 — render the scene to its own canvas and hand it over as a file. Rings are
-   * derived fresh rather than borrowed from the stage: they are never stored (ADR-13), and
-   * one worker round-trip is cheaper than plumbing the stage's copy out to the dialog.
-   */
-  const exportImage = async (format: Format, requestedScale: number) => {
-    setExporting(true);
-    try {
-      const state = useEditorStore.getState();
-      const { canvas } = state.scene.meta;
-      const plan = planExport(canvas, requestedScale);
-      const landmasses = selectLandmasses(state);
-      const bands =
-        state.scene.settings.coastalRings && landmasses.length > 0
-          ? (
-              await callGeometry("deriveRings", {
-                landmasses,
-                canvas: { x: 0, y: 0, w: canvas.w, h: canvas.h },
-                ringCount: state.scene.settings.ringCount,
-                ringGap: state.scene.settings.ringGap,
-              })
-            ).bands
-          : [];
-
-      const filename = exportFilename(state.scene, format);
-      const blob = await toBlob(renderScene(state.scene, bands, plan), format);
-      download(blob, filename);
-      setExportOpen(false);
-      useToastStore
-        .getState()
-        .show(
-          `Exported ${filename} · ${plan.w}×${plan.h} · ${fileSize(blob.size)}` +
-            (plan.capped
-              ? ` — ${requestedScale}× was capped to ${plan.scale.toFixed(2)}×, the export limit`
-              : ""),
-        );
-    } catch (err) {
-      useToastStore.getState().show(`Export failed: ${(err as Error).message}`);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  // Undo has to answer wherever the pointer is, so it lives above the per-tool key handlers
-  // rather than in any one of them.
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
-      const target = event.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      event.preventDefault();
-      if (event.shiftKey) redo();
-      else undo();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [redo, undo]);
+    if (unknown) void navigate("/maps", { replace: true });
+  }, [unknown]);
 
-  return (
-    <TooltipProvider>
-      <div className="mbf:flex mbf:h-full mbf:flex-col">
-        <Toolbar onGenerate={() => setGenerateOpen(true)} onExport={() => setExportOpen(true)} />
-
-        <div className="mbf:flex mbf:min-h-0 mbf:grow">
-          <ToolOptions onEditLabel={setEditingLabel} />
-          <MapStage editing={editingLabel} />
-          <MapPanel />
-        </div>
-
-        <p
-          data-autosave
-          className="mbf:bg-panel mbf:border-line mbf:text-muted mbf:border-t mbf:px-3 mbf:py-1 mbf:text-[11px]"
-        >
-          {SAVE_LABEL[saveStatus]}
-        </p>
-      </div>
-
-      <GenerateDialog
-        open={generateOpen}
-        busy={generating}
-        onGenerate={() => void generate()}
-        onOpenChange={setGenerateOpen}
-      />
-      <ExportDialog
-        open={exportOpen}
-        canvas={scene.meta.canvas}
-        busy={exporting}
-        onExport={(format, scale) => void exportImage(format, scale)}
-        onOpenChange={setExportOpen}
-      />
-      <Toasts />
-    </TooltipProvider>
-  );
+  if (route.name === "editor") return <EditorRoute id={route.id} />;
+  if (route.name === "create") return <CreatePage />;
+  return <MapsPage />;
 }

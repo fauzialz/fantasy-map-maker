@@ -517,7 +517,7 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
 **Prerequisite:** WP-22, and **WP-23** for the generate form the create page reuses.
 **None of this needs a host** — the deploy is WP-13's separate unfinished half.
 
-- [ ] **WP-30 · The routes** — `/maps` (the gallery as a page, titled **Your maps**),
+- [x] **WP-30 · The routes** — `/maps` (the gallery as a page, titled **Your maps**),
   `/maps/create` (a setup page), `/maps/edit/{uuid}` (the editor), plus two kinds of not-found.
   **Hand-rolled router, ~30 lines**, no new dependency — revisit at P2's nested or guarded routes,
   or on a measurement. It also owns the three things the primitive does not give you: per-route
@@ -547,6 +547,48 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   **Dev and production hold the same routing rule twice** — a Vite `configureServer` middleware and
   the Caddyfile — and must agree; every CDP driver runs against the dev server, so this is not
   polish. Acceptance is driven throughout, including **a mutation proving the flush discriminates**.
+  **The router is 88 lines including its comments** — `matchRoute`, a `useSyncExternalStore` over
+  `location.pathname`, `navigate`, and the three things the primitive does not give you. The
+  snapshot is the pathname *string*, not a parsed object, because `useSyncExternalStore` demands a
+  stable identity and a fresh object every read is an infinite render.
+  **The flush went into `navigate`, not into `<Link>`** — the design put it on the link, but the
+  redirects are navigations too, and a guard that every *caller* must remember is the shape of a
+  bug. One line, one place, and the create page's completion and the empty-list redirect inherit it.
+  **The entry HTML moved to `app.html`** so `index.html` can be WP-31's landing page: with
+  `appType: "mpa"` Vite serves HTML by literal path, and the ~10-line middleware puts `/maps*` on
+  the app exactly as `handle /maps*` does in Caddy. **Measured equal**: `/ /maps /maps/create
+  /maps/edit/abc /mapz` answer `302 200 200 200 404` on `npm run dev` and the same five on
+  `vite preview`.
+  **`rememberOpen`, `rememberedOpen` and `loadLatestScene` are all deleted** — a localStorage key,
+  a fallback branch and a whole query, replaced by the route parameter, which was already this
+  store's keyPath. Autosave lost its restore half with them, so the gallery and the create page now
+  write **nothing at all**: §4.3's "no draft until the user clicks through" is true by construction
+  rather than by a guard, because the hook only mounts inside the editor.
+  **Two deviations, both recorded rather than quietly taken.** The **canvas preset chips stay in
+  the rail**: §7's table has them leaving here, but their new home is WP-32's `Canvas size ▸`
+  submenu, so removing them now would leave canvas size unreachable for two packages. And **no
+  separate empty state was built for `/maps`** — while the redirect is unconditional it is
+  unreachable, so the redirect *is* the empty state; P2 adds the second precondition and the
+  surface together, which is where §4.2 says the real risk lives.
+  **`generateOnOpen` is a store field, not a history-state flag.** `pushState` state survives a
+  reload, which would regenerate the map on every refresh — D12's trap wearing different clothes.
+  Session state cannot: a reload re-initialises the store, and a driven check asserts the toast
+  does *not* come back.
+  **Rides along: every switch in the app was unnamed to a screen reader** — WP-24's slider defect,
+  one control over. A wrapping `<label>` names *labelable* elements, and Radix's switch is a
+  `<button role="switch">`, which is not one. Found because the driver had nothing to select on.
+  One line in `ui/controls.tsx`.
+  **42 driven checks and four mutations, one per trap.** Deleting the flush leaves the record at
+  `parchment=false rings=true` — the *first* edit landed on autosave's leading edge and only the
+  second was lost, which is why the check makes two edits 120 ms apart: **an isolated edit is on
+  disk in ~20 ms, so a single-edit check could never fail.** `pushState` on the empty-list redirect
+  puts Back on `/maps/create` instead of out of the app (trap 2); `pushState` on completion puts it
+  on `/maps` two entries early (trap 1); and dropping the "same id, do nothing" shortcut fails the
+  undo-intact pair at `disabled: true` where an enabled button was required.
+  **The undo pair is what makes the history checks discriminating**, and it needed a third edit to
+  stay that way: backing out of the create page proves history *survives*, completing it proves it
+  is *dropped* — but the first check ends by pressing undo, which empties the stack, so the second
+  would have passed on any code at all. It re-dirties the map first.
 - [ ] **WP-31 · The landing page** — a static HTML file at `/`, styled with the Tailwind build and
   `tokens.css` the app already uses, so the page cannot drift from the application and a visitor
   arrives at `/maps` with the stylesheet cached. **No React, no router, no editor bundle.** Hero is

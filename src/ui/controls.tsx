@@ -92,10 +92,17 @@ export function Toggle({ label, checked, disabled, onChange }: ToggleProps) {
   return (
     <label className={switchRow()}>
       <span>{label}</span>
+      {/*
+        The same defect WP-24 found on the sliders, one control over: a wrapping `<label>`
+        names *labelable* elements, and Radix's switch is a `<button role="switch">`, which is
+        not one — so every toggle in the app announced as an unnamed switch. Found again here
+        because a driver had nothing to select on.
+      */}
       <RadixSwitch.Root
         className={switchRoot()}
         checked={checked}
         disabled={disabled}
+        aria-label={typeof label === "string" ? label : undefined}
         onCheckedChange={onChange}
       >
         <RadixSwitch.Thumb className={switchThumb()} />
