@@ -78,6 +78,13 @@ prompts** used to drive an AI coding agent through the build.
   and gives map creation a screen — the one place canvas size is free, since changing it later
   empties the map. **None of it needs a host.** See ADR-40, which also removes `New map` and
   `Open Map…` from the menu bar: *the menu owns this map, the gallery owns which map.*
+- `15-river-engine.md` — **a design note, not a work order; nothing is scheduled against it.**
+  WP-29 and WP-34 shipped two visible defects — a coast stroke crossing the river mouth, and a
+  tributary wider than the trunk it joins — whose real cause is that a river is an independent
+  ribbon that knows nothing about any other river (ADR-14). Carries the analysis, four labelled
+  **hypotheses**, four cheap mitigations that need no engine, and the five decisions a network
+  model would have to settle first. Written down rather than built because three of those five
+  depend on features already deferred to a later version.
 - `HOW-TO-CHANGE-SPRITE-ART.md` — **procedure for replacing or adding the map's artwork.**
   What format the sprites are (SVG path `d` strings, not `.svg` files, and why the theme and
   P1's offline embed both require that), the 100×100 grid with feet on the baseline, and the
