@@ -909,6 +909,45 @@ that stops short of where the last package moved its sibling. No design doc.
   map units to become one. **Undo depth is the merge-proof question**: a refused stroke files no
   step. Its positive control is what stops it passing on a brush that simply stopped working.
 
+**Batch 13 — the rail follows the tool in your hand.** An audit of the tool options panel, driven
+rather than read: every layer × tool combination enumerated against the running app, and the
+result compared against one rule.
+
+- [x] **WP-37 · One rule for what the rail shows**
+  > **The rail follows the tool in hand, not the active layer.** A layer's create options appear
+  > only while one of its create tools is in hand; a global mode shows its own options and
+  > whatever acts on the current selection.
+
+  **Select had never been given the guard Erase got.** WP-26 made Erase global and taught the
+  rail to stand its layer's controls down; Select went global two packages *earlier* (ADR-28)
+  and nothing followed. So Select on rivers offered **River width** and **Widen toward the
+  mouth** — which only ever configure the *next* river, and do nothing to a selected one — and
+  Select on terrain offered **Brush size** and **Biome to paint** with nothing selected at all.
+  **`On overlap` was in the wrong place entirely.** It is read at *drop* time, when a dragged
+  landmass lands on another (ADR-25) — a brush stroke cannot cause it, because overlapping
+  strokes union. It sat under the land brush, which could never consult it, and now appears only
+  with land selected.
+  **A chip group of one is a label pretending to be a control.** Rivers, icons and labels each
+  offer a single way to create, so their `chips[Draw]` and `chips[Place one]` could be clicked
+  and change nothing. Gone at `tools.length > 1`.
+  **And the text-size slider was lying to a group.** It showed for any all-label selection, but
+  `editingLabel` is undefined for two or more — so with two labels selected it silently moved the
+  *default* while appearing to resize them. Two honest cases now and no third: placing sets the
+  next label's size, one selected label resizes that label.
+  **Two things are shared on purpose and stay shared**, because a future pass will want to know:
+  the biome palette does double duty (paint default ↔ recolour a selection, `08` D6) and so does
+  text size — but only *with* a selection, which is exactly the condition that was missing.
+  **The evidence is the matrix, before and after.** Under a global mode the rail now reads
+  `Selection actions` on every layer and `Brush size` for Erase on every layer — nothing else —
+  and the create tools each show their own options and no other tool's. 11 further driven checks
+  prove the removals took nothing real with them: a selected landmass still brings back the
+  palette (as *"1 landmass"*, and it still recolours), its name field and the drop policy; one
+  selected label still resizes and renames; two selected labels get no size slider.
+  **One check in the existing suite failed, and it was right to.** It asserted `On overlap` under
+  the land brush — the defect, written down as an expectation. Fixing the panel is what surfaced
+  it, which is the argument for driven checks having to be *re-read* when behaviour changes
+  rather than merely re-run.
+
 ## Later phases (see the phase prompts)
 
 - [ ] **P1** — self-contained HTML embed export + `.map.json` import/export.

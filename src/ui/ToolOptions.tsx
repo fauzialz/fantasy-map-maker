@@ -77,6 +77,14 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
    * in your hand. The disc is the whole tool, so its size is the whole option.
    */
   const erasing = objectTool === "erase";
+  /**
+   * Select and Erase act on what is already on the map, so neither inherits the active
+   * layer's *create* options — the rail follows the tool in your hand, not the layer you
+   * happen to be standing on. Erase got this guard when it went global (ADR-37) and Select
+   * never did, which left a river width slider and a biome palette sitting under a tool that
+   * creates nothing.
+   */
+  const globalMode = selecting || erasing;
   /** The land brush, as opposed to the sea brush — they take different options. */
   const paintingLand = onTerrain && terrainTool !== "sea";
   /** Both terrain brushes answer to the terrain layer's own flags, hidden as well as locked. */
@@ -127,7 +135,13 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
     <aside className={panel({ side: "left" })} aria-label="Tool options">
       <p className={panelTitle()}>Tool options · {activeLayerId}</p>
 
-      {tools && (
+      {/*
+        A single-tool layer gets no chips: a segmented control with one segment is a label
+        pretending to be a control, and clicking it cannot change anything. Rivers, icons and
+        labels each offer exactly one way to create, and the toolbar already says which layer
+        you are on.
+      */}
+      {tools && tools.length > 1 && !globalMode && (
         <div className={segment()}>
           {tools.map((tool) => (
             <button
@@ -146,9 +160,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
       {/* The eraser is global since WP-26, so its size has to be reachable from any layer —
           including rivers, which is not an object layer and would otherwise hide the slider
           for the one tool that now works there. */}
-      {(objectTool === "erase" ||
-        onTerrain ||
-        (isObjectLayer && objectTool !== "select" && objectTool !== "place")) && (
+      {(erasing || (!selecting && (onTerrain || (isObjectLayer && objectTool === "scatter")))) && (
         <Slider
           label="Brush size"
           value={brushSize}
@@ -233,7 +245,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         />
       )}
 
-      {onTerrain && !erasing && (
+      {onTerrain && !globalMode && (
         <>
           <Slider
             label="Coast detail"
@@ -265,7 +277,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         so it has none either — a control that cannot act on the tool in your hand is exactly
         what I4 exists to prevent.
       */}
-      {!erasing && (paintingLand || selectedLand.length > 0) && (
+      {((paintingLand && !globalMode) || (selectedLand.length > 0 && !erasing)) && (
         <>
           <p className={panelTitle()} data-land-count={selectedLand.length}>
             {selectedLand.length > 0
@@ -327,9 +339,13 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </>
       )}
 
-      {/* Same rule: the drop policy governs land landing on land, which no eraser and no sea
-          brush can cause. */}
-      {!erasing && (paintingLand || selectedLand.length > 0) && (
+      {/*
+        Only with land selected, because that is the only way to cause it: the policy is read
+        at **drop** time, when a dragged landmass lands on another (ADR-25). A brush stroke
+        cannot trigger it — overlapping strokes union — so it spent this whole time sitting
+        under a tool that could never consult it.
+      */}
+      {selectedLand.length > 0 && !erasing && (
         <>
           <p className={panelTitle()}>On overlap</p>
           <div className={segment()}>
@@ -362,7 +378,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </>
       )}
 
-      {activeLayerId === "icons" && objectTool === "place" && !erasing && (
+      {activeLayerId === "icons" && objectTool === "place" && (
         <div className={segment()}>
           {ICON_KINDS.map((kind) => (
             <button
@@ -377,7 +393,13 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </div>
       )}
 
-      {!erasing && (activeLayerId === "labels" || onlyType === "label") && (
+      {/*
+        Two honest cases and no third: placing on the labels layer sets the *next* label's
+        size, and exactly one selected label resizes *that* label. It used to show for any
+        all-label selection, where `editingLabel` is undefined for two or more — so the slider
+        said it was editing the selection and silently moved the default instead.
+      */}
+      {((activeLayerId === "labels" && objectTool === "place") || editingLabel) && (
         <>
           <Slider
             label="Text size"
@@ -407,7 +429,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </>
       )}
 
-      {activeLayerId === "rivers" && !erasing && (
+      {activeLayerId === "rivers" && objectTool === "place" && (
         <>
           <Slider
             label="River width"
@@ -419,9 +441,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           />
           <Toggle label="Widen toward the mouth" checked={riverTaper} onChange={setRiverTaper} />
           <p className={hint()}>
-            {objectTool === "place"
-              ? "Click from source to sea. Double-click or Enter finishes, Escape cancels."
-              : "Select works on rivers from any layer — click the water to pick one, drag its points to reshape."}
+            Click from source to sea. Double-click or Enter finishes, Escape cancels.
           </p>
         </>
       )}
