@@ -331,7 +331,12 @@ Three rules the mechanism needs, each learned by building it:
 
 Second (modern) map style · formal object grouping · first-class water bodies &
 canals · auto-generated rivers · rich blended biome transitions · tile-render export ·
-WebGL renderer · **per-person map sharing and collaborative editing** — v1 sharing is a
+WebGL renderer · **a river network engine** — rivers are independent ribbons that know
+nothing about each other (ADR-14), which is why a coast stroke crosses a river mouth and a
+tributary can be drawn wider than its trunk. Analysis, hypotheses and the five open decisions
+are in `15-river-engine.md`, tracked as **DEBT V-02**; it shares three of its unknowns with
+*first-class water bodies* and *auto-generated rivers* above, so it is deliberately deferred
+alongside them rather than designed twice · **per-person map sharing and collaborative editing** — v1 sharing is a
 **public read-only link and nothing else** (§11, P2 WP-5). Granting a named person access
 would need per-map member rows and an invite flow; shared *editing* would need live conflict
 resolution well beyond ADR-33's two-device model. Neither is a v1 shape.
