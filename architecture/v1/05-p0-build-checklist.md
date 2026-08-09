@@ -811,7 +811,11 @@ that stops short of where the last package moved its sibling. No design doc.
   1. **The brush ring hides while the wheel turns.** `zoomAt` pins the map point under the pointer,
      so the ring is *usually* still honest — but at the pan clamp that pinning gives way and the
      ring drifts off the cursor for as long as the zoom keeps hitting the edge. It returns on a
-     250 ms idle, or sooner the moment the pointer moves and is truthful again.
+     250 ms idle, or sooner the moment the pointer moves and is truthful again — **and it
+     returns on a re-derived point**: `cursor` is a *map* point and only a mousemove ever made
+     one, so the pointer's client position is kept alongside it and the map point is recomputed
+     once the last zoom has rendered. That fixes the `x · y` readout at the same time, which had
+     been telling the same lie for as long as the ring.
   2. **Panning gained the slack the zoom floor already had.** ADR-38 let the canvas shrink to half
      of fit so it could be seen as an object with edges, and left `clampPan` alone — so zooming
      *in* put the map edge back as a hard wall and anything drawn at the coast stayed jammed
@@ -836,10 +840,16 @@ that stops short of where the last package moved its sibling. No design doc.
   5. **Erase shows the disc and nothing else.** It is a global mode, so the rail was still offering
      the *active layer's* controls underneath it — a river width slider above an eraser, text size
      on the labels layer, coast detail and the biome palette on terrain.
-  **27 driven checks and two mutations.** Setting `PAN_SLACK` to 0 puts the wall back at the map's
+  **28 driven checks and three mutations.** Setting `PAN_SLACK` to 0 puts the wall back at the map's
   own edge — map x **5** at the stage edge against **-130** with the slack. Letting hidden stop
   protecting terrain fails three: the ring, the paint, and the positive control after it.
-  **Two driver bugs, both the same lesson twice.** The pan check first dragged a fixed distance and
+  **And a third mutation that passed first, which is how the cursor check found its own hole.**
+  Deleting the re-derivation changed nothing in a check that zoomed *in* at a corner: `zoomAt`
+  pins the map point under the pointer, and only `clampPan` overruling it can break the pinning —
+  which zooming in never does, because the pan it wants is the legal direction. Zooming **out**
+  while panned hard against a wall is where the two disagree, and there the stale point reads
+  **308,1593** against the truth of **3408,2255**.
+  **Two more driver bugs, both the same lesson twice.** The pan check first dragged a fixed distance and
   never reached the wall, so it measured nothing — `07` §1's overshoot rule, fixed by dragging until
   the reading stops moving. And the hidden-layer check first compared the **landmass count**, which
   cannot fail when the new blob merges with the old — and the viewport was still deep in the

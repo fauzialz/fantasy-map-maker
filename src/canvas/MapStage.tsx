@@ -69,6 +69,15 @@ export function MapStage({ editing }: { editing?: Label }) {
    */
   const [zooming, setZooming] = useState(false);
   const zoomIdle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /**
+   * Where the pointer physically is, in client coordinates.
+   *
+   * `cursor` is a *map* point and only a mousemove produces one — so after a zoom the pointer
+   * has not moved but the map under it has, and the stored point is stale by however much the
+   * pan clamp shifted things. That is a stale ring **and** a stale `x · y` readout. Keeping
+   * the screen position lets both be recomputed the moment the zoom settles.
+   */
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
   const [draft, setDraft] = useState<LabelDraft | null>(null);
 
   /**
@@ -123,6 +132,16 @@ export function MapStage({ editing }: { editing?: Label }) {
     };
   }, []);
 
+  const toMapPoint = useCallback((clientX: number, clientY: number): Point => {
+    const box = containerRef.current?.getBoundingClientRect();
+    const current = vpRef.current;
+    if (!box || !current) return [0, 0];
+    return [
+      (clientX - box.left - current.x) / current.scale,
+      (clientY - box.top - current.y) / current.scale,
+    ];
+  }, []);
+
   // Wheel needs a non-passive native listener to preventDefault the page scroll.
   useEffect(() => {
     const el = containerRef.current;
@@ -138,24 +157,20 @@ export function MapStage({ editing }: { editing?: Label }) {
       // on an idle timer — or sooner, the moment the pointer moves and is truthful again.
       setZooming(true);
       clearTimeout(zoomIdle.current);
-      zoomIdle.current = setTimeout(() => setZooming(false), 250);
+      zoomIdle.current = setTimeout(() => {
+        // Re-derive the map point under the pointer *after* the last zoom has rendered —
+        // `vpRef` is assigned during render, so by now it is the viewport the ring will be
+        // drawn against. Without this the ring reappears wherever the cursor used to be.
+        if (pointerRef.current) setCursor(toMapPoint(pointerRef.current.x, pointerRef.current.y));
+        setZooming(false);
+      }, 250);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       el.removeEventListener("wheel", onWheel);
       clearTimeout(zoomIdle.current);
     };
-  }, [map, view]);
-
-  const toMapPoint = useCallback((clientX: number, clientY: number): Point => {
-    const box = containerRef.current?.getBoundingClientRect();
-    const current = vpRef.current;
-    if (!box || !current) return [0, 0];
-    return [
-      (clientX - box.left - current.x) / current.scale,
-      (clientY - box.top - current.y) / current.scale,
-    ];
-  }, []);
+  }, [map, toMapPoint, view]);
 
   /** Map space → a position inside the stage container, for DOM overlaid on the canvas. */
   const toScreen = useCallback(([x, y]: Point) => {
@@ -440,10 +455,14 @@ export function MapStage({ editing }: { editing?: Label }) {
       onMouseMove={(e) => {
         selection.hover(e.clientX, e.clientY);
         river.hover(e.clientX, e.clientY);
+        pointerRef.current = { x: e.clientX, y: e.clientY };
         setCursor(toMapPoint(e.clientX, e.clientY));
         setZooming(false);
       }}
-      onMouseLeave={() => setCursor(null)}
+      onMouseLeave={() => {
+        pointerRef.current = null;
+        setCursor(null);
+      }}
       onDoubleClick={(e) => {
         // Only a river being *drawn* claims the gesture. Keying this on the layer instead
         // swallowed every double-click on the rivers layer, Select on or not — WP-20 left
