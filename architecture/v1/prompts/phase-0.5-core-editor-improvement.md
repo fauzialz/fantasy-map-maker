@@ -720,6 +720,11 @@ about how the product feels.
 
 ## Adding a future batch
 
+> **Batches 9 and later are tracked in `05-p0-build-checklist.md` only.** This file carries a
+> full work order for a batch that is *about to be built*; once a batch has shipped, its entry in
+> the checklist is the record — which is why Batches 9–13 (WP-33 … WP-38) appear there and not
+> here. The checklist is the backlog and the history; this file is the brief.
+
 Append it below Batch 1. A batch is admissible here when it (a) changes the **core editor**,
 (b) is larger than a bug fix, and (c) does not belong to P1–P3. It needs:
 

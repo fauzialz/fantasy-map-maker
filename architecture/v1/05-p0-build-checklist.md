@@ -733,6 +733,48 @@ is has no control at all — the same "constant pretending to be a decision" tha
   required.
 
 
+**Batch 11 — how close two may stand.** Raised after Batch 8: a scattered mountain half-buried
+behind a sibling is nobody's intent, and the brush had no way to prevent it. **No design doc**,
+like Batches 4 and 9 — the whole change is one predicate and one slider.
+
+- [x] **WP-35 · The scatter brush leaves room** — `crowded()` in `canvas/objectHit.ts`, tested in
+  `scatterAt` before the candidate is added. **Nothing is deleted and nothing is moved**: a
+  crowded candidate is simply not placed, which is why this was built rather than the
+  cull-what-is-already-down version that prompted it — principle 2 says every object is the
+  user's, and this never destroys one.
+  **The brush already had a spacing rule, and it was the wrong one.** `step()` gates the *cursor
+  path* at `max(brushSize × 0.42, 12)`, and then `scatterAt` jitters the drop by up to half the
+  brush across — so two consecutive sprites could still land on top of each other, and a second
+  pass over the same ground remembered nothing of the first. The generator never had the problem:
+  `poisson()` rejects against *accepted points*. This is that rule, borrowed. The path gate stays,
+  because it limits **work** and this limits **result**.
+  **The radius is a fraction of drawn height, and pairwise** — the mean of the two sprites'
+  heights. A fraction because `SPRITE_HEIGHT` has been retuned twice and an absolute spacing would
+  silently change meaning each time (WP-33's lesson, one level along); pairwise because
+  `spriteScale` is a knob, so 300% mountains beside 50% ones is an ordinary map and a single
+  radius would be visibly wrong on it.
+  **Per kind, and the defaults are not new numbers**: 0.58 for mountains and 0.40 for trees are
+  the generator's own accepted ratios — `scatter.ts` spaces mountains at 58 against a 100-unit
+  sprite and trees at 34 against 84. One shared fraction was the alternative and would have been
+  smaller; it cannot express that whoever tuned those wanted peaks further apart than trees
+  relative to their own size. **0 is off**, and it restores the pre-WP-35 brush exactly, so the
+  escape hatch needs no control of its own.
+  **`place` is exempt.** A deliberate click must never be silently refused — the same rule that
+  lets the frame's handles overrule the size knob — and the slider is *absent* rather than
+  disabled in that mode, so nothing implies otherwise.
+  **The generator is untouched**, the same disanalogy WP-33's D1 recorded: its constants are its
+  own and its world code is a reproducibility contract, so a brush knob adds no world input and
+  there is **no `w3-`**.
+  **6 unit fixtures, 10 driven checks, 2 mutations.** The driven shape is **the same stroke three
+  times**, because one pass proves nothing — a sparse result could just be a sparse brush. With
+  spacing off the passes add **+30 +30 +30**; with it at maximum they add **+25 +13 +5**. Deleting
+  the rejection turns the second run into +30 +30 +30 and fails both it and the size check;
+  replacing the pairwise mean with the candidate's own height fails the unit fixture built for it.
+  **The first driven attempt was not decisive and the numbers say why.** A single-line stroke drops
+  ~18 candidates and the jitter spreads them over a band wide enough that a second pass legitimately
+  finds gaps: 6 → 9 looked like a weak pass rather than a working rule. Rastering the stroke over an
+  *area* is what turned "fewer" into **saturation**, which is the claim actually being made.
+
 **Batch 10 — the mouth takes the coast's shape.** Raised on looking at WP-29's result: a straight
 cap on the coast *tangent* reads as a spike through the shoreline. **ADR-41**, which amends ADR-39
 and lifts the ceiling that document named.
@@ -760,6 +802,163 @@ and lifts the ceiling that document named.
   3 clip fixtures on top of WP-29's 10, and WP-29's 9 driven checks still pass **unchanged** —
   they read stored points, which the mask deliberately does not touch. Judged where it had to be:
   by looking at the mouth.
+
+**Batch 12 — the chrome says what the tool does.** Five complaints raised together after Batch 11,
+all of the same kind: a control on screen that does not apply to the thing in your hand, or a bound
+that stops short of where the last package moved its sibling. No design doc.
+
+- [x] **WP-36 · Five that were saying the wrong thing**
+  1. **The brush ring hides while the wheel turns.** `zoomAt` pins the map point under the pointer,
+     so the ring is *usually* still honest — but at the pan clamp that pinning gives way and the
+     ring drifts off the cursor for as long as the zoom keeps hitting the edge. It returns on a
+     250 ms idle, or sooner the moment the pointer moves and is truthful again — **and it
+     returns on a re-derived point**: `cursor` is a *map* point and only a mousemove ever made
+     one, so the pointer's client position is kept alongside it and the map point is recomputed
+     once the last zoom has rendered. That fixes the `x · y` readout at the same time, which had
+     been telling the same lie for as long as the ring.
+  2. **Panning gained a bound of its own.** ADR-38 let the canvas shrink to half of fit so it could
+     be seen as an object with edges, and left `clampPan` alone — so zooming *in* put the map edge
+     back as a hard wall, and a map smaller than the viewport was pinned dead centre with nowhere
+     to go. **`PAN_KEEP = 0.5` of whichever is smaller, the map or the viewport**, which is what
+     makes one number mean the right thing at both ends of the zoom range: zoomed out, half *the
+     canvas* may leave the screen; zoomed in, the map must still cover half *the screen* — slack
+     enough to work at the coast, and it stops the map being flicked out of sight entirely, which
+     a fraction of the map's own size would allow once the map is several screens wide.
+     **The centring branch is gone, and that was the point.** `clampPan` used to centre any axis
+     the map did not fill, which is a *framing* decision wearing a clamp's clothes: zooming out to
+     inspect the coast you were working on threw away the very framing you were pulling back to
+     see. Framing is now `centred()`, called where a fit or a reset happens — and it had to be,
+     because the clamp was the only thing centring the map on first paint.
+     Costs no memory: `padRect` clips every cache rect to the map, ADR-38's own argument.
+     **Measured**: pushed to the wall the stage's left edge reads map x **-265**, the map's own
+     left edge stops at the stage's **centre**, and zoomed out the canvas can be shoved until map
+     x **1915** sits at the right edge of a 4000-wide canvas — half of it off screen.
+  3. **Rotation jitter left the terrain rail.** It was gated on `objectTool === "scatter"` alone,
+     and terrain has no `objectTool` of its own — it keeps whichever was last in hand — so the rail
+     offered a rotation knob to a brush that paints polygons. Gated on `spriteKind` now, like Size
+     and Spacing beside it.
+  4. **The sea brush is a global tool.** It was rendered only on terrain, so reaching it from any
+     other layer took two clicks and the first one was the *land* brush, which resets it. It is
+     always in the mode group now and takes you to the terrain layer, because that is the geometry
+     it edits — reachable everywhere, honest about where it puts you. **Biome to paint** and **On
+     overlap** leave the rail while it is in hand: one is what the land brush paints, the other
+     governs land landing on land, and the sea brush does neither.
+     **And both terrain brushes now answer to the terrain layer's own flags** — hidden as well as
+     locked, which is `12` D3's rule (hiding a layer protects it) reaching the one tool that had
+     never been told. The rail says which, because otherwise the stroke simply does nothing.
+  5. **Erase shows the disc and nothing else.** It is a global mode, so the rail was still offering
+     the *active layer's* controls underneath it — a river width slider above an eraser, text size
+     on the labels layer, coast detail and the biome palette on terrain.
+  **31 driven checks and three mutations.** Setting `PAN_SLACK` to 0 puts the wall back at the map's
+  own edge — map x **5** at the stage edge against **-130** with the slack. Letting hidden stop
+  protecting terrain fails three: the ring, the paint, and the positive control after it.
+  **And a third mutation that passed first, which is how the cursor check found its own hole.**
+  Deleting the re-derivation changed nothing in a check that zoomed *in* at a corner: `zoomAt`
+  pins the map point under the pointer, and only `clampPan` overruling it can break the pinning —
+  which zooming in never does, because the pan it wants is the legal direction. Zooming **out**
+  while panned hard against a wall is where the two disagree, and there the stale point reads
+  **308,1593** against the truth of **3408,2255**.
+  **And the gesture lag it exposed, measured and fixed.** Zoom and space-drag both hitched, and
+  the cause was one line: the cache rect was keyed on the exact scale, so **every wheel step
+  re-rendered all five cached layers** — five viewport-sized draws over every object on the map.
+  Three changes, all in how the cache is invalidated rather than in what it holds:
+  **resolution goes stale while the wheel turns** (Konva scales the bitmap, so it softens rather
+  than breaks, and the settle re-caches once — the same idle the ring already waits for);
+  **containment still forces a re-cache mid-zoom**, which is not optional, since a zoom-out that
+  outgrows its bitmap would show the map beyond it as *missing* rather than blurred; the pad grew
+  **0.25 → 0.5** so a drag travels twice as far before it re-caches; and **an empty layer is
+  treated as live**, because caching one allocated a viewport-sized canvas to hold nothing, and a
+  fresh map has four.
+  **Measured on one pinned world** (`w2-483920104-0.45-0.60-single-auto-0.50-0.50-5`, 920 objects,
+  1440×900 at dpr 1, frame times from `requestAnimationFrame`) — the same map before and after,
+  because the first attempt compared three different rolls of the generator and the fastest run
+  happened to be the smallest world:
+
+  | | before | after |
+  |---|---|---|
+  | zoom in, p95 · max | 66.7 · 83.4 ms | **16.7 · 33.3 ms** |
+  | zoom out, p95 · max | 116.6 · 150 ms | **16.8 · 33.4 ms** |
+  | space-drag, p95 · max | 249.9 · **749.9 ms** | **133.3 · 200.1 ms** |
+  | cached bitmaps | 11.5 MB | **7.7 MB** |
+
+  The median was 16.7 ms throughout, before and after: this was never sustained slowness, it was
+  a hitch, which is why it read as lag rather than as a slow app.
+  **Then a CPU profile found the rest of it, and it was not what any of the above assumed.**
+  Every guess so far had been about *how often* the cache is rebuilt; the profile said the cost
+  is in **what `cache()` builds**. Konva allocates a *second* full-size canvas for hit detection
+  on every cache — `HitCanvas → setSize → scale` was **51% of a whole space-drag**, against
+  **0.4% in `drawLayer`**, the function actually drawing the map. Nothing in this app reads it:
+  the layer and its shape are both `listening={false}`, and per-object picking is rbush's job
+  (ADR-16). It cannot be switched off and `0` falls back to `1`, so `hitCanvasPixelRatio: 0.01`
+  makes it a few pixels instead of a few megapixels.
+
+  | | before | cache invalidation | + hit canvas |
+  |---|---|---|---|
+  | zoom in, p95 · max | 66.7 · 83.4 ms | 16.7 · 33.3 ms | **16.8 · 16.8 ms** |
+  | zoom out, p95 · max | 116.6 · 150 ms | 16.8 · 33.4 ms | **16.7 · 16.8 ms** |
+  | space-drag, p95 · max | 249.9 · **749.9 ms** | 133.3 · 200.1 ms | **16.7 · 33.3 ms** |
+
+  **Not one frame over 33 ms in any of the three gestures**, from a 750 ms freeze. The lesson is
+  the ordinary one: two rounds of reasoning about the right mechanism moved the number 3–7×, and
+  ten minutes of profiling moved what was left to the floor. **Profile before the second guess.**
+  **Two more driver bugs, both the same lesson twice.** The pan check first dragged a fixed distance and
+  never reached the wall, so it measured nothing — `07` §1's overshoot rule, fixed by dragging until
+  the reading stops moving. And the hidden-layer check first compared the **landmass count**, which
+  cannot fail when the new blob merges with the old — and the viewport was still deep in the
+  zoom the pan check left it at, so two strokes at the same stage fractions landed close enough in
+  map units to become one. **Undo depth is the merge-proof question**: a refused stroke files no
+  step. Its positive control is what stops it passing on a brush that simply stopped working.
+
+**Batch 13 — the rail follows the tool in your hand.** An audit of the tool options panel, driven
+rather than read: every layer × tool combination enumerated against the running app, and the
+result compared against one rule.
+
+- [x] **WP-37 · One rule for what the rail shows**
+  > **The rail follows the tool in hand, not the active layer.** A layer's create options appear
+  > only while one of its create tools is in hand; a global mode shows its own options and
+  > whatever acts on the current selection.
+
+  **Select had never been given the guard Erase got.** WP-26 made Erase global and taught the
+  rail to stand its layer's controls down; Select went global two packages *earlier* (ADR-28)
+  and nothing followed. So Select on rivers offered **River width** and **Widen toward the
+  mouth** — which only ever configure the *next* river, and do nothing to a selected one — and
+  Select on terrain offered **Brush size** and **Biome to paint** with nothing selected at all.
+  **`On overlap` was in the wrong place entirely.** It is read at *drop* time, when a dragged
+  landmass lands on another (ADR-25) — a brush stroke cannot cause it, because overlapping
+  strokes union. It sat under the land brush, which could never consult it, and now appears only
+  with land selected.
+  **A chip group of one is a label pretending to be a control.** Rivers, icons and labels each
+  offer a single way to create, so their `chips[Draw]` and `chips[Place one]` could be clicked
+  and change nothing. Gone at `tools.length > 1`.
+  **And the text-size slider was lying to a group.** It showed for any all-label selection, but
+  `editingLabel` is undefined for two or more — so with two labels selected it silently moved the
+  *default* while appearing to resize them. Two honest cases now and no third: placing sets the
+  next label's size, one selected label resizes that label.
+  **Two things are shared on purpose and stay shared**, because a future pass will want to know:
+  the biome palette does double duty (paint default ↔ recolour a selection, `08` D6) and so does
+  text size — but only *with* a selection, which is exactly the condition that was missing.
+  **The evidence is the matrix, before and after.** Under a global mode the rail now reads
+  `Selection actions` on every layer and `Brush size` for Erase on every layer — nothing else —
+  and the create tools each show their own options and no other tool's. 11 further driven checks
+  prove the removals took nothing real with them: a selected landmass still brings back the
+  palette (as *"1 landmass"*, and it still recolours), its name field and the drop policy; one
+  selected label still resizes and renames; two selected labels get no size slider.
+  **One check in the existing suite failed, and it was right to.** It asserted `On overlap` under
+  the land brush — the defect, written down as an expectation. Fixing the panel is what surfaced
+  it, which is the argument for driven checks having to be *re-read* when behaviour changes
+  rather than merely re-run.
+
+- [x] **WP-38 · One click between menus** — `MenuBar.tsx` moves from four `DropdownMenu.Root`s to
+  a single `Menubar.Root`, which is the primitive this widget always was. Each dropdown is its own
+  modal dismiss layer, so an open menu **swallowed** the click meant for the next trigger and
+  switching menus cost two clicks. Same package, no new dependency, and every part keeps its name
+  — the diff is a rename and one wrapper, and the local `Menu` helper survives unchanged.
+  **It buys the keyboard too**: arrow keys move between menus and the row is a real `role="menubar"`,
+  neither of which four dropdowns can do however they are arranged.
+  **11 driven checks, and the old version is the mutation**: on four dropdowns, clicking Edit while
+  Map is open leaves *nothing* open — `open: null`, the swallowed click, exactly as reported — and
+  five of the eleven fail. WP-32's 33 menu checks still pass unchanged, which is the evidence that
+  a rename is all this was.
 
 ## Later phases (see the phase prompts)
 

@@ -146,6 +146,34 @@ Two things make this work well here:
   (`*-resize`) using the app's real hit-testing. This is also a free cross-check that the
   cursor and the gesture agree.
 
+- **Measure the thing that cannot be satisfied another way.** A check that a refused brush stroke
+  changed nothing first compared the **landmass count** — which stays equal when the new blob
+  *merges* with the old, and the viewport happened to be deep in a previous phase's zoom, so two
+  strokes at the same stage fractions landed close enough in map units to become one. **Undo depth
+  is the merge-proof question**: a refused stroke files no step. Give it a positive control too,
+  or it passes just as happily on a brush that stopped working altogether.
+- **A test hook must never be copied onto a second element.** `11` §7's rule is that a `data-*`
+  hook keeps its value on whichever element it *moves* to. The case it does not cover is a hook
+  **duplicated**: `querySelector` then resolves by document order, silently. WP-32 put
+  `data-action="undo"` on a menu item while the toolbar button still carried it, and the driver
+  clicked the *toolbar's* button — which sat behind Radix's modal overlay, so nothing happened at
+  all and the check failed for a reason unrelated to the code under test.
+- **Reset the viewport before a phase that depends on it.** Driver phases share one page. A phase
+  that zooms out and shoves the canvas half off screen leaves the next phase's brush strokes
+  landing on empty ground beyond the map — which paints nothing and looks *exactly* like the
+  guard you were trying to prove. A reload re-fits the map and costs one second.
+- **Profile before the second guess.** Two rounds of reasoning about *how often* a cache is
+  rebuilt moved a gesture's worst frame 750 ms → 200 ms. A ten-minute CPU profile then showed
+  **51% of the whole gesture** inside `HitCanvas → setSize → scale` — a hit canvas nothing in this
+  app reads — against **0.4%** in the function actually drawing the map, and the remaining 200 ms
+  went to 33. The first guess earns its round of reasoning; the second one should be a
+  measurement. (`Profiler.enable` / `start` / `stop` over CDP, then aggregate `selfTime` by call
+  frame and walk the parent chain of the hottest node — the leaf alone names a native function
+  and tells you nothing.)
+- **Compare like with like, or it is not a measurement.** Three perf runs against three *different*
+  generated worlds are three numbers, not a comparison — and the fastest run happened to be the
+  smallest map. Pin the world with a world code (`w2-…`) and run the same map before and after.
+
 Both bugs #2 and #7 below were found by the driver on its first run against code that
 looked finished.
 

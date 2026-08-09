@@ -22,6 +22,7 @@ import { useSelection } from "./useSelection";
 import { useTerrainBrush } from "./useTerrainBrush";
 import {
   clampPan,
+  centred,
   clampViewport,
   fitScale,
   padRect,
@@ -35,7 +36,17 @@ import {
 } from "./viewport";
 
 /** Extra margin cached around the visible rect so small pans don't force a re-cache. */
-const CACHE_PAD = 0.25;
+/**
+ * How much beyond the viewport each cached bitmap covers, as a fraction of the viewport.
+ *
+ * **0.25 → 0.5 for the pan hitch.** Panning does not change the scale, so the only thing that
+ * re-caches mid-drag is the view leaving this padded region — and when it does, five layers
+ * re-render in one frame: measured at **500 ms** on a 1 096-object world. Doubling the pad
+ * doubles how far a drag travels before that happens; the bitmaps grow from (1.5)² to (2)² of
+ * the viewport, which is 1.8× the memory ADR-19 budgets and still tens of MB rather than the
+ * ~290 MB full-map caching would cost.
+ */
+const CACHE_PAD = 0.5;
 
 /** An open inline label editor: where it sits, and which label it is rewriting (if any). */
 interface LabelDraft {
@@ -60,6 +71,24 @@ export function MapStage({ editing }: { editing?: Label }) {
   const [panning, setPanning] = useState(false);
   const [bytes, setBytes] = useState<Partial<Record<LayerId, number>>>({});
   const [cursor, setCursor] = useState<Point | null>(null);
+  /**
+   * Suppresses the brush ring while the wheel is turning. `zoomAt` pins the map point under
+   * the pointer, so the ring is *usually* still truthful — but at the pan clamp that pinning
+   * gives way, and the ring drifts off the cursor for as long as the zoom keeps hitting the
+   * edge. A ring that promises where a press will land cannot be allowed to point somewhere
+   * else (I4), and a ring resizing under a still cursor reads as noise either way.
+   */
+  const [zooming, setZooming] = useState(false);
+  const zoomIdle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /**
+   * Where the pointer physically is, in client coordinates.
+   *
+   * `cursor` is a *map* point and only a mousemove produces one — so after a zoom the pointer
+   * has not moved but the map under it has, and the stored point is stale by however much the
+   * pan clamp shifted things. That is a stale ring **and** a stale `x · y` readout. Keeping
+   * the screen position lets both be recomputed the moment the zoom settles.
+   */
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
   const [draft, setDraft] = useState<LabelDraft | null>(null);
 
   /**
@@ -95,12 +124,12 @@ export function MapStage({ editing }: { editing?: Label }) {
   // Fit on first measure, and re-clamp whenever the viewport or the map changes.
   useEffect(() => {
     if (!view) return;
-    setVp((prev) => clampViewport(prev ?? { scale: fitScale(map, view), x: 0, y: 0 }, map, view));
+    setVp((prev) => clampViewport(prev ?? centred(fitScale(map, view), map, view), map, view));
   }, [view, map]);
 
   // Reset to a fitted view when the scene (and so the canvas preset) changes.
   useEffect(() => {
-    if (view) setVp(clampViewport({ scale: fitScale(map, view), x: 0, y: 0 }, map, view));
+    if (view) setVp(clampViewport(centred(fitScale(map, view), map, view), map, view));
   }, [scene.meta.id, map, view]);
 
   useEffect(() => {
@@ -114,6 +143,16 @@ export function MapStage({ editing }: { editing?: Label }) {
     };
   }, []);
 
+  const toMapPoint = useCallback((clientX: number, clientY: number): Point => {
+    const box = containerRef.current?.getBoundingClientRect();
+    const current = vpRef.current;
+    if (!box || !current) return [0, 0];
+    return [
+      (clientX - box.left - current.x) / current.scale,
+      (clientY - box.top - current.y) / current.scale,
+    ];
+  }, []);
+
   // Wheel needs a non-passive native listener to preventDefault the page scroll.
   useEffect(() => {
     const el = containerRef.current;
@@ -125,20 +164,24 @@ export function MapStage({ editing }: { editing?: Label }) {
       const pointer = { x: e.clientX - box.left, y: e.clientY - box.top };
       const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
       setVp((prev) => (prev ? zoomAt(prev, pointer, factor, map, view) : prev));
+      // A wheel gesture is a burst of events with no end of its own, so the ring comes back
+      // on an idle timer — or sooner, the moment the pointer moves and is truthful again.
+      setZooming(true);
+      clearTimeout(zoomIdle.current);
+      zoomIdle.current = setTimeout(() => {
+        // Re-derive the map point under the pointer *after* the last zoom has rendered —
+        // `vpRef` is assigned during render, so by now it is the viewport the ring will be
+        // drawn against. Without this the ring reappears wherever the cursor used to be.
+        if (pointerRef.current) setCursor(toMapPoint(pointerRef.current.x, pointerRef.current.y));
+        setZooming(false);
+      }, 250);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [map, view]);
-
-  const toMapPoint = useCallback((clientX: number, clientY: number): Point => {
-    const box = containerRef.current?.getBoundingClientRect();
-    const current = vpRef.current;
-    if (!box || !current) return [0, 0];
-    return [
-      (clientX - box.left - current.x) / current.scale,
-      (clientY - box.top - current.y) / current.scale,
-    ];
-  }, []);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      clearTimeout(zoomIdle.current);
+    };
+  }, [map, toMapPoint, view]);
 
   /** Map space → a position inside the stage container, for DOM overlaid on the canvas. */
   const toScreen = useCallback(([x, y]: Point) => {
@@ -188,8 +231,16 @@ export function MapStage({ editing }: { editing?: Label }) {
    * itself, which is the same arrangement selection already uses.
    */
   const erasing = objectTool === "erase";
+  /**
+   * The terrain layer's own flags, which are what gate the land and sea brushes — not the
+   * active layer's, even though the two coincide today. Hidden counts as well as locked:
+   * `12` D3's rule is that hiding a layer protects it, and painting into a layer you cannot
+   * see is the same silent edit a locked one refuses.
+   */
+  const terrainLayer = scene.layers.find((layer) => layer.id === "terrain");
+  const terrainEditable = !!terrainLayer?.visible && !terrainLayer.locked;
   const brush = useTerrainBrush({
-    enabled: activeLayerId === "terrain" && !selecting && !erasing && live,
+    enabled: activeLayerId === "terrain" && !selecting && !erasing && ready && terrainEditable,
     map,
     toMapPoint,
   });
@@ -264,17 +315,34 @@ export function MapStage({ editing }: { editing?: Label }) {
    * The cache rect only changes when the zoom changes or the view pans out of the
    * padded region — so cached layers re-render rarely, and each cached bitmap covers
    * the viewport rather than the whole map.
+   *
+   * **Except while the wheel is turning.** Re-caching is five viewport-sized renders over
+   * every object on the map, and keying it on the exact scale meant paying that *per wheel
+   * step*: measured on a 1 096-object world, a twelve-step zoom held a 16.7 ms median but
+   * spiked to **100 ms zooming in and 183 ms out**. During the gesture the bitmaps are simply
+   * drawn at the wrong resolution — Konva scales them, so it goes soft rather than wrong — and
+   * the one re-cache that sharpens it happens when the zoom settles, on the same idle the
+   * brush ring already waits for.
+   *
+   * **Containment still forces a re-cache even mid-zoom**, and that part is not optional: a
+   * zoom-out grows the visible rect, and a bitmap that no longer covers it would leave the map
+   * beyond its edge simply missing rather than blurred.
    */
   const cacheRef = useRef<{ rect: Rect; scale: number } | null>(null);
   const cache = useMemo(() => {
     if (!vp || !view) return null;
     const vis = visibleRect(vp, view);
     const current = cacheRef.current;
-    if (!current || current.scale !== vp.scale || !rectContains(current.rect, vis)) {
+    const resolutionStale = zooming && current !== null;
+    if (
+      !current ||
+      (!resolutionStale && current.scale !== vp.scale) ||
+      !rectContains(current.rect, vis)
+    ) {
       cacheRef.current = { rect: padRect(vis, CACHE_PAD, map), scale: vp.scale };
     }
     return cacheRef.current;
-  }, [vp, view, map]);
+  }, [vp, view, map, zooming]);
 
   /**
    * ADR-19 says the active layer is live and the rest are bitmaps — but a cross-layer drag
@@ -330,16 +398,20 @@ export function MapStage({ editing }: { editing?: Label }) {
    * it would be a lie. Panning is absent because the press belongs to the pan, not the brush.
    */
   const brushTone: BrushTone | null =
-    !cursor || selecting || panning || spaceHeld
+    !cursor || selecting || panning || spaceHeld || zooming
       ? null
       : erasing
         ? "erase" // global since WP-26, so it shows on terrain and rivers too, lock or not
-        : !unlocked
-          ? null
-          : activeLayerId === "terrain"
+        : activeLayerId === "terrain"
+          ? // Terrain answers to its own flags, hidden included — a ring over a layer that
+            // will not take the paint is the lie I4 exists to prevent.
+            terrainEditable
             ? terrainTool === "sea"
               ? "sea"
               : "paint"
+            : null
+          : !unlocked
+            ? null
             : objectTool === "scatter"
               ? "paint"
               : null;
@@ -411,9 +483,14 @@ export function MapStage({ editing }: { editing?: Label }) {
       onMouseMove={(e) => {
         selection.hover(e.clientX, e.clientY);
         river.hover(e.clientX, e.clientY);
+        pointerRef.current = { x: e.clientX, y: e.clientY };
         setCursor(toMapPoint(e.clientX, e.clientY));
+        setZooming(false);
       }}
-      onMouseLeave={() => setCursor(null)}
+      onMouseLeave={() => {
+        pointerRef.current = null;
+        setCursor(null);
+      }}
       onDoubleClick={(e) => {
         // Only a river being *drawn* claims the gesture. Keying this on the layer instead
         // swallowed every double-click on the rivers layer, Select on or not — WP-20 left
