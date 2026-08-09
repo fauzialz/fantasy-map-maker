@@ -74,7 +74,7 @@ describe("river snap", () => {
     expect(by).toBeLessThan(ay); // and it is heading seaward
   });
 
-  it("pushes the mouth clear of the coast whatever the ring gap", () => {
+  it("pushes the mouth past the coast, about one river-width", () => {
     const { points } = snapRiverEnd(
       [
         [500, 600],
@@ -85,7 +85,11 @@ describe("river snap", () => {
       50,
     );
     const seaward = 200 - points[points.length - 1][1];
-    expect(seaward).toBeGreaterThan(60); // the widest band the slider offers
+    // Enough to cross the coast stroke and the band at the default gap; deliberately *not*
+    // enough to clear a 60-unit one, which would put a needle three river-widths into the sea.
+    expect(seaward).toBe(MOUTH_OVERSHOOT);
+    expect(seaward).toBeGreaterThan(14); // the default ring gap
+    expect(seaward).toBeLessThan(40);
   });
 
   it("takes the outward normal on a lake shore too, not just the outer ring", () => {

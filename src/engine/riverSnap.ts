@@ -22,10 +22,21 @@ import { landmassToPolygon } from "./terrain/assemble";
  *
  * **A knob, not a derivation** — it has to sit right against a coast stroke that is
  * screen-constant and a ring band whose gap is a user setting between 4 and 60, so no formula
- * owns it. 90 clears the widest band with room to spare; the number is the one that looked
- * right, and this comment is the design saying so rather than pretending otherwise.
+ * owns it.
+ *
+ * **Set by looking, and the first attempt was three times too long.** `13` §2 asks the mouth to
+ * clear "the coast stroke and the first ring band", and 90 does clear even a 60-unit gap — but
+ * a river is 26 units wide, so 90 draws a *needle* three-and-a-half widths long jutting into
+ * open water and tapering away mid-sea. It read as a spike stuck through the shoreline rather
+ * than a river reaching the water.
+ *
+ * 24 is about one river-width. It crosses the coast stroke and the band at the default gap and
+ * stops at the water's edge. It does **not** clear a 60-unit gap — and should not: at that
+ * setting the bands are a 240-unit field, and a mouth crossing all of it would be the same
+ * needle again. One constant cannot be both minimal at gap 4 and clear the band at gap 60, so
+ * this one is tuned for the coastline and lets a wide band overlap the mouth.
  */
-export const MOUTH_OVERSHOOT = 90;
+export const MOUTH_OVERSHOOT = 24;
 
 /**
  * How far *inland* the approach point sits. Its only job is to give the tail a direction:
