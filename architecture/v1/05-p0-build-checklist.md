@@ -299,6 +299,10 @@ batches is therefore **WP-23 → WP-30 → WP-31 → WP-32**.
   `/maps`** and is the way back. `data-action="new-map"` and `"gallery"` keep their values on their
   new homes; every other `data-*` hook keeps its value here, since the CDP recipes in
   `07-interaction-invariants.md` drive them.
+  **Inherited from WP-30: the canvas preset chips are still in the rail.** `14` §7 had them leaving
+  with the routes, but their only other home is this package's `Canvas size ▸`, and removing them
+  early would have left canvas size unreachable across two packages. They come out **here**, with
+  the submenu that replaces them — the rail must not end up holding both.
   Acceptance is driven input per menu item and no rail scrollbar at 900 px.
 
 **Batch 6 — tools that say what they do.** Four places where a tool's behaviour and the UI's
