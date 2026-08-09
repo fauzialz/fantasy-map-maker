@@ -858,6 +858,34 @@ that stops short of where the last package moved its sibling. No design doc.
   which zooming in never does, because the pan it wants is the legal direction. Zooming **out**
   while panned hard against a wall is where the two disagree, and there the stale point reads
   **308,1593** against the truth of **3408,2255**.
+  **And the gesture lag it exposed, measured and fixed.** Zoom and space-drag both hitched, and
+  the cause was one line: the cache rect was keyed on the exact scale, so **every wheel step
+  re-rendered all five cached layers** — five viewport-sized draws over every object on the map.
+  Three changes, all in how the cache is invalidated rather than in what it holds:
+  **resolution goes stale while the wheel turns** (Konva scales the bitmap, so it softens rather
+  than breaks, and the settle re-caches once — the same idle the ring already waits for);
+  **containment still forces a re-cache mid-zoom**, which is not optional, since a zoom-out that
+  outgrows its bitmap would show the map beyond it as *missing* rather than blurred; the pad grew
+  **0.25 → 0.5** so a drag travels twice as far before it re-caches; and **an empty layer is
+  treated as live**, because caching one allocated a viewport-sized canvas to hold nothing, and a
+  fresh map has four.
+  **Measured on one pinned world** (`w2-483920104-0.45-0.60-single-auto-0.50-0.50-5`, 920 objects,
+  1440×900 at dpr 1, frame times from `requestAnimationFrame`) — the same map before and after,
+  because the first attempt compared three different rolls of the generator and the fastest run
+  happened to be the smallest world:
+
+  | | before | after |
+  |---|---|---|
+  | zoom in, p95 · max | 66.7 · 83.4 ms | **16.7 · 33.3 ms** |
+  | zoom out, p95 · max | 116.6 · 150 ms | **16.8 · 33.4 ms** |
+  | space-drag, p95 · max | 249.9 · **749.9 ms** | **133.3 · 200.1 ms** |
+  | cached bitmaps | 11.5 MB | **7.7 MB** |
+
+  The median was 16.7 ms throughout, before and after: this was never sustained slowness, it was
+  a hitch, which is why it read as lag rather than as a slow app. **Panning is improved but is
+  still the worst of the three** — the remaining 200 ms is the five-layer re-cache when a drag
+  finally does leave the padded region, and spreading that across frames is the next lever if it
+  still shows.
   **Two more driver bugs, both the same lesson twice.** The pan check first dragged a fixed distance and
   never reached the wall, so it measured nothing — `07` §1's overshoot rule, fixed by dragging until
   the reading stops moving. And the hidden-layer check first compared the **landmass count**, which

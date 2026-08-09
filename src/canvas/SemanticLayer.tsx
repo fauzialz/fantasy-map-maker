@@ -54,7 +54,13 @@ export const SemanticLayer = memo(function SemanticLayer({
   const content = useMemo(() => [layer.objects, mask] as const, [layer.objects, mask]);
 
   useLayerCache(ref, {
-    active,
+    /**
+     * An empty layer is treated as live, because there is nothing to put in a bitmap. It used
+     * to be cached like any other, which allocated a viewport-sized canvas per empty layer on
+     * every re-cache — and a fresh map has four of them. A live layer with no objects draws
+     * nothing and costs nothing.
+     */
+    active: active || layer.objects.length === 0,
     cacheRect,
     cacheScale,
     content,

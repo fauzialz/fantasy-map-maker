@@ -36,7 +36,17 @@ import {
 } from "./viewport";
 
 /** Extra margin cached around the visible rect so small pans don't force a re-cache. */
-const CACHE_PAD = 0.25;
+/**
+ * How much beyond the viewport each cached bitmap covers, as a fraction of the viewport.
+ *
+ * **0.25 → 0.5 for the pan hitch.** Panning does not change the scale, so the only thing that
+ * re-caches mid-drag is the view leaving this padded region — and when it does, five layers
+ * re-render in one frame: measured at **500 ms** on a 1 096-object world. Doubling the pad
+ * doubles how far a drag travels before that happens; the bitmaps grow from (1.5)² to (2)² of
+ * the viewport, which is 1.8× the memory ADR-19 budgets and still tens of MB rather than the
+ * ~290 MB full-map caching would cost.
+ */
+const CACHE_PAD = 0.5;
 
 /** An open inline label editor: where it sits, and which label it is rewriting (if any). */
 interface LabelDraft {
@@ -305,17 +315,34 @@ export function MapStage({ editing }: { editing?: Label }) {
    * The cache rect only changes when the zoom changes or the view pans out of the
    * padded region — so cached layers re-render rarely, and each cached bitmap covers
    * the viewport rather than the whole map.
+   *
+   * **Except while the wheel is turning.** Re-caching is five viewport-sized renders over
+   * every object on the map, and keying it on the exact scale meant paying that *per wheel
+   * step*: measured on a 1 096-object world, a twelve-step zoom held a 16.7 ms median but
+   * spiked to **100 ms zooming in and 183 ms out**. During the gesture the bitmaps are simply
+   * drawn at the wrong resolution — Konva scales them, so it goes soft rather than wrong — and
+   * the one re-cache that sharpens it happens when the zoom settles, on the same idle the
+   * brush ring already waits for.
+   *
+   * **Containment still forces a re-cache even mid-zoom**, and that part is not optional: a
+   * zoom-out grows the visible rect, and a bitmap that no longer covers it would leave the map
+   * beyond its edge simply missing rather than blurred.
    */
   const cacheRef = useRef<{ rect: Rect; scale: number } | null>(null);
   const cache = useMemo(() => {
     if (!vp || !view) return null;
     const vis = visibleRect(vp, view);
     const current = cacheRef.current;
-    if (!current || current.scale !== vp.scale || !rectContains(current.rect, vis)) {
+    const resolutionStale = zooming && current !== null;
+    if (
+      !current ||
+      (!resolutionStale && current.scale !== vp.scale) ||
+      !rectContains(current.rect, vis)
+    ) {
       cacheRef.current = { rect: padRect(vis, CACHE_PAD, map), scale: vp.scale };
     }
     return cacheRef.current;
-  }, [vp, view, map]);
+  }, [vp, view, map, zooming]);
 
   /**
    * ADR-19 says the active layer is live and the rest are bitmaps — but a cross-layer drag
