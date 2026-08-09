@@ -5,6 +5,7 @@ import {
   clampScale,
   fitScale,
   MAX_SCALE,
+  MIN_FIT_FRACTION,
   padRect,
   rectContains,
   visibleRect,
@@ -17,9 +18,18 @@ const view: Size = { w: 1200, h: 800 };
 const fit = fitScale(map, view); // 800/3000 ≈ 0.2667
 
 describe("clampScale", () => {
-  it("never zooms out past the whole map", () => {
-    expect(clampScale(0.001, map, view)).toBeCloseTo(fit);
+  /**
+   * WP-28 / ADR-38 reverses what this used to assert. `fitScale` was the floor as well as the
+   * fitting scale, so you could never see the canvas as an object with edges. The floor is now
+   * a fraction of fit — still a bound, just a wider one.
+   */
+  it("zooms out to half of fit, and no further", () => {
+    expect(clampScale(0.001, map, view)).toBeCloseTo(fit * MIN_FIT_FRACTION);
     expect(fit * map.h).toBeCloseTo(view.h);
+  });
+
+  it("still lets the map fill the viewport at fit", () => {
+    expect(clampScale(fit, map, view)).toBeCloseTo(fit);
   });
 
   it("never zooms in past MAX_SCALE", () => {
@@ -29,7 +39,7 @@ describe("clampScale", () => {
   it("keeps a valid range when the viewport dwarfs the map", () => {
     const tiny: Size = { w: 100, h: 100 };
     const big: Size = { w: 4000, h: 4000 };
-    expect(clampScale(1, tiny, big)).toBe(fitScale(tiny, big));
+    expect(clampScale(1, tiny, big)).toBe(fitScale(tiny, big) * MIN_FIT_FRACTION);
   });
 });
 
@@ -65,10 +75,14 @@ describe("zoomAt", () => {
     expect(after.y).toBeCloseTo(before.y);
   });
 
-  it("stays clamped when zooming out at an edge", () => {
+  it("stays clamped when zooming out at an edge, and centres below fit", () => {
     const vp = zoomAt({ scale: 1, x: 0, y: 0 }, { x: 0, y: 0 }, 0.01, map, view);
-    expect(vp.scale).toBeCloseTo(fit);
-    expect(vp.x).toBeCloseTo((view.w - map.w * fit) / 2);
+    const floor = fit * MIN_FIT_FRACTION;
+    expect(vp.scale).toBeCloseTo(floor);
+    // Below fit the map no longer covers the viewport, so `clampPan` centres it on both axes —
+    // the branch that already existed for narrow viewports now does the letterboxing for free.
+    expect(vp.x).toBeCloseTo((view.w - map.w * floor) / 2);
+    expect(vp.y).toBeCloseTo((view.h - map.h * floor) / 2);
   });
 });
 

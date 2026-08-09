@@ -441,8 +441,8 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
 **Batch 7 — reading the map.** Three complaints about the finished picture rather than the tools
 that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
 
-- [ ] **WP-28 · The map at a glance** — two constants, judged by looking. **Mountains at
-  three-quarters**: `SPRITE_HEIGHT.mountain` 190 → 142, against 84 for a tree and 165 for a
+- [x] **WP-28 · The map at a glance** — two constants, judged by looking. **Mountains smaller**:
+  `SPRITE_HEIGHT.mountain` 190 → 100, against 84 for a tree and 165 for a
   landmark. **Settle `13` D5 first** — the constant is the base height for the *kind*, so changing it
   is silently retroactive across every saved map; the alternative is scaling at placement and
   leaving one map holding two mountain sizes. Recommended: change the constant, since "mountains
@@ -453,7 +453,7 @@ that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
   the floor becomes `fitScale × 0.5`, so the canvas can be seen as an object with edges.
   `clampPan` already centres a map smaller than the view, and `padRect` already clips cache rects
   to the map, so ADR-19's memory budget is untouched. Still bounded — a wider bound, not none.
-- [ ] **WP-29 · Rivers meet the sea, and each other** (**ADR-39**) — an endpoint within a
+- [x] **WP-29 · Rivers meet the sea, and each other** (**ADR-39**) — an endpoint within a
   **screen-space** threshold of a coastline **or another river** snaps to it. Landing that click
   by hand is impossible at fit zoom, and rivers draw above terrain, so a stub of land or a blunt
   cap in open water is visible either way.
@@ -474,6 +474,33 @@ that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
   Reuses `distanceToSegment` (which WP-26 exports anyway) and `distanceToRiver`. The overshoot is
   a **named constant, not a derivation** — it must sit right against a screen-constant stroke and
   a ring gap the user sets between 4 and 60.
+  **Built in `engine/riverSnap.ts`, pure and store-free**, so all of it is unit-testable in Node.
+  `closestOnSegment` was extracted from `distanceToSegment` rather than copied — a snap needs the
+  *place*, not just the distance, and two copies of that projection would be two places to drift.
+  **The chaikin mechanism works exactly as predicted**: a fixture drives a river into the shore at
+  45° and the final centreline segment comes out with **no x-component at all** — perpendicular to
+  the coast, so the cap is parallel to it.
+  **The coast normal is taken by *testing*, not by winding order** — the design did not say this
+  and it matters: a landmass's outer ring and its lake rings wind opposite ways, so a rule that
+  assumed one would push a lake-bound river mouth *inland* on the other. Two point-in-polygon
+  probes at the one segment that matters, and a fixture drives a river into a lake shore.
+  **D6's round cap is applied to *every* end, which is a deviation — recorded, not hidden.** D6
+  asks a snapped end to stay flat while an unsnapped one rounds, but nothing at draw time can tell
+  them apart: `riverRibbon` gets a `River`, and "did this end snap?" needs either a stored flag —
+  a `schemaVersion` bump this same section forbids — or a live terrain dependency, which **D8
+  rejects**. So D6's two halves are in tension with its own constraints. Rounding always costs
+  three lines and no data; on a snapped mouth the arc sits 90 units out to sea at a 13-unit
+  half-width, **3 px at fit zoom**, and reads as the river widening into the water. The upgrade,
+  if anyone ever wants the distinction, is the same polygon clip §2 already names as the ceiling.
+  **10 unit fixtures + 9 driven checks**, the driven ones reading the **stored points**: the tail
+  is two points on the normal, a river stopping inland keeps the single point it was given, a
+  tributary lands **6 map units** from a 26-wide trunk's centreline, and deleting the trunk leaves
+  it byte-identical (D8).
+  **The driver tripped over WP-28's own change.** Zooming out 60 steps used to land at fit; since
+  ADR-38 it lands on the **floor**, half of fit — so everything drawn afterwards went down in
+  different map coordinates and the tributary missed the trunk by 629 units. The zoom check moved
+  last. A widened bound is exactly the kind of change that invalidates a driver's assumptions
+  quietly.
   **`13` D6–D10 settled**: the end *being laid* snaps, whichever it is · **an end that snaps to
   nothing gets a round cap** instead of today's flat cut, so a river stopping mid-map fades out
   rather than being sliced — `riverRibbon` already closes between the last two bank points, so it
@@ -533,6 +560,37 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   Ship the sign-in slot now, the buttons at P2. Acceptance: the headline and every section heading
   are **in the HTML body** before any JavaScript, and the page loads **no editor bundle** —
   asserted on the response and the network, not on feel.
+
+**Batch 9 — the size of what you place.** Raised after Batch 6 shipped, and the direct twin of
+WP-27: `anchorAt` hardcodes `scale: scatter ? 1 + jitter(0.28) : 1`, so *how big* a placed sprite
+is has no control at all — the same "constant pretending to be a decision" that rotation was.
+**No design doc yet**, like Batch 4 before ADR-33.
+
+- [ ] **WP-33 · How big is the thing you are about to place** — a size control in the tool options
+  for mountains, forests and icons, live for **both** scatter and place. It writes `object.scale`,
+  which is the field the resize handles already edit ([transform.ts:83](../../src/scene/transform.ts#L83)
+  multiplies it) — so the knob sets the starting value and a drag changes it afterwards. **The two
+  do not compete**: drawn height is `SPRITE_HEIGHT[kind] × object.scale`
+  ([raster.ts:128](../../src/sprites/raster.ts#L128)), the constant being *what a mountain is* and
+  the scale *what this mountain is*.
+  **A multiplier shown as a percentage, not map units.** Labels and rivers store absolute sizes
+  because their size *is* the stored number; a sprite has a base constant underneath, so an
+  absolute knob would have to divide by `SPRITE_HEIGHT` and would silently change meaning whenever
+  the art is retuned — which WP-28 just did, twice.
+  **Double duty, following the rail's own precedent**: resize the selection when there is one, set
+  the next-placement default when there is not. That is what the biome palette does (`08` D6) and
+  what the label-size slider already does for a selected label. A knob that sits inert while a
+  mountain is selected is the inconsistency that would feel wrong — not the handles.
+  **The scale jitter comes with it**: `jitter(0.28)` is the sibling constant, and a size knob
+  without a spread knob leaves half the question unanswered.
+  **Settle D1 first — does the generator read it?** This is `12` D4 again, and **the precedent
+  answers it: no.** A world code must rebuild the same world regardless of a session slider, so
+  the generator needs its own field — which means a **`w3-`** code. The format has already moved
+  `w1 → w2` once this week, so if a generator size field is wanted at all, land it in this package
+  rather than bumping a third time.
+  Acceptance reads the **scene**, not the render: with the knob at 150%, a placed sprite stores
+  `scale` 1.5, and one already on the map is untouched until it is selected and resized.
+
 
 ## Later phases (see the phase prompts)
 

@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { LayerId, Point, River } from "../scene/types";
+import { snapRiverEnd } from "../engine/riverSnap";
+import type { Landmass, LayerId, Point, River } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 
 const LAYER: LayerId = "rivers";
+
+/**
+ * How close the end has to come, **in screen pixels** (WP-29). Defined on screen so the snap
+ * feels identical at fit zoom and at 400% — the same rule I8 applies to every other piece of
+ * chrome. A fixed map-unit threshold would be unreachable at one end of the range and grabby
+ * at the other.
+ */
+const SNAP_PX = 18;
 
 /** A double-click's second press lands on the point the first one laid; drop the repeat. */
 const MERGE_PX = 4;
@@ -34,7 +43,26 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
   /** where the rubber band currently reaches — the cursor, while a draft is open */
   const [tip, setTip] = useState<Point | null>(null);
 
+  // Subscribed by array reference, which only changes when that layer's contents do.
+  const landmasses = useEditorStore(
+    (s) => s.scene.layers.find((l) => l.id === "terrain")?.objects,
+  ) as Landmass[] | undefined;
+  const rivers = useEditorStore(
+    (s) => s.scene.layers.find((l) => l.id === "rivers")?.objects,
+  ) as River[] | undefined;
+
   const drawing = enabled && objectTool === "place";
+
+  /**
+   * WP-29 — resolve the end against whatever it reached (ADR-39). Used by both the preview
+   * and the commit, deliberately: I4 says the pointer has to agree with what the press will
+   * do, and a snap that only revealed itself after the click would be a cursor that lies.
+   */
+  const resolve = useCallback(
+    (points: Point[]) =>
+      snapRiverEnd(points, landmasses ?? [], rivers ?? [], SNAP_PX / scale).points,
+    [landmasses, rivers, scale],
+  );
 
   /** Turn the draft into a real river. Fewer than two points is a stray click, not a river. */
   const finish = useCallback(() => {
@@ -46,7 +74,7 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
           {
             id: crypto.randomUUID(),
             type: "river",
-            points: draft,
+            points: resolve(draft),
             width: riverWidth,
             taper: riverTaper,
             z: 0,
@@ -56,7 +84,7 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
     }
     setDraft([]);
     setTip(null);
-  }, [draft, riverTaper, riverWidth]);
+  }, [draft, resolve, riverTaper, riverWidth]);
 
   const begin = useCallback(
     (clientX: number, clientY: number) => {
@@ -116,12 +144,12 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
     return {
       id: "draft",
       type: "river",
-      points,
+      points: resolve(points),
       width: riverWidth,
       taper: riverTaper,
       z: 0,
     };
-  }, [draft, riverTaper, riverWidth, tip]);
+  }, [draft, resolve, riverTaper, riverWidth, tip]);
 
   return {
     begin,
