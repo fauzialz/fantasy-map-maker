@@ -138,7 +138,8 @@ When the library prefix is added/changed, it's contained to these `tv` files.
 | Generate-confirm, export dialog | `Dialog` |
 | Brush size, coast detail, ring count | `Slider` |
 | Parchment / rings toggles, layer visibility | `Switch` / `Toggle` |
-| Icon palette, layer overflow menu | `DropdownMenu` |
+| The menu bar — Map · Edit · View · Help | **`Menubar`** (not `DropdownMenu`: four independent dropdowns are four dismiss layers, so switching menus costs two clicks — ADR-43's sibling correction, `11` §6) |
+| Any single dropdown that is not part of a bar | `DropdownMenu` |
 | Tool hints, control labels | `Tooltip` |
 | Advanced generator drawer | `Popover` / `Collapsible` |
 | Canvas right-click actions | `ContextMenu` |

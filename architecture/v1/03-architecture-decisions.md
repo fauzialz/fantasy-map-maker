@@ -150,6 +150,8 @@ click-select → Delete.
 Heavy geometry runs in a **Web Worker**.
 **Why:** One-layer redraws keep 1–2k objects smooth. Viewport-resolution caching
 avoids the ~290 MB six-layer memory trap.
+**Amended by ADR-44**, which settles *when* the cache is rebuilt — this decision only ever
+covered what it holds, and "rebuild whenever the scale changes" was costing a 750 ms hitch.
 
 ## ADR-20 — Canvas presets + object budget + export clamp
 **Decisions:**
@@ -772,6 +774,8 @@ between, so no menu item is built and then deleted. WP-23 goes first because ADR
 mounts the same generate form.
 
 ## ADR-37 — Erase and the sea brush are two tools; a landmass the eraser touches dies whole
+_Narrowed by **ADR-43**: the split stands, but the sea brush is no longer terrain-only — it is a
+global tool that switches to terrain, and it answers to that layer's hidden/locked flags._
 **Decision:** The contextual eraser splits. **Sea brush** keeps today's behaviour exactly —
 terrain-only, subtracts a disc of geometry, can cut a landmass in two. **Erase** becomes a
 **global object eraser**, a peer of Select: a drag removes every object the brush disc overlaps
@@ -816,6 +820,8 @@ would fire on every stroke); and putting Erase in the create row as a seventh ch
 eight-peers flattening ADR-28 removed).
 
 ## ADR-38 — Zoom out goes past the canvas edge; the bound widens, it does not disappear
+_Completed by **ADR-42**: this widened the zoom bound and left panning alone, which is exactly
+the mismatch that had to be fixed afterwards._
 **Decision:** `fitScale` stops being the minimum zoom. The floor becomes
 `fitScale × MIN_FIT_FRACTION`, with **`MIN_FIT_FRACTION = 0.5`** — the canvas may shrink to half
 the size at which it fills the viewport, and the space around it shows the app background.
@@ -1029,3 +1035,147 @@ water, two rivers each clipped to the other reduce *both* to their overlap — t
 already seamless because ADR-14's ribbons are unstroked and share a colour); and clipping only
 when the end snapped (the mask is the same work either way, and a river deliberately run into
 the sea should be masked too — that is what "masked by the landmass" means).
+
+## ADR-42 — Panning has a bound of its own, and framing is not clamping
+_Amends ADR-02 and ADR-38 (WP-36)._
+
+**Decision:** the pan clamp keeps **half of whichever is smaller — the map or the viewport —
+on screen** (`PAN_KEEP = 0.5`), and **nothing centres the map except an explicit fit**.
+
+**Why the bound moved.** ADR-38 widened the *zoom* floor to half of fit so the canvas could be
+seen as an object with edges, and left panning exactly as it was. The two then disagreed: zoom
+out and the map floated free, zoom in and its edge was a hard wall again, so anything drawn at
+the coast stayed jammed against the side of the screen with no way to bring it inward.
+
+**Why "the smaller of the two" rather than a fraction of one of them.** It is the only phrasing
+that means the right thing at both ends of the range. Zoomed out, the map is smaller, so half
+*the canvas* may leave the viewport — which is what makes a corner inspectable. Zoomed in, the
+viewport is smaller, so the map must still cover half *the screen*: enough slack to work at the
+coast, and it cannot be flicked out of sight, which a fraction of the map's own size would allow
+once the map is several screens wide.
+
+**Framing left the clamp.** `clampPan` used to centre any axis the map did not fill. That is a
+*framing* decision wearing a clamp's clothes, and it had two costs: zooming out to inspect the
+coast you were working on threw away the very framing you pulled back to see, and it was the
+only thing centring the map on first paint — an invisible dependency that surfaced the moment
+the branch was removed. `centred()` is now called where a fit or a reset happens, and the clamp
+only ever says how far you may go.
+
+**Still bounded, and it costs no memory** — `padRect` clips every cache rect to the map, so the
+empty ground beyond the edge is never rasterised. ADR-38's argument, unchanged.
+
+**Rejected:** slack as a fraction of the viewport alone (right zoomed in, useless zoomed out —
+a map smaller than the screen stayed pinned); slack as a fraction of the map alone (lets a
+zoomed-in map be pushed entirely off screen); and keeping the centring branch as well (it is
+precisely what the complaint was about).
+
+## ADR-43 — The rail follows the tool in your hand; the sea brush is a global tool
+_Amends ADR-37 (WP-36, WP-37)._
+
+**Decision:** the tool options rail shows **only what the tool in hand can act on**. A layer's
+create options appear while one of its create tools is in hand; a global mode shows its own
+options plus whatever acts on the current selection. And the **sea brush joins Select and Erase
+as a global tool** — always in the mode group, switching the active layer to terrain, because
+terrain geometry is the only thing it edits.
+
+**Why:** ADR-36 sorted controls by *kind* and ADR-40 by *scope*; this is the third and last
+axis, **applicability**. Erase was given the rule when it went global (ADR-37) and Select — which
+went global two packages earlier, in ADR-28 — never was. So Select on the rivers layer offered
+*River width* and *Widen toward the mouth*, which configure only the **next** river and do
+nothing whatever to a selected one; Select on terrain offered a brush size and a biome palette
+with nothing selected. A control that cannot act is the defect I4 exists to prevent, one level
+up from the cursor.
+
+**Two controls are shared on purpose and stay shared:** the biome palette does double duty
+(paint default ↔ recolour a selection, `08` D6) and so does text size — but only *with* a
+selection, which is exactly the condition that was missing.
+
+**`On overlap` was in the wrong place entirely.** ADR-25's policy is read at **drop** time, when
+a dragged landmass lands on another; a brush stroke cannot cause it, because overlapping strokes
+union. It now appears only with land selected.
+
+**ADR-37 is narrowed.** It put the sea brush on terrain "where there is geometry to edit", which
+made reaching it from any other layer a two-click affair whose first click was the *land* brush —
+the one control that resets it. The button is global now; where it puts you is not a compromise
+but the honest answer, since the terrain layer is what it writes to. **And both terrain brushes
+answer to the terrain layer's own flags, hidden as well as locked** — `12` D3's rule reaching the
+one tool that had never been told.
+
+**Rejected:** keeping the create chips visible under a global mode as the way back (they are the
+residue the rule exists to remove; the toolbar's layer button is the way back), and a chip group
+of one — `[Draw]`, `[Place one]` — which is a label pretending to be a control.
+
+## ADR-44 — A gesture may look stale; it may not stall
+_Amends ADR-19 (WP-36)._
+
+**Decision:** during a zoom the cached layers keep their **old resolution** and are re-cached
+once, when the gesture settles; the cache never builds a **hit canvas**; and a layer with no
+objects is treated as **live** rather than cached.
+
+**Why:** ADR-19 settled *what* is cached and how big. It said nothing about *when* the cache is
+rebuilt, and the answer had been "whenever the scale changes by any amount" — five viewport-sized
+renders over every object on the map, per wheel step.
+
+**Measured, on one pinned world** (`w2-483920104-0.45-0.60-single-auto-0.50-0.50-5`, 920 objects,
+1440×900 at dpr 1, frame times from `requestAnimationFrame`, same map before and after):
+
+| | before | after |
+|---|---|---|
+| zoom in, p95 · max | 66.7 · 83.4 ms | **16.8 · 16.8 ms** |
+| zoom out, p95 · max | 116.6 · 150 ms | **16.7 · 16.8 ms** |
+| space-drag, p95 · max | 249.9 · **749.9 ms** | **16.7 · 33.3 ms** |
+| cached bitmaps | 11.5 MB | **7.7 MB** |
+
+The median was 16.7 ms throughout, before and after: this was never sustained slowness, it was a
+hitch — which is why it read as lag rather than as a slow app.
+
+**The hit canvas is the part worth remembering.** Konva allocates a *second* full-size canvas for
+hit detection on every `cache()`, and a CPU profile put **51% of a whole space-drag** inside
+`HitCanvas → setSize → scale`, against **0.4%** in `drawLayer` — the function actually drawing
+the map. Nothing here reads it: the layers and their shapes are `listening={false}` and
+per-object picking is rbush's job (ADR-16). It cannot be switched off and `0` falls back to `1`,
+so `hitCanvasPixelRatio` goes to `0.01`.
+
+**The trade is stated plainly:** mid-zoom the map is drawn from a bitmap made at a different
+scale, so it is *soft* until the gesture ends. Softness is recoverable and a stall is not.
+**Containment still forces a re-cache even mid-zoom**, and that is not optional — a zoom-out that
+outgrows its bitmap would leave the map beyond it simply missing rather than blurred.
+
+**Rejected:** re-caching every step and accepting the hitch; deferring the containment re-cache
+too (blank map edges during a drag); and spreading the re-cache across frames, which is the next
+lever if one is ever needed — at these numbers there is nothing left to chase.
+
+## ADR-45 — The brush refuses to place; it never deletes what is placed
+_WP-35._
+
+**Decision:** the scatter brush carries a **rejection radius**. A candidate landing within a
+fraction of drawn height of a sibling is **not placed**. Nothing already on the map is moved or
+removed.
+
+**Why the question came up:** a scattered mountain half-buried behind another is nobody's
+intent, and the obvious remedy — cull whatever ends up more than half hidden — would be the
+first thing in this app that destroys the user's work without a gesture. Principle 2 says every
+object is ordinary, hand-editable geometry; a tool that quietly deletes some of it is a
+different product. Preventing the pile-up costs the same and takes nothing away.
+
+**The radius is a fraction of drawn height, and pairwise** — the mean of the two sprites'
+heights. A fraction because `SPRITE_HEIGHT` has been retuned twice already (WP-28 did it in one
+package) and an absolute spacing would silently change meaning each time; pairwise because
+`spriteScale` is a knob, so 300% mountains beside 50% ones is an ordinary map and a single
+radius would be visibly wrong on it.
+
+**Per kind, defaulting to the generator's own accepted ratios** — 0.58 for mountains (58 against
+a 100-unit sprite) and 0.40 for trees (34 against 84). Those numbers already produce a look this
+project accepted, so the brush and the generator agree about what a filled hillside is. **0 is
+off**, and restores the previous brush exactly, so the escape hatch needs no control of its own.
+
+**`place` is exempt.** A deliberate click is never silently refused — the same rule that lets the
+frame's handles overrule the size knob — and the control is *absent* in that mode rather than
+disabled, so nothing implies otherwise.
+
+**The generator is untouched**, so there is no new world input and no `w3-` (WP-33's D1 again).
+
+**Rejected:** deleting or nudging what is already placed; a true ink-overlap test (WP-21's
+silhouette makes it possible, at O(n·m) polygon intersection per candidate, for a result that
+looks the same — recorded as the ceiling in a `ponytail:` comment); and one shared fraction
+across kinds, which cannot express that peaks want more room than trees relative to their size.

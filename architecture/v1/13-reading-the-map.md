@@ -61,9 +61,16 @@ export const MIN_FIT_FRACTION = 0.5;   // the canvas may shrink to half of fit
 ```
 
 `clampScale`'s minimum becomes `fitScale(map, view) * MIN_FIT_FRACTION`. That is the whole
-change — **`clampPan` already handles it**: it centres the map on any axis where the scaled map
+change — **`clampPan` handled it at the time**: it centred the map on any axis where the scaled map
 is smaller than the view ([viewport.ts:46-47](../../src/canvas/viewport.ts#L46-L47)), a branch
 that exists for narrow viewports and now does the letterboxing for free.
+
+> **Superseded in part by ADR-42 (WP-36).** That centring branch is gone: it was a *framing*
+> decision living inside a clamp, and it meant zooming out to inspect a coast threw away the
+> framing you pulled back to see. Panning now has a bound of its own — half of whichever is
+> smaller, the map or the viewport — and an explicit `centred()` does the fitting. The
+> letterboxing this section relied on still happens; it is simply no longer a side effect.
+
 
 **Still bounded.** ADR-02 rejected *infinite* zoom for unbounded memory and export; a floor at
 half of fit is a wider bound, not the absence of one. See **ADR-38**.

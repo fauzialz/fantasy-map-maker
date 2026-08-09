@@ -77,6 +77,67 @@ export function ConfirmDialog({
   );
 }
 
+/**
+ * Help → Keyboard shortcuts (`11` §3).
+ *
+ * **Every row here is read off a real handler**, not written from memory: undo and redo from
+ * the editor's own key handler, Delete/Backspace and Escape from `useSelection`, Enter and
+ * Escape while drawing from `useRiverTool`, the space-drag from `MapStage`. A shortcuts sheet
+ * that lists something the app does not do is worse than no sheet.
+ */
+const SHORTCUTS: [string, string][] = [
+  ["Ctrl / ⌘ + Z", "Undo"],
+  ["Ctrl / ⌘ + Shift + Z", "Redo"],
+  ["Delete · Backspace", "Delete the selection"],
+  ["Escape", "Drop the selection, or abandon the river being drawn"],
+  ["Enter", "Finish the river being drawn"],
+  ["Shift + click", "Add to or remove from the selection"],
+  ["Double-click land", "Select it and everything standing on it"],
+  ["Space + drag", "Pan, whatever tool is in hand"],
+  ["Scroll", "Zoom about the pointer"],
+];
+
+export function ShortcutsDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className={dialogOverlay()} />
+        <Dialog.Content className={dialogContent()} data-dialog="shortcuts">
+          <Dialog.Title className={dialogTitle()}>Keyboard shortcuts</Dialog.Title>
+          <Dialog.Description className={dialogDescription()}>
+            The pointer does the drawing; these are the rest.
+          </Dialog.Description>
+
+          <dl className="mbf:flex mbf:flex-col mbf:gap-2">
+            {SHORTCUTS.map(([keys, what]) => (
+              <div key={keys} className="mbf:flex mbf:items-baseline mbf:gap-3 mbf:text-xs">
+                <dt className="mbf:text-ink mbf:w-44 mbf:shrink-0 mbf:font-mono mbf:text-[11px]">
+                  {keys}
+                </dt>
+                <dd className="mbf:text-muted">{what}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <div className={dialogActions()}>
+            <Dialog.Close asChild>
+              <button type="button" className={button()}>
+                Close
+              </button>
+            </Dialog.Close>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 const WORLD_TYPES: WorldType[] = ["single", "archipelago", "multiple"];
 
 /**

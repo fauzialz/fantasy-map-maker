@@ -2,6 +2,7 @@ import { pointInPolygon } from "../engine/geometry/nesting";
 import { distanceToSegment, isOnRiver } from "../engine/river";
 import { landmassToPolygon } from "../engine/terrain/assemble";
 import { footprint, hasFootprint } from "../scene/bounds";
+import { SPRITE_HEIGHT, type SpriteKind } from "../sprites/registry";
 import type { Landmass, Point, Ring, SceneObject } from "../scene/types";
 
 /** Nearest approach from a point to a closed ring — the coastline, walked as segments. */
@@ -46,4 +47,50 @@ export function isUnderBrush(object: SceneObject, point: Point, brushRadius: num
   if (!hasFootprint(object)) return false;
   const { left, right } = footprint(object);
   return Math.hypot(object.x - point[0], object.y - point[1]) <= brushRadius + (right - left) * 0.3;
+}
+
+/** What a sprite is actually drawn at: the kind's art constant times its own scale (WP-33). */
+const drawnHeight = (kind: SpriteKind, scale: number) => SPRITE_HEIGHT[kind] * scale;
+
+/**
+ * Is there already a sibling too close to put this one down? (WP-35.)
+ *
+ * The scatter brush has always spaced the *stroke* — a new sprite drops once the pointer has
+ * travelled `brushSize × 0.42` — but then jitters the drop by up to half the brush across, so
+ * two consecutive sprites can still land on top of each other, and a second pass over the same
+ * ground remembers nothing of the first. The generator never had this problem: `poisson()`
+ * rejects a candidate that falls within `radius` of an *accepted point*. This is that rule,
+ * borrowed for the brush.
+ *
+ * **The radius is a fraction of drawn height, not a constant**, which is WP-33's lesson applied
+ * one level along: `SPRITE_HEIGHT` has been retuned twice (WP-28 did it in one package), and an
+ * absolute spacing would silently change meaning each time. It is **pairwise** — the mean of the
+ * two sprites' heights — because `spriteScale` is a knob, so 300% mountains beside 50% ones is
+ * an ordinary map and a single-radius test would be visibly wrong on it.
+ *
+ * **Nothing is deleted and nothing is moved**: a crowded candidate is simply not placed. That is
+ * the whole reason to prefer this over culling what is already down — principle 2 says every
+ * object is the user's, and this never destroys one.
+ *
+ * ponytail: anchor distance against drawn height, not the ink. WP-21 built a flattened-path
+ * silhouette, so a true area-overlap test is *possible* — it is O(n·m) polygon intersection per
+ * candidate for a result that looks the same. Upgrade only if someone measures a case where the
+ * two disagree.
+ */
+export function crowded(
+  candidate: SceneObject,
+  neighbours: SceneObject[],
+  fraction: number,
+): boolean {
+  if (fraction <= 0) return false;
+  const kind = candidate.type as SpriteKind;
+  // Labels carry a `scale` too and are not in `SPRITE_HEIGHT`: their size is a stored number
+  // in map units, so there is no art constant to take a fraction of. They are never scattered.
+  if (!(kind in SPRITE_HEIGHT) || !("scale" in candidate)) return false;
+  const mine = drawnHeight(kind, candidate.scale);
+  return neighbours.some((other) => {
+    if (other.type !== candidate.type || !("scale" in other)) return false;
+    const gap = (fraction * (mine + drawnHeight(kind, other.scale))) / 2;
+    return Math.hypot(other.x - candidate.x, other.y - candidate.y) < gap;
+  });
 }

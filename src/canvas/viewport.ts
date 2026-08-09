@@ -49,16 +49,58 @@ export function clampScale(scale: number, map: Size, view: Size): number {
   return clamp(scale, min, Math.max(MAX_SCALE, min));
 }
 
-/** Keep the map covering the viewport; centre it on any axis where it is smaller. */
+/**
+ * How much of the map has to stay on screen along an axis, as a fraction of whichever is
+ * smaller — the map or the viewport.
+ *
+ * ADR-38 let the canvas shrink to half of fit so it could be seen as an object with edges, and
+ * left panning alone: the map edge stayed a hard wall, so anything drawn at the coast was
+ * jammed against the screen edge, and a map smaller than the viewport was pinned dead centre
+ * with nowhere to go at all.
+ *
+ * Taking the **smaller** of the two is what makes one number mean the right thing at both ends
+ * of the zoom range:
+ *
+ * - **Zoomed out**, the map is the smaller, so half *the canvas* may leave the viewport — you
+ *   can push it to the edge and look at a corner with room around it.
+ * - **Zoomed in**, the viewport is the smaller, so the map must still cover half *the screen*.
+ *   Half the viewport of empty ground is slack enough to work at the coast, and it stops the
+ *   map being flicked out of sight entirely, which a fraction of the map's own size would
+ *   allow once the map is several screens wide.
+ *
+ * **Still bounded**, and it costs no memory: `padRect` clips every cache rect to the map, so
+ * the empty ground beyond the edge is never rasterised. That was ADR-38's argument too.
+ */
+export const PAN_KEEP = 0.5;
+
+/**
+ * One axis of the pan clamp. `span` is the map's on-screen size along it.
+ *
+ * **No centring branch.** `clampPan` used to centre an axis the map did not fill, which is a
+ * *framing* decision wearing a clamp's clothes — and it was the only thing centring the map on
+ * first paint, so removing it means saying that out loud: `centred()` below is what the stage
+ * calls when it fits a map, and the clamp now only ever says how far you may go.
+ */
+function panAxis(offset: number, span: number, view: number): number {
+  const keep = PAN_KEEP * Math.min(span, view);
+  return clamp(offset, keep - span, view - keep);
+}
+
+/** Keep at least `PAN_KEEP` of the map (or of the screen, when zoomed in) on screen. */
 export function clampPan(vp: Viewport, map: Size, view: Size): Viewport {
-  const sw = map.w * vp.scale;
-  const sh = map.h * vp.scale;
   return {
     scale: vp.scale,
-    x: sw <= view.w ? (view.w - sw) / 2 : clamp(vp.x, view.w - sw, 0),
-    y: sh <= view.h ? (view.h - sh) / 2 : clamp(vp.y, view.h - sh, 0),
+    x: panAxis(vp.x, map.w * vp.scale, view.w),
+    y: panAxis(vp.y, map.h * vp.scale, view.h),
   };
 }
+
+/** The map, squarely in the middle of the viewport — the framing a fit or a reset wants. */
+export const centred = (scale: number, map: Size, view: Size): Viewport => ({
+  scale,
+  x: (view.w - map.w * scale) / 2,
+  y: (view.h - map.h * scale) / 2,
+});
 
 export const clampViewport = (vp: Viewport, map: Size, view: Size): Viewport =>
   clampPan({ ...vp, scale: clampScale(vp.scale, map, view) }, map, view);

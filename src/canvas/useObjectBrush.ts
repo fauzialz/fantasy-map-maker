@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Label, LayerId, Point, Scene, SceneObject } from "../scene/types";
 import { variantCount } from "../sprites/registry";
-import { isUnderBrush } from "./objectHit";
+import { crowded, isUnderBrush } from "./objectHit";
 import { LAYER_OBJECT, useEditorStore } from "../state/editorStore";
 
 interface Options {
@@ -73,13 +73,32 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint, onPlaceLabe
   const pending = useRef<{ scene: Scene; label: string } | null>(null);
   const kind = LAYER_OBJECT[activeLayerId];
 
+  /**
+   * One jittered drop, unless a sibling is already standing there (WP-35).
+   *
+   * The candidate is built *before* the test on purpose: `anchorAt` jitters its scale by ±0.28,
+   * so its drawn height — which is half of what decides the spacing — does not exist until it
+   * has been made. A rejected candidate is discarded, never placed and never stored.
+   *
+   * The neighbours come from the store on every drop, so the objects placed earlier in this
+   * same stroke are included for free. That is the half the old stroke gate could never do: it
+   * spaced the *cursor path*, so a second pass over the same ground remembered nothing.
+   *
+   * ponytail: linear scan, exactly like `eraseAt` below and for the same reason — a drop happens
+   * at most once per `spacing` of travel, not per frame, so a few thousand distance checks per
+   * drag sits well inside the 1–2k object budget. The generator uses a grid because it throws
+   * tens of thousands of darts in one go; this throws tens.
+   */
   const scatterAt = useCallback(
     (point: Point) => {
-      const { brushSize, addObjects } = useEditorStore.getState();
+      const state = useEditorStore.getState();
       if (!kind || kind === "label") return;
-      const spread = brushSize / 2;
+      const spread = state.brushSize / 2;
       const placed = makeObject(kind, [point[0] + jitter(spread), point[1] + jitter(spread)], true);
-      addObjects(activeLayerId, [placed]);
+      const siblings =
+        state.scene.layers.find((layer) => layer.id === activeLayerId)?.objects ?? [];
+      if (crowded(placed, siblings, state.spriteSpacing[kind])) return;
+      state.addObjects(activeLayerId, [placed]);
     },
     [activeLayerId, kind],
   );

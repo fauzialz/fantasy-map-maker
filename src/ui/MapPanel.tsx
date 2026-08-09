@@ -1,20 +1,23 @@
 import { Eye, EyeOff, Lock, LockOpen } from "lucide-react";
-import { useState } from "react";
-import type { CanvasPreset } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 import { Slider, Toggle } from "./controls";
-import { ConfirmDialog } from "./dialogs";
-import { hint, layerRow, panel, panelTitle, segment, toolButton } from "./variants";
-
-const PRESETS: CanvasPreset[] = ["landscape", "square", "portrait"];
+import { hint, layerRow, panel, panelTitle } from "./variants";
 
 /**
- * The right rail: what the map *is*, as opposed to what the tool in your hand does.
+ * The right rail — **live state you steer while looking at the map**, and nothing else
+ * (`11` §2). Two sections since WP-32, down from five.
  *
- * The layer list is fixed in both membership and order (ADR-15) — there are no freeform
- * layers to add or drag, and the stack order is what makes a map read correctly. What you
- * get per layer is visibility, a lock, and the count; reordering happens *within* a layer,
- * through the selection's forward/back in the tool rail.
+ * What left: the generator went to its own dialog with WP-23; `New map` and `My maps` went to
+ * the gallery page with WP-30; the title, the reset button and the canvas presets went to the
+ * menu bar here. What stayed had to earn it — parchment, coastal rings, ring count and ring gap
+ * all re-derive against the canvas as you drag them, which is exactly the test §2 sets. Land
+ * amount and sea level look like siblings and are not: they only ever apply on the next
+ * Generate, so they live in the dialog.
+ *
+ * The layer list is fixed in both membership and order (ADR-15) — there are no freeform layers
+ * to add or drag, and the stack order is what makes a map read correctly. What you get per layer
+ * is visibility, a lock, and the count; reordering happens *within* a layer, through the
+ * selection's forward/back.
  */
 export function MapPanel() {
   const scene = useEditorStore((s) => s.scene);
@@ -23,9 +26,6 @@ export function MapPanel() {
   const setLayerFlags = useEditorStore((s) => s.setLayerFlags);
   const setSettings = useEditorStore((s) => s.setSettings);
   const record = useEditorStore((s) => s.record);
-  const setTitle = useEditorStore((s) => s.setTitle);
-  const resetCanvas = useEditorStore((s) => s.resetCanvas);
-  const [resetting, setResetting] = useState<CanvasPreset | null>(null);
 
   return (
     <aside className={panel({ side: "right" })} aria-label="Map">
@@ -70,7 +70,7 @@ export function MapPanel() {
         layer from the tool rail.
       </p>
 
-      <p className={panelTitle()}>Map settings</p>
+      <p className={panelTitle()}>Appearance</p>
       <Toggle
         label="Parchment texture"
         checked={scene.settings.parchment}
@@ -97,80 +97,6 @@ export function MapPanel() {
         step={2}
         disabled={!scene.settings.coastalRings}
         onChange={(ringGap) => record("ring gap", () => setSettings({ ringGap }), true)}
-      />
-
-      <p className={panelTitle()}>Map</p>
-      <input
-        data-map-title
-        aria-label="Map name"
-        value={scene.meta.title}
-        placeholder="Untitled Map"
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => e.stopPropagation()}
-        className={
-          "mbf:bg-panel mbf:border-line mbf:text-ink mbf:focus:border-accent mbf:rounded-md " +
-          "mbf:border mbf:px-2 mbf:py-1 mbf:text-xs mbf:outline-none"
-        }
-      />
-      {/*
-        `New map` and `My maps` left with WP-30: they are "which map" commands, and the
-        gallery page owns those (`14` §2). What is left here acts on the map in front of you.
-      */}
-      <div className={segment()}>
-        <button
-          type="button"
-          data-action="reset"
-          className={toolButton()}
-          onClick={() => setResetting(scene.meta.canvas.preset)}
-        >
-          Reset canvas…
-        </button>
-      </div>
-
-      <p className={panelTitle()}>Canvas</p>
-      <div className={segment()}>
-        {PRESETS.map((preset) => {
-          const active = scene.meta.canvas.preset === preset;
-          return (
-            <button
-              key={preset}
-              type="button"
-              data-preset={preset}
-              data-preset-active={active || undefined}
-              className={toolButton({ active })}
-              /**
-               * Re-picking the size you are already on is a no-op, not a reset. Without
-               * this the chip is a trap: tapping "landscape" to check it is selected asks
-               * to destroy the map. Emptying it in place is the Reset button's job, which
-               * says so on the tin.
-               */
-              onClick={() => !active && setResetting(preset)}
-            >
-              {preset}
-            </button>
-          );
-        })}
-      </div>
-      <p className={hint()}>Changing the canvas size empties this map — undoable in one step.</p>
-
-      <ConfirmDialog
-        open={resetting !== null}
-        title="Empty this map?"
-        /**
-         * The signpost matters more than it reads (`14` §4.9). With `New map` gone from the
-         * editor, someone who wants a *fresh* map reaches for the nearest thing that sounds
-         * close — and this is it. The confirm names the other door rather than only blocking
-         * the wrong one.
-         */
-        description={
-          `This clears everything on “${scene.meta.title || "Untitled Map"}” and sets the ` +
-          `canvas to ${resetting ?? ""}. The map keeps its name and its place in Your maps, ` +
-          `and you can undo it in one step. ` +
-          `To start a fresh map and keep this one, cancel and choose New map in Your maps.`
-        }
-        confirmLabel="Empty the map"
-        onConfirm={() => resetting && resetCanvas(resetting)}
-        onOpenChange={(next) => !next && setResetting(null)}
       />
     </aside>
   );

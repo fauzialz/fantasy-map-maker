@@ -2,30 +2,27 @@ import {
   Brush,
   Castle,
   Eraser,
-  Moon,
   Mountain,
   MousePointer2,
   Redo2,
-  Sun,
   Trees,
   Type,
   Undo2,
-  Wand2,
   Waves,
   type LucideIcon,
 } from "lucide-react";
 import type { LayerId } from "../scene/types";
 import { LAYER_TOOLS, useEditorStore } from "../state/editorStore";
-import { useThemeStore } from "../state/themeStore";
 import { Hint } from "./controls";
-import { Link } from "./Link";
-import { button, divider, iconButton, toolbar, toolButton } from "./variants";
+import { divider, iconButton, toolbar, toolButton } from "./variants";
 
 /**
- * The tool row is the editor's whole mode surface, and it is *contextual* — "Select" and
- * "Erase" act on whichever layer is live, which is ADR-18's rule that erasing removes
- * whatever the active tool makes. Everything here writes to the same store the panels
- * read, so the toolbar and the rails can never disagree about the mode.
+ * The tool row is the editor's whole mode surface, and — since WP-32 — *only* that.
+ *
+ * The brand, the map title, the theme button and the Generate/Export pair moved up to the menu
+ * bar, which is what makes this a row about one thing: mode, then create (ADR-28's two axes),
+ * with undo/redo at the far end. Everything here writes to the same store the panels read, so
+ * the toolbar and the rails can never disagree about the mode.
  */
 
 interface Tool {
@@ -56,13 +53,7 @@ const LAYER_TOOLBAR: Tool[] = [
 const DEFAULT_TOOL = (layer: LayerId) =>
   LAYER_TOOLS[layer]?.includes("scatter") ? "scatter" : "place";
 
-interface Props {
-  onGenerate: () => void;
-  onExport: () => void;
-}
-
-export function Toolbar({ onGenerate, onExport }: Props) {
-  const scene = useEditorStore((s) => s.scene);
+export function Toolbar() {
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const terrainTool = useEditorStore((s) => s.terrainTool);
   const objectTool = useEditorStore((s) => s.objectTool);
@@ -73,8 +64,6 @@ export function Toolbar({ onGenerate, onExport }: Props) {
   const redo = useEditorStore((s) => s.redo);
   const past = useEditorStore((s) => s.past);
   const future = useEditorStore((s) => s.future);
-  const theme = useThemeStore((s) => s.theme);
-  const toggleTheme = useThemeStore((s) => s.toggle);
 
   const onTerrain = activeLayerId === "terrain";
   // Select is a mode on every layer now, terrain included (ADR-28) — it is never a
@@ -108,34 +97,6 @@ export function Toolbar({ onGenerate, onExport }: Props) {
 
   return (
     <header className={toolbar()}>
-      <div className="mbf:mr-1 mbf:flex mbf:min-w-0 mbf:items-center mbf:gap-2">
-        {/*
-          The way back to the gallery, now that `My maps` has left the rail (`14` §4.6). Back
-          only works if you *arrived* from `/maps`, which a bookmarked map did not and a create
-          page that replaced its own entry did not either — so the mark has to be a real link.
-        */}
-        <Hint text="Your maps">
-          <Link
-            to="/maps"
-            data-action="gallery"
-            aria-label="Your maps"
-            className="mbf:bg-accent mbf:text-panel mbf:font-display mbf:grid mbf:size-7 mbf:shrink-0 mbf:place-items-center mbf:rounded-md mbf:text-sm"
-          >
-            M
-          </Link>
-        </Hint>
-        <span className="mbf:min-w-0 mbf:leading-tight">
-          <span className="mbf:block mbf:truncate mbf:text-xs mbf:font-medium">
-            {scene.meta.title}
-          </span>
-          <span className="mbf:text-muted mbf:block mbf:font-mono mbf:text-[10px]">
-            fantasy · {scene.meta.canvas.w}×{scene.meta.canvas.h}
-          </span>
-        </span>
-      </div>
-
-      <span className={divider()} />
-
       {/*
         Mode, then create — two axes, not eight peers (ADR-28). Select acts on whatever is
         already on the map; the six below pick what a press makes. Flattening them into one
@@ -169,21 +130,27 @@ export function Toolbar({ onGenerate, onExport }: Props) {
           </button>
         </Hint>
 
-        {onTerrain && (
-          <Hint text="Paints sea over land — can cut a landmass in two">
-            <button
-              type="button"
-              data-tool="sea"
-              className={toolButton({ active: seaBrush })}
-              onClick={() => {
-                setTerrainTool("sea");
-                leaveGlobalMode(); // same trap as pickLayer: the sea brush is a create tool
-              }}
-            >
-              <Waves size={14} /> Sea brush
-            </button>
-          </Hint>
-        )}
+        {/*
+          Always present, like Select and Erase. It was rendered only on terrain — "where there
+          is geometry to edit" (WP-26) — which meant reaching for it from any other layer took
+          two clicks, and the one you pressed first was the *land* brush, which resets it.
+          Pressing it takes you to the terrain layer, because that is the geometry it edits:
+          the button is reachable everywhere, and it is honest about where it puts you.
+        */}
+        <Hint text="Paints sea over land, on the terrain layer — can cut a landmass in two">
+          <button
+            type="button"
+            data-tool="sea"
+            className={toolButton({ active: seaBrush })}
+            onClick={() => {
+              setActiveLayer("terrain");
+              setTerrainTool("sea");
+              leaveGlobalMode(); // same trap as pickLayer: the sea brush is a create tool
+            }}
+          >
+            <Waves size={14} /> Sea brush
+          </button>
+        </Hint>
       </div>
 
       <span className={divider()} />
@@ -205,7 +172,7 @@ export function Toolbar({ onGenerate, onExport }: Props) {
         ))}
       </div>
 
-      <span className={divider()} />
+      <span className="mbf:grow" />
 
       <Hint text="Undo (Ctrl+Z)">
         <span>
@@ -233,20 +200,6 @@ export function Toolbar({ onGenerate, onExport }: Props) {
           </button>
         </span>
       </Hint>
-
-      <span className="mbf:grow" />
-
-      <Hint text={theme === "dark" ? "Switch to light" : "Switch to dark"}>
-        <button type="button" data-action="theme" className={iconButton()} onClick={toggleTheme}>
-          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
-      </Hint>
-      <button type="button" className={button()} onClick={onGenerate}>
-        <Wand2 size={14} /> Generate
-      </button>
-      <button type="button" className={button({ tone: "primary" })} onClick={onExport}>
-        Export
-      </button>
     </header>
   );
 }

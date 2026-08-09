@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createEmptyScene } from "../scene/scene";
+import { restack } from "../scene/transform";
 import { ICON_KINDS, type SpriteKind } from "../sprites/registry";
 import type { GenerateResult } from "../engine/generator/generate";
 import type { OverlapPolicy } from "../engine/terrain/overlap";
@@ -106,6 +107,20 @@ interface EditorState {
    * did, twice, in one package.
    */
   spriteScale: Record<SpriteKind, number>;
+  /**
+   * How much room the scatter brush leaves between siblings, per kind (WP-35), as a
+   * **fraction of drawn height** — 0.5 means half a mountain's height between mountains.
+   *
+   * A fraction rather than map units, for the reason `spriteScale` is a multiplier: the art
+   * constant it measures against has already been retuned twice. Per kind rather than one
+   * shared number because the generator's own accepted ratios are not equal — 58/100 for
+   * mountains against 34/84 for trees — so whoever tuned those wanted peaks further apart
+   * than trees, relative to their own size, and one value cannot say that.
+   *
+   * **0 is off**, and it restores the pre-WP-35 brush exactly, which is why the escape hatch
+   * needs no control of its own.
+   */
+  spriteSpacing: Record<SpriteKind, number>;
   /** font size for the next label, in map units */
   labelSize: number;
   /** width of the next river at its mouth, in map units */
@@ -151,6 +166,7 @@ interface EditorState {
   setOverlapPolicy: (policy: OverlapPolicy) => void;
   setScatterRotation: (degrees: number) => void;
   setSpriteScale: (kind: SpriteKind, scale: number) => void;
+  setSpriteSpacing: (kind: SpriteKind, spacing: number) => void;
   setLabelSize: (size: number) => void;
   setRiverWidth: (width: number) => void;
   setRiverTaper: (taper: boolean) => void;
@@ -206,9 +222,30 @@ interface EditorState {
   newMap: (preset: CanvasPreset) => void;
   /** Switch to an existing draft. Clears history, which belongs to the map that made it. */
   openScene: (scene: Scene) => void;
+  /**
+   * Delete whatever is selected, across every layer holding any of it, as one step.
+   *
+   * Lifted here by WP-32 because it had **three** copies — the rail's button, the Delete key,
+   * and now the Edit menu — each already reaching for `getState()` in its own body. They were
+   * store actions wearing a component's clothes.
+   */
+  deleteSelection: () => void;
+  /**
+   * Restacking is per layer even for a cross-layer selection: layer order is fixed and z-order
+   * lives *within* a layer (ADR-15), so each object moves inside its own stack and cross-layer
+   * z never has to mean anything.
+   */
+  restackSelection: (direction: 1 | -1) => void;
 }
 
 const TERRAIN = "terrain";
+
+/**
+ * The layers holding any of these ids — every write that touches a cross-layer selection walks
+ * exactly this list. Lived in `useSelection` until WP-32 gave the store two callers of its own.
+ */
+export const layersHolding = (layers: Scene["layers"], ids: Set<string>) =>
+  layers.filter((layer) => layer.objects.some((object) => ids.has(object.id)));
 
 /** Undo can delete what is selected; a selection of ghosts would draw a frame on nothing. */
 const survivors = (scene: Scene, layerId: LayerId, selection: string[]): string[] => {
@@ -227,6 +264,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   overlapPolicy: "apart",
   scatterRotation: 0,
   spriteScale: { mountain: 1, tree: 1, landmark: 1 },
+  // The generator's own ratios, which produce a look this project already accepted:
+  // `scatter.ts` spaces mountains at 58 against a 100-unit sprite and trees at 34 against 84.
+  // Landmarks are placed one at a time and never scattered, so theirs is inert.
+  spriteSpacing: { mountain: 0.58, tree: 0.4, landmark: 0.5 },
   labelSize: 96,
   riverWidth: 26,
   riverTaper: true,
@@ -264,6 +305,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setScatterRotation: (scatterRotation) => set({ scatterRotation }),
   setSpriteScale: (kind, scale) =>
     set((state) => ({ spriteScale: { ...state.spriteScale, [kind]: scale } })),
+  setSpriteSpacing: (kind, spacing) =>
+    set((state) => ({ spriteSpacing: { ...state.spriteSpacing, [kind]: spacing } })),
   setLabelSize: (labelSize) => set({ labelSize }),
   setRiverWidth: (riverWidth) => set({ riverWidth }),
   setRiverTaper: (riverTaper) => set({ riverTaper }),
@@ -477,6 +520,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   openScene: (scene) => set({ scene, selection: [], past: [], future: [] }),
 
   newMap: (preset) => set({ scene: createEmptyScene(preset), selection: [], past: [], future: [] }),
+
+  deleteSelection: () => {
+    const state = get();
+    if (state.selection.length === 0) return;
+    const doomed = new Set(state.selection);
+    state.record("delete", () => {
+      for (const layer of layersHolding(get().scene.layers, doomed)) {
+        get().removeObjects(
+          layer.id,
+          layer.objects.filter((object) => doomed.has(object.id)).map((object) => object.id),
+        );
+      }
+    });
+  },
+
+  restackSelection: (direction) => {
+    const state = get();
+    if (state.selection.length === 0) return;
+    const ids = new Set(state.selection);
+    state.record(direction === 1 ? "bring forward" : "send back", () => {
+      for (const layer of layersHolding(get().scene.layers, ids)) {
+        get().setLayerObjects(layer.id, restack(layer.objects, ids, direction));
+      }
+    });
+  },
 }));
 
 export const selectLandmasses = (state: EditorState): Landmass[] =>

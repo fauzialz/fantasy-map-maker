@@ -1,4 +1,11 @@
-# Tools that say what they do
+# Tools that say what they do> **Two later amendments to this batch, both in ADR-43 (WP-36, WP-37).** The **sea brush is no
+> longer terrain-only** — it sits in the mode group on every layer and switches to terrain when
+> pressed, because a tool you can only reach from the layer it edits costs two clicks, the first
+> of which is the land brush that resets it. And **D3's rule reached the terrain brushes**: hidden
+> protects terrain from the land and sea brushes exactly as it protects every other layer from
+> the eraser, which was the one place the rule had never been applied.
+
+
 
 **Batch 6.** Design document for **WP-24 … WP-27**. Decision: **ADR-37** (WP-26 only).
 **Prerequisite:** none. Every package here ships alone, and none of them blocks Batch 5.

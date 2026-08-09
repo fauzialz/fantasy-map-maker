@@ -182,6 +182,17 @@
     <div class="eyebrow">map.byfauzi.com · v1 · editor ux wireframe</div>
     <h1>Where every tool lives before we build it</h1>
     <p class="lede">A layout &amp; interaction blueprint for the fantasy map editor. The numbered pins key each region to a locked design decision — references point at <code>03-architecture-decisions.md</code>. This is structure, not final art.</p>
+    <p class="lede" style="border-left:3px solid var(--note,#9c6414);padding-left:.75rem">
+      <strong>Historical as of WP-32.</strong> This shows the single-toolbar shell the editor was
+      built with. The chrome has since become <em>two rows</em> — a menu bar (Map · Edit · View ·
+      Help, the map title, save state, Generate, Export) above the tool row — the bottom autosave
+      strip was absorbed into it, and the right rail dropped from five sections to two
+      (<em>Layers</em> and <em>Appearance</em>): <em>Generate</em> moved into its own dialog with
+      WP-23, and <em>Map settings</em>, <em>Map</em> and <em>Canvas</em> left with WP-32 and
+      WP-30. <strong>The current layout is <code>11-editor-shell.md</code> §4</strong>; the pins
+      below are still accurate about <em>why</em> each region exists, which is what this document
+      is for.
+    </p>
   </header>
 
   <hr class="rule">

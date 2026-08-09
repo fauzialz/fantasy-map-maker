@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { footprint, hasFootprint } from "../scene/bounds";
 import type { Landmark, Landmass, Mountain, River, SceneObject, Tree } from "../scene/types";
-import { isUnderBrush } from "./objectHit";
+import { crowded, isUnderBrush } from "./objectHit";
 
 const at = (x: number, y: number, scale = 1): Tree => ({
   id: "t",
@@ -118,5 +118,54 @@ describe("object eraser hit-test", () => {
     expect(isUnderBrush(river, [100, 5], 1)).toBe(true);
     expect(isUnderBrush(river, [100, 60], 20)).toBe(false);
     expect(isUnderBrush(river, [100, 60], 60)).toBe(true);
+  });
+});
+
+/**
+ * WP-35 — the scatter brush's rejection radius. `SPRITE_HEIGHT` is **84 for a tree** and
+ * **100 for a mountain**, so the numbers below are chosen against those rather than round.
+ */
+describe("crowded", () => {
+  it("is off at 0, which is the pre-WP-35 brush exactly", () => {
+    expect(crowded(at(0, 0), [at(0, 0)], 0)).toBe(false);
+  });
+
+  it("rejects a sibling inside the radius and allows one outside it", () => {
+    // fraction 0.5 × mean height 84 = 42 units between two same-size trees.
+    expect(crowded(at(41, 0), [at(0, 0)], 0.5)).toBe(true);
+    expect(crowded(at(43, 0), [at(0, 0)], 0.5)).toBe(false);
+  });
+
+  it("measures the pair, not the candidate — a big neighbour pushes further", () => {
+    // A 3× tree is 252 high; against a 1× candidate the gap is 0.5 × (84 + 252) / 2 = 84.
+    expect(crowded(at(83, 0), [at(0, 0, 3)], 0.5)).toBe(true);
+    // The same distance is clear of a same-size one, which is the case a single radius misses.
+    expect(crowded(at(83, 0), [at(0, 0)], 0.5)).toBe(false);
+  });
+
+  it("ignores another kind — trees at the foot of a mountain read correctly", () => {
+    expect(crowded(at(5, 0), [peak(0, 0)], 1)).toBe(false);
+  });
+
+  it("ignores objects with no art constant to measure against", () => {
+    const label: SceneObject = {
+      id: "l",
+      type: "label",
+      x: 0,
+      y: 0,
+      rotation: 0,
+      scale: 1,
+      z: 0,
+      text: "Ardenmoor",
+      font: "fantasy-serif",
+      size: 96,
+      pathId: null,
+    };
+    expect(crowded(label, [label], 1)).toBe(false);
+  });
+
+  it("scales with the fraction, so the knob means something at both ends", () => {
+    expect(crowded(at(60, 0), [at(0, 0)], 0.5)).toBe(false); // gap 42
+    expect(crowded(at(60, 0), [at(0, 0)], 1.5)).toBe(true); // gap 126
   });
 });
