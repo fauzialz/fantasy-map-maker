@@ -130,21 +130,27 @@ export function Toolbar() {
           </button>
         </Hint>
 
-        {onTerrain && (
-          <Hint text="Paints sea over land — can cut a landmass in two">
-            <button
-              type="button"
-              data-tool="sea"
-              className={toolButton({ active: seaBrush })}
-              onClick={() => {
-                setTerrainTool("sea");
-                leaveGlobalMode(); // same trap as pickLayer: the sea brush is a create tool
-              }}
-            >
-              <Waves size={14} /> Sea brush
-            </button>
-          </Hint>
-        )}
+        {/*
+          Always present, like Select and Erase. It was rendered only on terrain — "where there
+          is geometry to edit" (WP-26) — which meant reaching for it from any other layer took
+          two clicks, and the one you pressed first was the *land* brush, which resets it.
+          Pressing it takes you to the terrain layer, because that is the geometry it edits:
+          the button is reachable everywhere, and it is honest about where it puts you.
+        */}
+        <Hint text="Paints sea over land, on the terrain layer — can cut a landmass in two">
+          <button
+            type="button"
+            data-tool="sea"
+            className={toolButton({ active: seaBrush })}
+            onClick={() => {
+              setActiveLayer("terrain");
+              setTerrainTool("sea");
+              leaveGlobalMode(); // same trap as pickLayer: the sea brush is a create tool
+            }}
+          >
+            <Waves size={14} /> Sea brush
+          </button>
+        </Hint>
       </div>
 
       <span className={divider()} />

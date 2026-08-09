@@ -71,6 +71,17 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   /** Which sprite the active layer makes, so the size knob edits that kind's setting. */
   const spriteKind = LAYER_OBJECT[activeLayerId];
   const selecting = objectTool === "select";
+  /**
+   * Erase is a global mode (ADR-37), so the rail must not go on offering the *active layer's*
+   * controls underneath it: a river width slider above an eraser describes a tool that is not
+   * in your hand. The disc is the whole tool, so its size is the whole option.
+   */
+  const erasing = objectTool === "erase";
+  /** The land brush, as opposed to the sea brush — they take different options. */
+  const paintingLand = onTerrain && terrainTool !== "sea";
+  /** Both terrain brushes answer to the terrain layer's own flags, hidden as well as locked. */
+  const terrainLayer = scene.layers.find((layer) => layer.id === "terrain");
+  const terrainEditable = !!terrainLayer?.visible && !terrainLayer.locked;
 
   /**
    * A selection can now span layers (ADR-28), so what the rail offers follows the selected
@@ -205,8 +216,12 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         much a scatter turned things was to scatter some. It is a *spread*, not an angle, and
         it defaults to 0: upright is what "no rotation" should mean, and a stylised map often
         wants exactly that. The generator keeps its own (`12` D4), in the generate dialog.
+
+        Gated on `spriteKind`, like Size and Spacing above, and not on the tool alone: terrain
+        has no `objectTool` of its own, so it keeps whichever one was last in hand — usually
+        `scatter` — and the rail was offering a rotation knob to a brush that paints polygons.
       */}
-      {objectTool === "scatter" && (
+      {spriteKind && spriteKind !== "label" && objectTool === "scatter" && (
         <Slider
           label="Rotation jitter"
           value={scatterRotation}
@@ -218,7 +233,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         />
       )}
 
-      {onTerrain && (
+      {onTerrain && !erasing && (
         <>
           <Slider
             label="Coast detail"
@@ -232,15 +247,25 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
               record("coast detail", () => setSettings({ coastDetail }), true)
             }
           />
+          {/* Hidden and locked both refuse the brush, so the rail says which — otherwise the
+              stroke simply does nothing and there is nothing on screen explaining why. */}
           <p className={hint()}>
-            {terrainTool === "sea"
-              ? "The sea brush removes land — cut a landmass through and it becomes two."
-              : "Drag to paint land. Overlapping strokes merge into one coastline."}
+            {!terrainEditable
+              ? `The terrain layer is ${terrainLayer?.visible ? "locked" : "hidden"} — nothing will paint until you ${terrainLayer?.visible ? "unlock" : "show"} it.`
+              : terrainTool === "sea"
+                ? "The sea brush removes land — cut a landmass through and it becomes two."
+                : "Drag to paint land. Overlapping strokes merge into one coastline."}
           </p>
         </>
       )}
 
-      {(onTerrain || selectedLand.length > 0) && (
+      {/*
+        Biome is what the *land* brush paints and what a land selection is recoloured to. The
+        sea brush removes land, so it has no biome to choose, and the eraser removes objects,
+        so it has none either — a control that cannot act on the tool in your hand is exactly
+        what I4 exists to prevent.
+      */}
+      {!erasing && (paintingLand || selectedLand.length > 0) && (
         <>
           <p className={panelTitle()} data-land-count={selectedLand.length}>
             {selectedLand.length > 0
@@ -302,7 +327,9 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </>
       )}
 
-      {(onTerrain || selectedLand.length > 0) && (
+      {/* Same rule: the drop policy governs land landing on land, which no eraser and no sea
+          brush can cause. */}
+      {!erasing && (paintingLand || selectedLand.length > 0) && (
         <>
           <p className={panelTitle()}>On overlap</p>
           <div className={segment()}>
@@ -335,7 +362,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </>
       )}
 
-      {activeLayerId === "icons" && objectTool === "place" && (
+      {activeLayerId === "icons" && objectTool === "place" && !erasing && (
         <div className={segment()}>
           {ICON_KINDS.map((kind) => (
             <button
@@ -350,7 +377,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </div>
       )}
 
-      {(activeLayerId === "labels" || onlyType === "label") && (
+      {!erasing && (activeLayerId === "labels" || onlyType === "label") && (
         <>
           <Slider
             label="Text size"
@@ -380,7 +407,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </>
       )}
 
-      {activeLayerId === "rivers" && (
+      {activeLayerId === "rivers" && !erasing && (
         <>
           <Slider
             label="River width"

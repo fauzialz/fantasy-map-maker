@@ -49,14 +49,44 @@ export function clampScale(scale: number, map: Size, view: Size): number {
   return clamp(scale, min, Math.max(MAX_SCALE, min));
 }
 
-/** Keep the map covering the viewport; centre it on any axis where it is smaller. */
+/**
+ * How far past the map's edge the viewport may be panned, as a fraction of the viewport.
+ *
+ * ADR-38 let the canvas shrink to half of fit so it could be seen as an object with edges,
+ * and left panning alone — so the moment you zoomed *in*, the map edge became a hard wall
+ * again and anything you were drawing at the coast stayed jammed against the screen edge.
+ * The two bounds now say the same thing.
+ *
+ * `(1 - MIN_FIT_FRACTION) / 2` is not a coincidence: it is exactly the margin the zoom floor
+ * already puts around a fitted map, so the slack at any zoom is the framing the floor gives.
+ * At the floor itself the range collapses to a point and the map centres, which is the old
+ * behaviour arriving as a consequence rather than as a branch.
+ *
+ * **Still bounded**, and it costs no memory: `padRect` clips every cache rect to the map, so
+ * the empty ground beyond the edge is never rasterised. That was ADR-38's argument too.
+ */
+export const PAN_SLACK = (1 - MIN_FIT_FRACTION) / 2;
+
+/**
+ * One axis of the pan clamp. `span` is the map's on-screen size along it.
+ *
+ * An axis the map does not fill is still **centred**, not slack: sliding a map that is
+ * already wholly visible moves the picture without showing anything new, and it is what
+ * makes the zoom floor read as a framed object rather than a loose one. The slack exists
+ * for the opposite case — the edge you cannot reach past because the map overflows.
+ */
+function panAxis(offset: number, span: number, view: number): number {
+  if (span <= view) return (view - span) / 2;
+  const slack = view * PAN_SLACK;
+  return clamp(offset, view - span - slack, slack);
+}
+
+/** Keep the map near the viewport, within `PAN_SLACK`; centre it where it cannot fill one. */
 export function clampPan(vp: Viewport, map: Size, view: Size): Viewport {
-  const sw = map.w * vp.scale;
-  const sh = map.h * vp.scale;
   return {
     scale: vp.scale,
-    x: sw <= view.w ? (view.w - sw) / 2 : clamp(vp.x, view.w - sw, 0),
-    y: sh <= view.h ? (view.h - sh) / 2 : clamp(vp.y, view.h - sh, 0),
+    x: panAxis(vp.x, map.w * vp.scale, view.w),
+    y: panAxis(vp.y, map.h * vp.scale, view.h),
   };
 }
 

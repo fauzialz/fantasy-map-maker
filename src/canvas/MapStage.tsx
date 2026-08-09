@@ -60,6 +60,15 @@ export function MapStage({ editing }: { editing?: Label }) {
   const [panning, setPanning] = useState(false);
   const [bytes, setBytes] = useState<Partial<Record<LayerId, number>>>({});
   const [cursor, setCursor] = useState<Point | null>(null);
+  /**
+   * Suppresses the brush ring while the wheel is turning. `zoomAt` pins the map point under
+   * the pointer, so the ring is *usually* still truthful — but at the pan clamp that pinning
+   * gives way, and the ring drifts off the cursor for as long as the zoom keeps hitting the
+   * edge. A ring that promises where a press will land cannot be allowed to point somewhere
+   * else (I4), and a ring resizing under a still cursor reads as noise either way.
+   */
+  const [zooming, setZooming] = useState(false);
+  const zoomIdle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [draft, setDraft] = useState<LabelDraft | null>(null);
 
   /**
@@ -125,9 +134,17 @@ export function MapStage({ editing }: { editing?: Label }) {
       const pointer = { x: e.clientX - box.left, y: e.clientY - box.top };
       const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
       setVp((prev) => (prev ? zoomAt(prev, pointer, factor, map, view) : prev));
+      // A wheel gesture is a burst of events with no end of its own, so the ring comes back
+      // on an idle timer — or sooner, the moment the pointer moves and is truthful again.
+      setZooming(true);
+      clearTimeout(zoomIdle.current);
+      zoomIdle.current = setTimeout(() => setZooming(false), 250);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      clearTimeout(zoomIdle.current);
+    };
   }, [map, view]);
 
   const toMapPoint = useCallback((clientX: number, clientY: number): Point => {
@@ -188,8 +205,16 @@ export function MapStage({ editing }: { editing?: Label }) {
    * itself, which is the same arrangement selection already uses.
    */
   const erasing = objectTool === "erase";
+  /**
+   * The terrain layer's own flags, which are what gate the land and sea brushes — not the
+   * active layer's, even though the two coincide today. Hidden counts as well as locked:
+   * `12` D3's rule is that hiding a layer protects it, and painting into a layer you cannot
+   * see is the same silent edit a locked one refuses.
+   */
+  const terrainLayer = scene.layers.find((layer) => layer.id === "terrain");
+  const terrainEditable = !!terrainLayer?.visible && !terrainLayer.locked;
   const brush = useTerrainBrush({
-    enabled: activeLayerId === "terrain" && !selecting && !erasing && live,
+    enabled: activeLayerId === "terrain" && !selecting && !erasing && ready && terrainEditable,
     map,
     toMapPoint,
   });
@@ -330,16 +355,20 @@ export function MapStage({ editing }: { editing?: Label }) {
    * it would be a lie. Panning is absent because the press belongs to the pan, not the brush.
    */
   const brushTone: BrushTone | null =
-    !cursor || selecting || panning || spaceHeld
+    !cursor || selecting || panning || spaceHeld || zooming
       ? null
       : erasing
         ? "erase" // global since WP-26, so it shows on terrain and rivers too, lock or not
-        : !unlocked
-          ? null
-          : activeLayerId === "terrain"
+        : activeLayerId === "terrain"
+          ? // Terrain answers to its own flags, hidden included — a ring over a layer that
+            // will not take the paint is the lie I4 exists to prevent.
+            terrainEditable
             ? terrainTool === "sea"
               ? "sea"
               : "paint"
+            : null
+          : !unlocked
+            ? null
             : objectTool === "scatter"
               ? "paint"
               : null;
@@ -412,6 +441,7 @@ export function MapStage({ editing }: { editing?: Label }) {
         selection.hover(e.clientX, e.clientY);
         river.hover(e.clientX, e.clientY);
         setCursor(toMapPoint(e.clientX, e.clientY));
+        setZooming(false);
       }}
       onMouseLeave={() => setCursor(null)}
       onDoubleClick={(e) => {

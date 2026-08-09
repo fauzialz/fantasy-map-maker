@@ -803,6 +803,50 @@ and lifts the ceiling that document named.
   they read stored points, which the mask deliberately does not touch. Judged where it had to be:
   by looking at the mouth.
 
+**Batch 12 — the chrome says what the tool does.** Five complaints raised together after Batch 11,
+all of the same kind: a control on screen that does not apply to the thing in your hand, or a bound
+that stops short of where the last package moved its sibling. No design doc.
+
+- [x] **WP-36 · Five that were saying the wrong thing**
+  1. **The brush ring hides while the wheel turns.** `zoomAt` pins the map point under the pointer,
+     so the ring is *usually* still honest — but at the pan clamp that pinning gives way and the
+     ring drifts off the cursor for as long as the zoom keeps hitting the edge. It returns on a
+     250 ms idle, or sooner the moment the pointer moves and is truthful again.
+  2. **Panning gained the slack the zoom floor already had.** ADR-38 let the canvas shrink to half
+     of fit so it could be seen as an object with edges, and left `clampPan` alone — so zooming
+     *in* put the map edge back as a hard wall and anything drawn at the coast stayed jammed
+     against the screen edge. `PAN_SLACK` is `(1 - MIN_FIT_FRACTION) / 2`, which is not a
+     coincidence: it is exactly the margin the floor already puts around a fitted map. **An axis
+     the map does not fill is still centred**, because sliding a wholly visible map shows nothing
+     new — the old test for that passed unchanged, which is how the rule was checked.
+     Costs no memory: `padRect` clips every cache rect to the map, ADR-38's own argument.
+  3. **Rotation jitter left the terrain rail.** It was gated on `objectTool === "scatter"` alone,
+     and terrain has no `objectTool` of its own — it keeps whichever was last in hand — so the rail
+     offered a rotation knob to a brush that paints polygons. Gated on `spriteKind` now, like Size
+     and Spacing beside it.
+  4. **The sea brush is a global tool.** It was rendered only on terrain, so reaching it from any
+     other layer took two clicks and the first one was the *land* brush, which resets it. It is
+     always in the mode group now and takes you to the terrain layer, because that is the geometry
+     it edits — reachable everywhere, honest about where it puts you. **Biome to paint** and **On
+     overlap** leave the rail while it is in hand: one is what the land brush paints, the other
+     governs land landing on land, and the sea brush does neither.
+     **And both terrain brushes now answer to the terrain layer's own flags** — hidden as well as
+     locked, which is `12` D3's rule (hiding a layer protects it) reaching the one tool that had
+     never been told. The rail says which, because otherwise the stroke simply does nothing.
+  5. **Erase shows the disc and nothing else.** It is a global mode, so the rail was still offering
+     the *active layer's* controls underneath it — a river width slider above an eraser, text size
+     on the labels layer, coast detail and the biome palette on terrain.
+  **27 driven checks and two mutations.** Setting `PAN_SLACK` to 0 puts the wall back at the map's
+  own edge — map x **5** at the stage edge against **-130** with the slack. Letting hidden stop
+  protecting terrain fails three: the ring, the paint, and the positive control after it.
+  **Two driver bugs, both the same lesson twice.** The pan check first dragged a fixed distance and
+  never reached the wall, so it measured nothing — `07` §1's overshoot rule, fixed by dragging until
+  the reading stops moving. And the hidden-layer check first compared the **landmass count**, which
+  cannot fail when the new blob merges with the old — and the viewport was still deep in the
+  zoom the pan check left it at, so two strokes at the same stage fractions landed close enough in
+  map units to become one. **Undo depth is the merge-proof question**: a refused stroke files no
+  step. Its positive control is what stops it passing on a brush that simply stopped working.
+
 ## Later phases (see the phase prompts)
 
 - [ ] **P1** — self-contained HTML embed export + `.map.json` import/export.

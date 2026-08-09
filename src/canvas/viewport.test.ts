@@ -6,6 +6,7 @@ import {
   fitScale,
   MAX_SCALE,
   MIN_FIT_FRACTION,
+  PAN_SLACK,
   padRect,
   rectContains,
   visibleRect,
@@ -49,15 +50,29 @@ describe("clampPan", () => {
     expect(vp.x).toBeCloseTo((view.w - map.w * fit) / 2);
   });
 
-  it("stops the map edge from leaving the viewport", () => {
-    const zoomed = { scale: 1, x: 500, y: 500 };
+  it("lets the map edge past the viewport edge, but only by the slack", () => {
+    const zoomed = { scale: 1, x: 99999, y: 99999 };
     const vp = clampPan(zoomed, map, view);
-    expect(vp.x).toBe(0);
-    expect(vp.y).toBe(0);
+    expect(vp.x).toBeCloseTo(view.w * PAN_SLACK);
+    expect(vp.y).toBeCloseTo(view.h * PAN_SLACK);
 
     const far = clampPan({ scale: 1, x: -99999, y: -99999 }, map, view);
-    expect(far.x).toBe(view.w - map.w);
-    expect(far.y).toBe(view.h - map.h);
+    expect(far.x).toBeCloseTo(view.w - map.w - view.w * PAN_SLACK);
+    expect(far.y).toBeCloseTo(view.h - map.h - view.h * PAN_SLACK);
+  });
+
+  it("still holds a pan that was already legal", () => {
+    const vp = clampPan({ scale: 1, x: -300, y: -200 }, map, view);
+    expect(vp.x).toBe(-300);
+    expect(vp.y).toBe(-200);
+  });
+
+  /** An axis the map does not fill is centred, slack or no slack — including at the floor. */
+  it("centres at the zoom floor rather than letting a fully visible map slide", () => {
+    const floor = fit * MIN_FIT_FRACTION;
+    const vp = clampPan({ scale: floor, x: -9999, y: -9999 }, map, view);
+    expect(vp.x).toBeCloseTo((view.w - map.w * floor) / 2);
+    expect(vp.y).toBeCloseTo((view.h - map.h * floor) / 2);
   });
 });
 
