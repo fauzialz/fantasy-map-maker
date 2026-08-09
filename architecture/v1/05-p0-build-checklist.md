@@ -593,6 +593,20 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   stay that way: backing out of the create page proves history *survives*, completing it proves it
   is *dropped* — but the first check ends by pressing undo, which empties the stack, so the second
   would have passed on any code at all. It re-dirties the map first.
+  **The gallery's thumbnail broke, in dev only, and the shape is worth keeping.** WP-22's capture
+  effect bailed on unmount. That was invisible while the gallery was a modal — the effect was gated
+  on `open`, false at mount, so StrictMode's discarded pass did nothing. As a *page* it runs at
+  mount: the first pass claimed the `captured` ref, started the work and was cancelled; the second
+  skipped because the ref was taken. **Production was fine the whole time**, which is the worst
+  shape a defect can have — nothing in a built preview would ever have shown it. The fix is a
+  deletion: the ref already answers "has this scene been done", while the flag answered "is this
+  effect still mounted", which a write to IndexedDB does not care about.
+  **And the first mutation aimed at it passed, which was the useful part.** Restoring the guard
+  *before* `planExport` changes nothing, because on a map with no landmasses nothing is awaited
+  before it — it runs synchronously, ahead of React's cleanup. Only the guard **after**
+  `await toBlob` is reached with `cancelled` already true. Two guards that looked
+  interchangeable in the diff, and exactly one of them was the bug. The check now fails at
+  **0 bytes stored** against 632.
 - [x] **WP-31 · The landing page** — a static HTML file at `/`, styled with the Tailwind build and
   `tokens.css` the app already uses, so the page cannot drift from the application and a visitor
   arrives at `/maps` with the stylesheet cached. **No React, no router, no editor bundle.** Hero is

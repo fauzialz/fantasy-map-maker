@@ -107,12 +107,21 @@ export function MapGallery({ onEmpty }: { onEmpty: () => void }) {
    * map never delays the page. Other drafts keep a placeholder rather than getting a
    * ringless render — `renderScene` needs worker-derived bands, and a map missing its
    * coastal rings is a *wrong* picture, not a missing one.
+   *
+   * **There is no abort flag, and that is the fix rather than an omission.** This used to
+   * bail on unmount, which was invisible while the gallery was a modal — the effect was gated
+   * on `open`, false at mount, so StrictMode's discarded pass did nothing. As a *page* it runs
+   * at mount, and StrictMode remounts it: the first pass claimed `captured`, started the work
+   * and was then cancelled, and the second pass skipped because the ref was already taken. The
+   * capture never happened at all in dev, while production was fine — the worst shape a bug
+   * can have. `captured` is a ref, so it already answers "has this scene been done"; the flag
+   * was answering "is this effect still mounted", which a write to IndexedDB does not care
+   * about. `refresh` setting state after an unmount is a no-op in React 19.
    */
   useEffect(() => {
     const current = useEditorStore.getState().scene;
     if (captured.current === current) return;
     captured.current = current;
-    let cancelled = false;
 
     void (async () => {
       try {
@@ -129,22 +138,16 @@ export function MapGallery({ onEmpty }: { onEmpty: () => void }) {
                 })
               ).bands
             : [];
-        if (cancelled) return;
         const plan = planExport(canvas, THUMB_WIDTH / canvas.w);
         const blob = await toBlob(renderScene(current, bands, plan), "webp");
-        if (cancelled) return;
         await putThumb(current.meta.id, blob);
-        if (!cancelled) await refresh();
+        await refresh();
       } catch {
         // A thumbnail is decoration. Failing to make one must never break the gallery, and
         // a toast about it would be noise for something the placeholder already communicates.
         captured.current = null;
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
   }, [refresh]);
 
   useEffect(() => {
