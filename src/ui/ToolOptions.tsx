@@ -42,6 +42,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const objectTool = useEditorStore((s) => s.objectTool);
   const scatterRotation = useEditorStore((s) => s.scatterRotation);
   const setScatterRotation = useEditorStore((s) => s.setScatterRotation);
+  const spriteScale = useEditorStore((s) => s.spriteScale);
+  const setSpriteScale = useEditorStore((s) => s.setSpriteScale);
   const setObjectTool = useEditorStore((s) => s.setObjectTool);
   const iconKind = useEditorStore((s) => s.iconKind);
   const setIconKind = useEditorStore((s) => s.setIconKind);
@@ -63,6 +65,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const onTerrain = activeLayerId === "terrain";
   const tools = LAYER_TOOLS[activeLayerId];
   const isObjectLayer = LAYER_OBJECT[activeLayerId] !== undefined;
+  /** Which sprite the active layer makes, so the size knob edits that kind's setting. */
+  const spriteKind = LAYER_OBJECT[activeLayerId];
   const selecting = objectTool === "select";
 
   /**
@@ -171,6 +175,32 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           onChange={setBrushSize}
         />
       )}
+
+      {/*
+        WP-33 — how big the next one lands. A **multiplier** of the kind's art height, not map
+        units: drawn height is `SPRITE_HEIGHT[kind] × scale`, so an absolute control would have
+        to divide by the art constant and would change meaning whenever the art is retuned.
+        Labels are absent because they already have a size in map units of their own.
+
+        It sets the *next* placement and does not touch a selection. The label-size slider does
+        edit its selected label, but the analogy breaks here: a label selection is one object
+        with one size, while a sprite selection is dozens with deliberately different ones, and
+        "set them all to 150%" would flatten the very jitter scatter exists to create. Resizing
+        what is already placed is the frame's handles, which do it per object.
+      */}
+      {spriteKind &&
+        spriteKind !== "label" &&
+        (objectTool === "scatter" || objectTool === "place") && (
+          <Slider
+            label="Size"
+            value={spriteScale[spriteKind]}
+            min={0.25}
+            max={3}
+            step={0.05}
+            display={`${Math.round(spriteScale[spriteKind] * 100)}%`}
+            onChange={(value) => setSpriteScale(spriteKind, value)}
+          />
+        )}
 
       {/*
         WP-27 — this was `jitter(5)` hardcoded in `anchorAt`, so the only way to find out how

@@ -17,7 +17,8 @@ interface Options {
 
 const jitter = (spread: number) => (Math.random() - 0.5) * 2 * spread;
 
-const anchorAt = ([x, y]: Point, scatter: boolean) => ({
+/** `base` is the kind's placement multiplier (WP-33); scatter varies around it, place takes it. */
+const anchorAt = ([x, y]: Point, scatter: boolean, base = 1) => ({
   id: crypto.randomUUID(),
   x,
   y,
@@ -28,7 +29,9 @@ const anchorAt = ([x, y]: Point, scatter: boolean) => ({
    * is ±15°. It defaults to 0, so nothing turns until asked.
    */
   rotation: scatter ? jitter(useEditorStore.getState().scatterRotation) : 0,
-  scale: scatter ? 1 + jitter(0.28) : 1,
+  // ponytail: the ±0.28 spread is still a constant. WP-33 gave "how big" a knob and left
+  // "how varied" alone — the same complaint one level down, and nobody has asked yet.
+  scale: base * (scatter ? 1 + jitter(0.28) : 1),
   z: 0,
 });
 
@@ -38,7 +41,7 @@ function makeObject(
   point: Point,
   scatter: boolean,
 ): SceneObject {
-  const base = anchorAt(point, scatter);
+  const base = anchorAt(point, scatter, useEditorStore.getState().spriteScale[kind]);
   if (kind === "landmark") {
     return { ...base, type: "landmark", kind: useEditorStore.getState().iconKind };
   }

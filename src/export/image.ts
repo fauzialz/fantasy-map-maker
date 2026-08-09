@@ -1,8 +1,9 @@
 import { drawBackground, drawLayer, drawRings, drawVignette } from "../canvas/draw";
+import { landMask } from "../engine/river";
 import { PALETTE } from "../canvas/palette";
 import type { Size } from "../canvas/viewport";
 import type { MultiPolygon } from "../engine/geometry/types";
-import type { Scene } from "../scene/types";
+import type { Landmass, Scene } from "../scene/types";
 
 /**
  * WP-11 — the scene rendered to an image file, at a user-chosen scale.
@@ -86,7 +87,12 @@ export function renderScene(
   ctx.scale(plan.scale, plan.scale);
   drawBackground(ctx, map, scene.settings.parchment);
   if (scene.settings.coastalRings) drawRings(ctx, bands);
-  for (const layer of scene.layers) if (layer.visible) drawLayer(ctx, layer.objects);
+  // The export draws through the same masked path, so a mouth cannot differ from the screen.
+  const mask = landMask(
+    scene.layers.flatMap((l) => l.objects).filter((o): o is Landmass => o.type === "landmass"),
+  );
+  for (const layer of scene.layers)
+    if (layer.visible) drawLayer(ctx, layer.objects, undefined, mask);
   if (scene.settings.parchment) drawVignette(ctx, map);
 
   return canvas;
