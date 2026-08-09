@@ -986,3 +986,46 @@ re-run the generator on every reload); a live map viewer in the hero (P3's `@byf
 arriving early — revisit when it exists, at which point it is a mount rather than a package); and
 keeping `/edit` as a redirect (nothing is deployed, and two spellings of one route from day one is
 how an address space rots).
+
+
+---
+
+## ADR-41 — A river's mouth is clipped by the land, and the clip is derived
+
+**Amends ADR-39**, which shipped the mouth as a straight cap on the coast *tangent* and named
+this as its ceiling: *"the upgrade is clipping the ribbon against the land polygon — which is a
+genuine polygon boolean, and would mean either storing the trimmed outline (a `schemaVersion`
+bump) or re-deriving it at draw time (a live cross-object dependency, which D8 rejects)."*
+
+**Decision: clip, and derive it.** `riverOutline` intersects the ribbon with the landmass
+multipolygon at draw time, so the mouth takes the coastline's own shape rather than a chord
+across it. `polygon-clipping` is already a dependency; the mask is `landmasses.map(
+landmassToPolygon)` with no union, because the library takes a multipolygon directly.
+
+**Derived rather than stored, for the reason ADR-13 already gave for coastal rings.** A stored
+outline goes stale the moment a control point moves, so every transform would have to re-clip
+anyway — the storage buys nothing and costs a schema bump. Rivers keep plain control points and
+the scene contract does not move.
+
+**D8 is narrowed, not overturned.** It rejected a live dependency because a river's *geometry*
+should not depend on another object's. Its geometry still does not: the stored points are
+untouched and a snapped mouth stays draggable. What depends on terrain is the *drawing*, which
+is the same relationship rings already have with land. The cost is real and paid explicitly —
+the rivers layer's cache key includes the mask, so a moved coastline re-renders the rivers
+rather than leaving a stale mouth on screen.
+
+**It settles `13` D6 by construction.** D6 wanted a rounded end only where the river met
+nothing, and WP-29 could not tell the two apart without a flag or a dependency, so it rounded
+every end as a recorded deviation. With the clip there is nothing to decide: a mouth that
+crosses the coast has its round cap cut off by the coastline, and one that reaches open land
+keeps it.
+
+**And the source comes to a point.** `SOURCE_FRACTION` 0.3 → 0, so a tapered river fades in
+rather than starting as a blunt stub. An untapered river is still uniform end to end.
+
+**Rejected:** baking the outline into the scene (a `schemaVersion` bump for geometry that is
+otherwise derived, stale on the first drag); masking against other rivers as well as land (over
+water, two rivers each clipped to the other reduce *both* to their overlap — the confluence is
+already seamless because ADR-14's ribbons are unstroked and share a colour); and clipping only
+when the end snapped (the mask is the same work either way, and a river deliberately run into
+the sea should be masked too — that is what "masked by the landmass" means).

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Landmass, Point, River } from "../scene/types";
-import { riverCentreline } from "./river";
+import { landMask, riverCentreline, riverOutline, riverRibbon } from "./river";
 import { findSnap, MOUTH_APPROACH, MOUTH_OVERSHOOT, snapRiverEnd } from "./riverSnap";
 
 /** Land filling y ≥ 200, so the coast is the horizontal line y = 200 and the sea is above it. */
@@ -167,6 +167,47 @@ describe("river snap", () => {
     const { points, snap } = snapRiverEnd(drawn, [coast()], [], 50);
     expect(snap).toBeNull();
     expect(points).toBe(drawn);
+  });
+
+  /**
+   * WP-34 — the mouth is masked by the land, so it takes the coastline's own shape rather
+   * than a chord on its tangent. This is also what settles `13` D6 without a stored flag:
+   * a mouth that crosses the coast has its round cap cut off, one that does not keeps it.
+   */
+  describe("masked outline", () => {
+    const flowing = (): River => ({
+      id: "r",
+      type: "river",
+      points: [
+        [500, 600],
+        [500, 230],
+      ],
+      width: 40,
+      taper: false,
+      z: 0,
+    });
+
+    it("trims a mouth that crosses the coast, at the coast", () => {
+      const snapped = { ...flowing(), points: snapRiverEnd(flowing().points, [coast()], [], 50).points };
+      const rings = riverOutline(snapped, landMask([coast()]));
+      const highest = Math.min(...rings.flat().map(([, y]) => y));
+      // Land is y >= 200, so nothing of the drawn river may sit above the shoreline.
+      expect(highest).toBeGreaterThanOrEqual(200 - 1e-6);
+    });
+
+    it("leaves a river that never reaches the coast alone", () => {
+      const inland: River = { ...flowing(), points: [[500, 600], [500, 500]] };
+      const rings = riverOutline(inland, landMask([coast()]));
+      const highest = Math.min(...rings.flat().map(([, y]) => y));
+      // Its rounded mouth survives, well south of the shore — nothing trimmed it.
+      expect(highest).toBeGreaterThan(400);
+    });
+
+    it("draws a river whole when there is no land to mask against", () => {
+      const river = flowing();
+      expect(riverOutline(river, [])).toEqual([riverRibbon(river)]);
+      expect(riverOutline(river, landMask([]))).toEqual([riverRibbon(river)]);
+    });
   });
 
   it("has nothing to snap with a single point", () => {

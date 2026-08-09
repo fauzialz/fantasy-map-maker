@@ -1,5 +1,5 @@
 import type { MultiPolygon } from "../engine/geometry/types";
-import { riverRibbon } from "../engine/river";
+import { riverOutline } from "../engine/river";
 import { isSprite, spriteRef } from "../scene/bounds";
 import { inDrawOrder } from "../scene/order";
 import type { Landmass, Ring, River, SceneObject } from "../scene/types";
@@ -97,12 +97,13 @@ export function drawLandmass(ctx: DrawContext, landmass: Landmass): void {
  * see `engine/river.ts`. Flat, opaque and unstroked, so two overlapping ribbons paint the
  * same colour twice and a confluence is seamless (`PALETTE.river`).
  */
-export function drawRiver(ctx: DrawContext, river: River): void {
-  const ribbon = riverRibbon(river);
-  if (ribbon.length === 0) return;
+export function drawRiver(ctx: DrawContext, river: River, mask: MultiPolygon = []): void {
+  // WP-34 — masked by the land, so the mouth takes the coastline's own shape.
+  const rings = riverOutline(river, mask);
+  if (rings.length === 0) return;
   ctx.save();
   ctx.beginPath();
-  trace(ctx, ribbon);
+  for (const ring of rings) trace(ctx, ring);
   ctx.fillStyle = PALETTE.river;
   ctx.fill();
   ctx.restore();
@@ -123,10 +124,11 @@ export function drawLayer(
   ctx: DrawContext,
   objects: SceneObject[],
   sorted: SceneObject[] = inDrawOrder(objects),
+  mask: MultiPolygon = [],
 ): void {
   for (const object of objects) {
     if (object.type === "landmass") drawLandmass(ctx, object);
-    else if (object.type === "river") drawRiver(ctx, object);
+    else if (object.type === "river") drawRiver(ctx, object, mask);
   }
   for (const object of sorted) {
     if (object.type === "label") {

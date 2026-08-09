@@ -5,6 +5,7 @@ import { useThemeStore } from "../state/themeStore";
 import { LAYER_ORDER, type Label, type LayerId, type Point } from "../scene/types";
 import { LabelEditor } from "../ui/LabelEditor";
 import { statusBar } from "../ui/variants";
+import { landMask } from "../engine/river";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { BrushRing, type BrushTone } from "./BrushRing";
 import { RingsLayer } from "./RingsLayer";
@@ -307,7 +308,10 @@ export function MapStage({ editing }: { editing?: Label }) {
   const [ringBytes, setRingBytes] = useState(0);
   const onRingBytes = useCallback((value: number) => setRingBytes(value), []);
 
-  const landCount = useEditorStore(selectLandmasses).length;
+  const landmasses = useEditorStore(selectLandmasses);
+  const landCount = landmasses.length;
+  /** WP-34 — what the rivers layer clips its mouths against. */
+  const landPolygons = useMemo(() => landMask(landmasses), [landmasses]);
   const undoDepth = useEditorStore((s) => s.past.length);
   const objectCount = scene.layers.reduce(
     (total, layer) => total + (layer.id === "terrain" ? 0 : layer.objects.length),
@@ -453,6 +457,7 @@ export function MapStage({ editing }: { editing?: Label }) {
               cacheScale={cache.scale}
               onCacheBytes={onCacheBytes}
               overlay={overlayFor(layer.id)}
+              mask={layer.id === "rivers" ? landPolygons : undefined}
             />
           ))}
           {scene.settings.parchment && <VignetteLayer map={map} />}

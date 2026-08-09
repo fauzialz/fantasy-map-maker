@@ -1,4 +1,8 @@
-import type { Point, River } from "../scene/types";
+import polygonClipping from "polygon-clipping";
+import type { Landmass, Point, River } from "../scene/types";
+import { fromIntMulti, toIntMulti } from "./geometry/coords";
+import type { MultiPolygon, Ring } from "./geometry/types";
+import { landmassToPolygon } from "./terrain/assemble";
 import { chaikin } from "./terrain/smooth";
 
 /**
@@ -9,8 +13,14 @@ import { chaikin } from "./terrain/smooth";
  * is a centreline spline and an outline to fill, both cheap enough to run per render.
  */
 
-/** How wide the source is relative to the mouth. Rivers grow as they run to the sea. */
-const SOURCE_FRACTION = 0.3;
+/**
+ * How wide the source is relative to the mouth. Rivers grow as they run to the sea.
+ *
+ * **Zero since WP-34**: a tapered river now comes to a *point* at its source rather than
+ * starting as a blunt 30%-width stub. An untapered river is still uniform end to end —
+ * that is what "no taper" means — so this only shapes the tail of a river that tapers.
+ */
+const SOURCE_FRACTION = 0;
 
 /** Corner-cut the clicked points into a centreline, pinning the two the user placed last. */
 export const riverCentreline = (points: Point[]): Point[] => chaikin(points, 2, false);
@@ -32,6 +42,36 @@ export const halfWidthAt = (river: River, t: number): number =>
  * normal of its local tangent, which is a central difference so a bend offsets smoothly
  * instead of kinking at the vertex.
  */
+/**
+ * The land, as a multipolygon to clip against. No union needed — `polygon-clipping` takes a
+ * multipolygon directly, so this is a map, not a boolean.
+ */
+export const landMask = (landmasses: Landmass[]): MultiPolygon => landmasses.map(landmassToPolygon);
+
+/**
+ * WP-34 — the ribbon **masked by the land**, so the mouth is trimmed to the shape of the
+ * coastline rather than cut on its tangent.
+ *
+ * This is the upgrade ADR-39 named as its ceiling and deferred. It is **derived, never
+ * stored** — the same choice ADR-13 made for coastal rings, and for the same reason: a
+ * stored outline goes stale the instant a control point moves, so it would have to be
+ * recomputed on every transform anyway.
+ *
+ * **It also settles `13` D6 by construction.** A mouth that crosses the coast has its round
+ * cap cut off by the coastline itself, while one that reaches open land keeps it — so
+ * "rounded only when it met nothing" needs no flag and no cross-object dependency to decide.
+ *
+ * A river with no land under it at all falls back to the whole ribbon: masking would
+ * otherwise erase a river drawn before any terrain, which is a legal thing to do.
+ */
+export function riverOutline(river: River, mask: MultiPolygon): Ring[] {
+  const ribbon = riverRibbon(river);
+  if (ribbon.length < 3 || mask.length === 0) return ribbon.length > 0 ? [ribbon] : [];
+  const clipped = polygonClipping.intersection(toIntMulti([[ribbon]]), toIntMulti(mask));
+  if (clipped.length === 0) return [ribbon];
+  return fromIntMulti(clipped as unknown as MultiPolygon).flat();
+}
+
 export function riverRibbon(river: River): Point[] {
   const line = riverCentreline(river.points);
   if (line.length < 2) return [];

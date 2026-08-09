@@ -602,6 +602,34 @@ is has no control at all — the same "constant pretending to be a decision" tha
   required.
 
 
+**Batch 10 — the mouth takes the coast's shape.** Raised on looking at WP-29's result: a straight
+cap on the coast *tangent* reads as a spike through the shoreline. **ADR-41**, which amends ADR-39
+and lifts the ceiling that document named.
+
+- [x] **WP-34 · The river is masked by the land** — `riverOutline` intersects the ribbon with the
+  landmass multipolygon at draw time, so the mouth is trimmed to the coastline's own shape rather
+  than cut across it. `polygon-clipping` was already a dependency and the mask needs no union —
+  the library takes a multipolygon, so it is `landmasses.map(landmassToPolygon)`.
+  **Derived, not stored**, for the reason ADR-13 already gave for coastal rings: a stored outline
+  goes stale the moment a control point moves, so every transform would re-clip anyway. The scene
+  contract does not move and there is **no `schemaVersion` bump**.
+  **D8 is narrowed, not overturned.** A river's *geometry* still depends on nothing — the stored
+  points are untouched and a snapped mouth stays draggable. What depends on terrain is the
+  *drawing*, the same relationship rings already have with land. The cost is paid explicitly: the
+  rivers layer's cache key includes the mask, so a moved coastline re-renders the rivers instead
+  of leaving a stale mouth on screen.
+  **It settles `13` D6 by construction and retires WP-29's recorded deviation.** There is nothing
+  left to decide: a mouth crossing the coast has its round cap cut off *by the coastline*, and one
+  reaching open land keeps it. No flag, no dependency, no schema field.
+  **The source comes to a point** — `SOURCE_FRACTION` 0.3 → 0, so a tapered river fades in rather
+  than starting as a blunt stub. An untapered river stays uniform, which is what "no taper" means.
+  **Masking against other rivers was rejected**: over water, two rivers each clipped to the other
+  reduce *both* to their overlap. The confluence needs no help — ADR-14's ribbons are unstroked
+  and share a colour, so they already merge seamlessly.
+  3 clip fixtures on top of WP-29's 10, and WP-29's 9 driven checks still pass **unchanged** —
+  they read stored points, which the mask deliberately does not touch. Judged where it had to be:
+  by looking at the mouth.
+
 ## Later phases (see the phase prompts)
 
 - [ ] **P1** — self-contained HTML embed export + `.map.json` import/export.

@@ -156,6 +156,12 @@ against the current terrain (a live cross-object dependency, which §2's D8 reje
 would make every terrain edit invalidate the rivers cache — see DEBT Q-01). Ships as the straight
 cap, with a `ponytail:` comment naming the ceiling and the clip as the way out.
 
+> **The ceiling was lifted straight afterwards — see ADR-41 and WP-34.** The straight cap read
+> as a spike stuck through the shoreline once it was actually looked at, and clipping the ribbon
+> against the land turned out to cost one boolean against a dependency the project already
+> accepts for coastal rings. The clip also settles **D6** by construction: a mouth that crosses
+> the coast has its round cap cut off, one that reaches nothing keeps it.
+
 ### The other target: rivers
 
 The same snap points at another river, and **the reshape half is already done** — by a decision
