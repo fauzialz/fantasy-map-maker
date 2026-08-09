@@ -173,7 +173,7 @@ P0 alone is a complete portfolio piece.
   acceptance. Batch 6 settled `12` **D4** (the generator keeps its own rotation spread, bumping the
   world code to **`w2-`**) and WP-28 settled `13` **D5** (mountains shrink by changing the shared
   constant, at **100**). **What is left is WP-29 → WP-30 → WP-31 → WP-32**, because ADR-40's routes
-  change what the menu bar contains, plus **WP-33** in a new Batch 9. None of it needs a host.
+  change what the menu bar contains, and **Batch 9's WP-33 is built** (a per-kind placement size for sprites). None of it needs a host.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
   first-class water bodies/canals, auto-generated rivers, rich blended biome
   transitions, tile-render export, WebGL renderer.

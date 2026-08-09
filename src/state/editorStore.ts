@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createEmptyScene } from "../scene/scene";
-import { ICON_KINDS } from "../sprites/registry";
+import { ICON_KINDS, type SpriteKind } from "../sprites/registry";
 import type { GenerateResult } from "../engine/generator/generate";
 import type { OverlapPolicy } from "../engine/terrain/overlap";
 import type {
@@ -95,6 +95,17 @@ interface EditorState {
    * `generatorRotation` is part of a world recipe a world code has to reproduce exactly.
    */
   scatterRotation: number;
+  /**
+   * How big the next placed sprite is, as a **multiplier** of its kind's art height, per kind
+   * (WP-33). Was hardcoded `1` in `anchorAt`, so "how big is the thing I am about to place"
+   * had no control at all — the sibling of the rotation constant WP-27 replaced.
+   *
+   * A multiplier rather than map units on purpose: drawn height is
+   * `SPRITE_HEIGHT[kind] × scale`, so an absolute knob would have to divide by the art
+   * constant and would silently change meaning every time the art is retuned — which WP-28
+   * did, twice, in one package.
+   */
+  spriteScale: Record<SpriteKind, number>;
   /** font size for the next label, in map units */
   labelSize: number;
   /** width of the next river at its mouth, in map units */
@@ -130,6 +141,7 @@ interface EditorState {
   setTerrainBiome: (biome: Biome) => void;
   setOverlapPolicy: (policy: OverlapPolicy) => void;
   setScatterRotation: (degrees: number) => void;
+  setSpriteScale: (kind: SpriteKind, scale: number) => void;
   setLabelSize: (size: number) => void;
   setRiverWidth: (width: number) => void;
   setRiverTaper: (taper: boolean) => void;
@@ -205,6 +217,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   terrainBiome: "grassland",
   overlapPolicy: "apart",
   scatterRotation: 0,
+  spriteScale: { mountain: 1, tree: 1, landmark: 1 },
   labelSize: 96,
   riverWidth: 26,
   riverTaper: true,
@@ -239,6 +252,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setTerrainBiome: (terrainBiome) => set({ terrainBiome }),
   setOverlapPolicy: (overlapPolicy) => set({ overlapPolicy }),
   setScatterRotation: (scatterRotation) => set({ scatterRotation }),
+  setSpriteScale: (kind, scale) =>
+    set((state) => ({ spriteScale: { ...state.spriteScale, [kind]: scale } })),
   setLabelSize: (labelSize) => set({ labelSize }),
   setRiverWidth: (riverWidth) => set({ riverWidth }),
   setRiverTaper: (riverTaper) => set({ riverTaper }),

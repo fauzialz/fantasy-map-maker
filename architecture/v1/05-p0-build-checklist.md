@@ -566,7 +566,7 @@ WP-27: `anchorAt` hardcodes `scale: scatter ? 1 + jitter(0.28) : 1`, so *how big
 is has no control at all — the same "constant pretending to be a decision" that rotation was.
 **No design doc yet**, like Batch 4 before ADR-33.
 
-- [ ] **WP-33 · How big is the thing you are about to place** — a size control in the tool options
+- [x] **WP-33 · How big is the thing you are about to place** — a size control in the tool options
   for mountains, forests and icons, live for **both** scatter and place. It writes `object.scale`,
   which is the field the resize handles already edit ([transform.ts:83](../../src/scene/transform.ts#L83)
   multiplies it) — so the knob sets the starting value and a drag changes it afterwards. **The two
@@ -577,19 +577,29 @@ is has no control at all — the same "constant pretending to be a decision" tha
   because their size *is* the stored number; a sprite has a base constant underneath, so an
   absolute knob would have to divide by `SPRITE_HEIGHT` and would silently change meaning whenever
   the art is retuned — which WP-28 just did, twice.
-  **Double duty, following the rail's own precedent**: resize the selection when there is one, set
-  the next-placement default when there is not. That is what the biome palette does (`08` D6) and
-  what the label-size slider already does for a selected label. A knob that sits inert while a
-  mountain is selected is the inconsistency that would feel wrong — not the handles.
-  **The scale jitter comes with it**: `jitter(0.28)` is the sibling constant, and a size knob
-  without a spread knob leaves half the question unanswered.
-  **Settle D1 first — does the generator read it?** This is `12` D4 again, and **the precedent
-  answers it: no.** A world code must rebuild the same world regardless of a session slider, so
-  the generator needs its own field — which means a **`w3-`** code. The format has already moved
-  `w1 → w2` once this week, so if a generator size field is wanted at all, land it in this package
-  rather than bumping a third time.
-  Acceptance reads the **scene**, not the render: with the knob at 150%, a placed sprite stores
-  `scale` 1.5, and one already on the map is untouched until it is selected and resized.
+  **Built per kind, not one global size** — the rail is contextual, and wanting large mountains
+  beside small trees is the ordinary case. Labels are absent: they already carry a size in map
+  units of their own.
+  **The double duty was dropped, and the reason is a real disanalogy.** The plan was to follow the
+  label-size slider and resize a selection when there is one. But a label selection is *one object
+  with one size*, while a sprite selection is dozens with deliberately different ones — "set them
+  all to 150%" would flatten the very jitter scatter exists to create. Resizing what is already
+  placed is the frame's handles, which do it per object and already work. Recorded rather than
+  silently skipped, because the entry above promised it.
+  **D1 settled: the generator is not in this package, and the world code does not move.** This
+  looks like `12` D4 and is not. D4 arose because WP-27 *replaced an input the generator was
+  already using* — its rotation jitter — so the generator needed somewhere to keep its own. Here
+  the generator's `1 + jitter(0.28)` is untouched, so there is no new world input and nothing to
+  add to the code. **No `w3-`.** If generated sprite size is ever wanted as a control, that is its
+  own decision with its own cost.
+  **The `±0.28` spread stays a constant**, marked with a `ponytail:` comment: WP-33 gave "how big"
+  a knob and left "how varied" alone, which is the same complaint one level down and nobody has
+  asked yet.
+  **10 driven checks reading the scene, and one mutation.** Placing at 150% stores `scale` 1.5
+  while the sprite already down stays at 1; a scatter at 150% comes out spread **1.15–1.88** rather
+  than around 1; forests keep their own value while mountains remember theirs. Making `anchorAt`
+  ignore the multiplier — the way it behaved before — fails two of them, at 1.00 where 1.50 was
+  required.
 
 
 ## Later phases (see the phase prompts)
