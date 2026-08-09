@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   cacheBytes,
+  centred,
   clampPan,
   clampScale,
   fitScale,
   MAX_SCALE,
   MIN_FIT_FRACTION,
-  PAN_SLACK,
+  PAN_KEEP,
   padRect,
   rectContains,
   visibleRect,
@@ -45,20 +46,28 @@ describe("clampScale", () => {
 });
 
 describe("clampPan", () => {
-  it("centres an axis where the map is smaller than the viewport", () => {
-    const vp = clampPan({ scale: fit, x: -9999, y: 0 }, map, view);
-    expect(vp.x).toBeCloseTo((view.w - map.w * fit) / 2);
+  /** Zoomed in, the viewport is the smaller of the two, so half the *screen* must stay covered. */
+  it("keeps half the screen covered when the map overflows it", () => {
+    const far = clampPan({ scale: 1, x: 99999, y: 99999 }, map, view);
+    expect(far.x).toBeCloseTo(view.w - view.w * PAN_KEEP);
+    expect(far.y).toBeCloseTo(view.h - view.h * PAN_KEEP);
+
+    const back = clampPan({ scale: 1, x: -99999, y: -99999 }, map, view);
+    expect(back.x).toBeCloseTo(view.w * PAN_KEEP - map.w);
+    expect(back.y).toBeCloseTo(view.h * PAN_KEEP - map.h);
   });
 
-  it("lets the map edge past the viewport edge, but only by the slack", () => {
-    const zoomed = { scale: 1, x: 99999, y: 99999 };
-    const vp = clampPan(zoomed, map, view);
-    expect(vp.x).toBeCloseTo(view.w * PAN_SLACK);
-    expect(vp.y).toBeCloseTo(view.h * PAN_SLACK);
+  /** Zoomed out, the map is the smaller, so half *the canvas* may leave the viewport. */
+  it("lets half the canvas leave the viewport once it fits inside one", () => {
+    const floor = fit * MIN_FIT_FRACTION;
+    const span = map.w * floor;
+    const vp = clampPan({ scale: floor, x: 99999, y: 0 }, map, view);
+    expect(vp.x).toBeCloseTo(view.w - span * PAN_KEEP);
+    // Half of it is off the right-hand edge, and half is still on screen.
+    expect(vp.x + span).toBeCloseTo(view.w + span * PAN_KEEP);
 
-    const far = clampPan({ scale: 1, x: -99999, y: -99999 }, map, view);
-    expect(far.x).toBeCloseTo(view.w - map.w - view.w * PAN_SLACK);
-    expect(far.y).toBeCloseTo(view.h - map.h - view.h * PAN_SLACK);
+    const back = clampPan({ scale: floor, x: -99999, y: 0 }, map, view);
+    expect(back.x).toBeCloseTo(span * PAN_KEEP - span);
   });
 
   it("still holds a pan that was already legal", () => {
@@ -67,12 +76,14 @@ describe("clampPan", () => {
     expect(vp.y).toBe(-200);
   });
 
-  /** An axis the map does not fill is centred, slack or no slack — including at the floor. */
-  it("centres at the zoom floor rather than letting a fully visible map slide", () => {
-    const floor = fit * MIN_FIT_FRACTION;
-    const vp = clampPan({ scale: floor, x: -9999, y: -9999 }, map, view);
-    expect(vp.x).toBeCloseTo((view.w - map.w * floor) / 2);
-    expect(vp.y).toBeCloseTo((view.h - map.h * floor) / 2);
+  /**
+   * Centring is a *framing* decision, so it left the clamp and became `centred()` — which is
+   * what the stage calls when it fits a map. The clamp only says how far you may go.
+   */
+  it("centres a fitted map through centred(), not through the clamp", () => {
+    const vp = clampPan(centred(fit, map, view), map, view);
+    expect(vp.x).toBeCloseTo((view.w - map.w * fit) / 2);
+    expect(vp.y).toBeCloseTo((view.h - map.h * fit) / 2);
   });
 });
 
@@ -90,14 +101,21 @@ describe("zoomAt", () => {
     expect(after.y).toBeCloseTo(before.y);
   });
 
-  it("stays clamped when zooming out at an edge, and centres below fit", () => {
+  /**
+   * Zooming out at a corner **keeps the corner**. It used to snap the map back to the middle
+   * the moment the scale crossed fit, because `clampPan` centred any axis the map did not
+   * fill — so pulling back to inspect the coast you were working on threw away the very
+   * framing you were pulling back to see. The clamp bounds the pan now and nothing else moves
+   * it: only a drag, or the floor's own limit, changes where the map sits.
+   */
+  it("keeps the corner you zoomed out at instead of snapping to the middle", () => {
     const vp = zoomAt({ scale: 1, x: 0, y: 0 }, { x: 0, y: 0 }, 0.01, map, view);
     const floor = fit * MIN_FIT_FRACTION;
     expect(vp.scale).toBeCloseTo(floor);
-    // Below fit the map no longer covers the viewport, so `clampPan` centres it on both axes —
-    // the branch that already existed for narrow viewports now does the letterboxing for free.
-    expect(vp.x).toBeCloseTo((view.w - map.w * floor) / 2);
-    expect(vp.y).toBeCloseTo((view.h - map.h * floor) / 2);
+    // The map point under the pointer was (0,0), and it is still under it.
+    expect(vp.x).toBeCloseTo(0);
+    expect(vp.y).toBeCloseTo(0);
+    expect(vp.x).not.toBeCloseTo((view.w - map.w * floor) / 2);
   });
 });
 

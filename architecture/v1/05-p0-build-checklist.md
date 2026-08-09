@@ -816,14 +816,23 @@ that stops short of where the last package moved its sibling. No design doc.
      one, so the pointer's client position is kept alongside it and the map point is recomputed
      once the last zoom has rendered. That fixes the `x · y` readout at the same time, which had
      been telling the same lie for as long as the ring.
-  2. **Panning gained the slack the zoom floor already had.** ADR-38 let the canvas shrink to half
-     of fit so it could be seen as an object with edges, and left `clampPan` alone — so zooming
-     *in* put the map edge back as a hard wall and anything drawn at the coast stayed jammed
-     against the screen edge. `PAN_SLACK` is `(1 - MIN_FIT_FRACTION) / 2`, which is not a
-     coincidence: it is exactly the margin the floor already puts around a fitted map. **An axis
-     the map does not fill is still centred**, because sliding a wholly visible map shows nothing
-     new — the old test for that passed unchanged, which is how the rule was checked.
+  2. **Panning gained a bound of its own.** ADR-38 let the canvas shrink to half of fit so it could
+     be seen as an object with edges, and left `clampPan` alone — so zooming *in* put the map edge
+     back as a hard wall, and a map smaller than the viewport was pinned dead centre with nowhere
+     to go. **`PAN_KEEP = 0.5` of whichever is smaller, the map or the viewport**, which is what
+     makes one number mean the right thing at both ends of the zoom range: zoomed out, half *the
+     canvas* may leave the screen; zoomed in, the map must still cover half *the screen* — slack
+     enough to work at the coast, and it stops the map being flicked out of sight entirely, which
+     a fraction of the map's own size would allow once the map is several screens wide.
+     **The centring branch is gone, and that was the point.** `clampPan` used to centre any axis
+     the map did not fill, which is a *framing* decision wearing a clamp's clothes: zooming out to
+     inspect the coast you were working on threw away the very framing you were pulling back to
+     see. Framing is now `centred()`, called where a fit or a reset happens — and it had to be,
+     because the clamp was the only thing centring the map on first paint.
      Costs no memory: `padRect` clips every cache rect to the map, ADR-38's own argument.
+     **Measured**: pushed to the wall the stage's left edge reads map x **-265**, the map's own
+     left edge stops at the stage's **centre**, and zoomed out the canvas can be shoved until map
+     x **1915** sits at the right edge of a 4000-wide canvas — half of it off screen.
   3. **Rotation jitter left the terrain rail.** It was gated on `objectTool === "scatter"` alone,
      and terrain has no `objectTool` of its own — it keeps whichever was last in hand — so the rail
      offered a rotation knob to a brush that paints polygons. Gated on `spriteKind` now, like Size
@@ -840,7 +849,7 @@ that stops short of where the last package moved its sibling. No design doc.
   5. **Erase shows the disc and nothing else.** It is a global mode, so the rail was still offering
      the *active layer's* controls underneath it — a river width slider above an eraser, text size
      on the labels layer, coast detail and the biome palette on terrain.
-  **28 driven checks and three mutations.** Setting `PAN_SLACK` to 0 puts the wall back at the map's
+  **31 driven checks and three mutations.** Setting `PAN_SLACK` to 0 puts the wall back at the map's
   own edge — map x **5** at the stage edge against **-130** with the slack. Letting hidden stop
   protecting terrain fails three: the ring, the paint, and the positive control after it.
   **And a third mutation that passed first, which is how the cursor check found its own hole.**

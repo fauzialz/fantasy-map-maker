@@ -22,6 +22,7 @@ import { useSelection } from "./useSelection";
 import { useTerrainBrush } from "./useTerrainBrush";
 import {
   clampPan,
+  centred,
   clampViewport,
   fitScale,
   padRect,
@@ -113,12 +114,12 @@ export function MapStage({ editing }: { editing?: Label }) {
   // Fit on first measure, and re-clamp whenever the viewport or the map changes.
   useEffect(() => {
     if (!view) return;
-    setVp((prev) => clampViewport(prev ?? { scale: fitScale(map, view), x: 0, y: 0 }, map, view));
+    setVp((prev) => clampViewport(prev ?? centred(fitScale(map, view), map, view), map, view));
   }, [view, map]);
 
   // Reset to a fitted view when the scene (and so the canvas preset) changes.
   useEffect(() => {
-    if (view) setVp(clampViewport({ scale: fitScale(map, view), x: 0, y: 0 }, map, view));
+    if (view) setVp(clampViewport(centred(fitScale(map, view), map, view), map, view));
   }, [scene.meta.id, map, view]);
 
   useEffect(() => {

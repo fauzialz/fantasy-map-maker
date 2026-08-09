@@ -50,38 +50,43 @@ export function clampScale(scale: number, map: Size, view: Size): number {
 }
 
 /**
- * How far past the map's edge the viewport may be panned, as a fraction of the viewport.
+ * How much of the map has to stay on screen along an axis, as a fraction of whichever is
+ * smaller — the map or the viewport.
  *
- * ADR-38 let the canvas shrink to half of fit so it could be seen as an object with edges,
- * and left panning alone — so the moment you zoomed *in*, the map edge became a hard wall
- * again and anything you were drawing at the coast stayed jammed against the screen edge.
- * The two bounds now say the same thing.
+ * ADR-38 let the canvas shrink to half of fit so it could be seen as an object with edges, and
+ * left panning alone: the map edge stayed a hard wall, so anything drawn at the coast was
+ * jammed against the screen edge, and a map smaller than the viewport was pinned dead centre
+ * with nowhere to go at all.
  *
- * `(1 - MIN_FIT_FRACTION) / 2` is not a coincidence: it is exactly the margin the zoom floor
- * already puts around a fitted map, so the slack at any zoom is the framing the floor gives.
- * At the floor itself the range collapses to a point and the map centres, which is the old
- * behaviour arriving as a consequence rather than as a branch.
+ * Taking the **smaller** of the two is what makes one number mean the right thing at both ends
+ * of the zoom range:
+ *
+ * - **Zoomed out**, the map is the smaller, so half *the canvas* may leave the viewport — you
+ *   can push it to the edge and look at a corner with room around it.
+ * - **Zoomed in**, the viewport is the smaller, so the map must still cover half *the screen*.
+ *   Half the viewport of empty ground is slack enough to work at the coast, and it stops the
+ *   map being flicked out of sight entirely, which a fraction of the map's own size would
+ *   allow once the map is several screens wide.
  *
  * **Still bounded**, and it costs no memory: `padRect` clips every cache rect to the map, so
  * the empty ground beyond the edge is never rasterised. That was ADR-38's argument too.
  */
-export const PAN_SLACK = (1 - MIN_FIT_FRACTION) / 2;
+export const PAN_KEEP = 0.5;
 
 /**
  * One axis of the pan clamp. `span` is the map's on-screen size along it.
  *
- * An axis the map does not fill is still **centred**, not slack: sliding a map that is
- * already wholly visible moves the picture without showing anything new, and it is what
- * makes the zoom floor read as a framed object rather than a loose one. The slack exists
- * for the opposite case — the edge you cannot reach past because the map overflows.
+ * **No centring branch.** `clampPan` used to centre an axis the map did not fill, which is a
+ * *framing* decision wearing a clamp's clothes — and it was the only thing centring the map on
+ * first paint, so removing it means saying that out loud: `centred()` below is what the stage
+ * calls when it fits a map, and the clamp now only ever says how far you may go.
  */
 function panAxis(offset: number, span: number, view: number): number {
-  if (span <= view) return (view - span) / 2;
-  const slack = view * PAN_SLACK;
-  return clamp(offset, view - span - slack, slack);
+  const keep = PAN_KEEP * Math.min(span, view);
+  return clamp(offset, keep - span, view - keep);
 }
 
-/** Keep the map near the viewport, within `PAN_SLACK`; centre it where it cannot fill one. */
+/** Keep at least `PAN_KEEP` of the map (or of the screen, when zoomed in) on screen. */
 export function clampPan(vp: Viewport, map: Size, view: Size): Viewport {
   return {
     scale: vp.scale,
@@ -89,6 +94,13 @@ export function clampPan(vp: Viewport, map: Size, view: Size): Viewport {
     y: panAxis(vp.y, map.h * vp.scale, view.h),
   };
 }
+
+/** The map, squarely in the middle of the viewport — the framing a fit or a reset wants. */
+export const centred = (scale: number, map: Size, view: Size): Viewport => ({
+  scale,
+  x: (view.w - map.w * scale) / 2,
+  y: (view.h - map.h * scale) / 2,
+});
 
 export const clampViewport = (vp: Viewport, map: Size, view: Size): Viewport =>
   clampPan({ ...vp, scale: clampScale(vp.scale, map, view) }, map, view);
