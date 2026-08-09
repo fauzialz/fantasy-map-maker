@@ -47,25 +47,53 @@ describe("river centreline", () => {
 });
 
 describe("river ribbon", () => {
-  it("gives both banks a point per centreline point", () => {
+  /**
+   * WP-29 added a rounded mouth (`13` D6), so the outline is both banks *plus* the arc that
+   * closes them: `CAP_STEPS - 1` interior points. These three fixtures counted on the bare
+   * two-bank outline — the bank arithmetic they actually test is unchanged, so they now index
+   * the banks explicitly instead of assuming the outline is nothing else.
+   */
+  const CAP_POINTS = 5;
+  const banks = (ribbon: Point[], line: Point[]) => ({
+    left: ribbon.slice(0, line.length),
+    right: ribbon.slice(line.length + CAP_POINTS),
+  });
+
+  it("gives both banks a point per centreline point, plus the cap that closes them", () => {
     const line = riverCentreline(straight().points);
-    expect(riverRibbon(straight())).toHaveLength(line.length * 2);
+    expect(riverRibbon(straight())).toHaveLength(line.length * 2 + CAP_POINTS);
   });
 
   it("straddles the centreline by the half-width", () => {
     const flat = straight({ taper: false });
-    const ribbon = riverRibbon(flat);
-    const offsets = ribbon.map(([, y]) => Math.abs(y - 100));
-    for (const offset of offsets) expect(offset).toBeCloseTo(flat.width / 2, 6);
+    const line = riverCentreline(flat.points);
+    const { left, right } = banks(riverRibbon(flat), line);
+    for (const [, y] of [...left, ...right]) {
+      expect(Math.abs(y - 100)).toBeCloseTo(flat.width / 2, 6);
+    }
   });
 
   it("runs narrow at the source and full width at the mouth", () => {
-    const ribbon = riverRibbon(straight());
-    // The outline starts at the source on one bank and ends at the source on the other.
-    const atSource = Math.abs(ribbon[0][1] - 100);
-    const atMouth = Math.abs(ribbon[ribbon.length / 2 - 1][1] - 100);
+    const flowing = straight();
+    const line = riverCentreline(flowing.points);
+    const { left } = banks(riverRibbon(flowing), line);
+    const atSource = Math.abs(left[0][1] - 100);
+    const atMouth = Math.abs(left[left.length - 1][1] - 100);
     expect(atSource).toBeLessThan(atMouth);
     expect(atMouth).toBeCloseTo(20, 6);
+  });
+
+  it("closes the mouth with an arc that bulges past the last centreline point", () => {
+    const flowing = straight();
+    const line = riverCentreline(flowing.points);
+    const cap = riverRibbon(flowing).slice(line.length, line.length + CAP_POINTS);
+    const mouth = line[line.length - 1];
+    expect(cap).toHaveLength(CAP_POINTS);
+    // Every cap point sits on the circle of the mouth's half-width, and the apex is downstream.
+    for (const [x, y] of cap) {
+      expect(Math.hypot(x - mouth[0], y - mouth[1])).toBeCloseTo(20, 6);
+    }
+    expect(Math.max(...cap.map(([x]) => x))).toBeGreaterThan(mouth[0]);
   });
 
   it("has nothing to outline with fewer than two points", () => {

@@ -453,7 +453,7 @@ that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
   the floor becomes `fitScale × 0.5`, so the canvas can be seen as an object with edges.
   `clampPan` already centres a map smaller than the view, and `padRect` already clips cache rects
   to the map, so ADR-19's memory budget is untouched. Still bounded — a wider bound, not none.
-- [ ] **WP-29 · Rivers meet the sea, and each other** (**ADR-39**) — an endpoint within a
+- [x] **WP-29 · Rivers meet the sea, and each other** (**ADR-39**) — an endpoint within a
   **screen-space** threshold of a coastline **or another river** snaps to it. Landing that click
   by hand is impossible at fit zoom, and rivers draw above terrain, so a stub of land or a blunt
   cap in open water is visible either way.
@@ -474,6 +474,33 @@ that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
   Reuses `distanceToSegment` (which WP-26 exports anyway) and `distanceToRiver`. The overshoot is
   a **named constant, not a derivation** — it must sit right against a screen-constant stroke and
   a ring gap the user sets between 4 and 60.
+  **Built in `engine/riverSnap.ts`, pure and store-free**, so all of it is unit-testable in Node.
+  `closestOnSegment` was extracted from `distanceToSegment` rather than copied — a snap needs the
+  *place*, not just the distance, and two copies of that projection would be two places to drift.
+  **The chaikin mechanism works exactly as predicted**: a fixture drives a river into the shore at
+  45° and the final centreline segment comes out with **no x-component at all** — perpendicular to
+  the coast, so the cap is parallel to it.
+  **The coast normal is taken by *testing*, not by winding order** — the design did not say this
+  and it matters: a landmass's outer ring and its lake rings wind opposite ways, so a rule that
+  assumed one would push a lake-bound river mouth *inland* on the other. Two point-in-polygon
+  probes at the one segment that matters, and a fixture drives a river into a lake shore.
+  **D6's round cap is applied to *every* end, which is a deviation — recorded, not hidden.** D6
+  asks a snapped end to stay flat while an unsnapped one rounds, but nothing at draw time can tell
+  them apart: `riverRibbon` gets a `River`, and "did this end snap?" needs either a stored flag —
+  a `schemaVersion` bump this same section forbids — or a live terrain dependency, which **D8
+  rejects**. So D6's two halves are in tension with its own constraints. Rounding always costs
+  three lines and no data; on a snapped mouth the arc sits 90 units out to sea at a 13-unit
+  half-width, **3 px at fit zoom**, and reads as the river widening into the water. The upgrade,
+  if anyone ever wants the distinction, is the same polygon clip §2 already names as the ceiling.
+  **10 unit fixtures + 9 driven checks**, the driven ones reading the **stored points**: the tail
+  is two points on the normal, a river stopping inland keeps the single point it was given, a
+  tributary lands **6 map units** from a 26-wide trunk's centreline, and deleting the trunk leaves
+  it byte-identical (D8).
+  **The driver tripped over WP-28's own change.** Zooming out 60 steps used to land at fit; since
+  ADR-38 it lands on the **floor**, half of fit — so everything drawn afterwards went down in
+  different map coordinates and the tributary missed the trunk by 629 units. The zoom check moved
+  last. A widened bound is exactly the kind of change that invalidates a driver's assumptions
+  quietly.
   **`13` D6–D10 settled**: the end *being laid* snaps, whichever it is · **an end that snaps to
   nothing gets a round cap** instead of today's flat cut, so a river stopping mid-map fades out
   rather than being sliced — `riverRibbon` already closes between the last two bank points, so it
