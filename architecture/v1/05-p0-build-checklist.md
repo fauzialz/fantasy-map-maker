@@ -285,7 +285,7 @@ batches is therefore **WP-23 → WP-30 → WP-31 → WP-32**.
   uuid per object, so two runs of the same world differ in every id. A comparison that can never
   pass is as useless as one that can never fail, and it looks like a real defect while it lasts.
   Hash the geometry, not the identity.
-- [ ] **WP-32 · The menu bar, and a rail that holds one idea** (`11` §3–§4) — Map · Edit · View ·
+- [x] **WP-32 · The menu bar, and a rail that holds one idea** (`11` §3–§4) — Map · Edit · View ·
   Help, in their own row above today's tool row; the right rail drops to **Layers + Appearance**;
   the bottom autosave strip is absorbed into the menu bar so two rows cost no height. New
   `ui/MenuBar.tsx` on Radix `DropdownMenu` (already installed — keyboard nav, Escape, typeahead
@@ -304,6 +304,45 @@ batches is therefore **WP-23 → WP-30 → WP-31 → WP-32**.
   early would have left canvas size unreachable across two packages. They come out **here**, with
   the submenu that replaces them — the rail must not end up holding both.
   Acceptance is driven input per menu item and no rail scrollbar at 900 px.
+  **`deleteSelection` had three copies, not two.** The design named the rail's button and the new
+  Edit menu; `useSelection`'s Delete-key handler was a third, written out longhand. All three now
+  call one store action, and `layersHolding` moved into the store with it, since the store became
+  its main caller. **MapPanel 177 → 103 lines, Toolbar 252 → 199**, and the tool row is finally
+  about one thing.
+  **The View menu's two booleans are session state in the editor**, not in the scene: hiding a
+  panel changes what *you* are looking at, not what the map is — the same reasoning that keeps
+  layer visibility out of the undo stack. Its items `preventDefault` on select so the menu stays
+  open, because the two are usually set together.
+  **`Canvas size ▸` is a radio, and the no-op guard stayed** — which is a correction to `11` §3.
+  The design expected a radio group to make "re-picking your current size is a no-op" *structural*,
+  since a current value is not a command. **Radix fires `onValueChange` for the already-selected
+  item anyway**, proved by mutation: deleting the guard fails the check at a reset confirm nobody
+  asked for. What the radio really bought is that you can see which size you are on before you
+  reach for it, which the three chips never showed.
+  **Help's second item is a link, not an About box.** `11` §3 said "About"; a version number in a
+  modal is nothing anyone needs, and `/how-it-works` is a real page that exists. It opens in a new
+  tab — Help must not navigate you off the map you are drawing.
+  **The shortcuts sheet is read off the handlers, not from memory** — undo/redo from the editor's
+  key handler, Delete/Backspace and Escape from `useSelection`, Enter and Escape while drawing from
+  `useRiverTool`, the space-drag from `MapStage`. A sheet listing something the app does not do is
+  worse than no sheet.
+  **33 driven checks, two mutations — and one defect the driver found in the test hooks
+  themselves.** Putting `data-action="undo"` on the Edit menu item while the toolbar button still
+  carried it made every existing selector ambiguous: `querySelector` resolves to document order, so
+  the driver clicked the *toolbar's* button, which sat behind Radix's modal overlay, and nothing
+  happened. **`11` §7's rule is that a hook keeps its value on whichever element it moves to; the
+  case it does not cover is a hook that is *copied* onto a second element**, and that case fails
+  silently rather than loudly. The menu items are `data-menu-item="undo" | "redo"` now, and a check
+  asserts `[data-action="undo"]` matches exactly one element.
+  **The other driver bug is `07` §1's own rule again**: the cross-layer marquee started at 0.3,0.3,
+  which is *on the land* — so the press began a **move**, not a marquee (I5), dragged one tree, and
+  reported "1 selected" as though it were a selection. Started in open water it takes 1 031 objects
+  across two layers. A gesture that silently becomes a different gesture is exactly what makes a
+  seeded assertion worthless.
+  **And WP-30's driver had to be updated, which is the good kind of breakage**: it clicked
+  `[data-action="reset"]` directly, and that control is now a menu item — present in the DOM only
+  once the menu is open. The hook kept its value, as §7 requires; only its home changed. 43 checks
+  still pass.
 
 **Batch 6 — tools that say what they do.** Four places where a tool's behaviour and the UI's
 description of it have drifted apart. Design in `12-tools-that-say-what-they-do.md`; **ADR-37**

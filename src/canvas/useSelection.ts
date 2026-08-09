@@ -13,7 +13,7 @@ import type {
   Scene,
   SceneObject,
 } from "../scene/types";
-import { useEditorStore } from "../state/editorStore";
+import { layersHolding, useEditorStore } from "../state/editorStore";
 import { useToastStore } from "../state/toastStore";
 import { resolveGesture } from "./gesture";
 import { cursorForHandle, cursorForHover, HANDLE_PX, type Handle } from "./handles";
@@ -70,10 +70,6 @@ const controlPointAt = (
   }
   return undefined;
 };
-
-/** Which layers hold any of these ids — the write-back set for a cross-layer edit. */
-const layersHolding = (layers: SceneLayer[], ids: Set<string>) =>
-  layers.filter((layer) => layer.objects.some((object) => ids.has(object.id)));
 
 type Drag =
   | { kind: "move"; start: Point; snapshot: SceneObject[]; gesture?: DropGesture }
@@ -559,16 +555,7 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       if (event.key === "Escape") store.setSelection([]);
       if ((event.key === "Delete" || event.key === "Backspace") && store.selection.length > 0) {
         event.preventDefault();
-        const doomed = new Set(store.selection);
-        const layers = layersHolding(store.scene.layers, doomed);
-        store.record("delete", () => {
-          for (const layer of layers) {
-            store.removeObjects(
-              layer.id,
-              layer.objects.filter((object) => doomed.has(object.id)).map((object) => object.id),
-            );
-          }
-        });
+        store.deleteSelection();
       }
     };
     window.addEventListener("keydown", onKey);

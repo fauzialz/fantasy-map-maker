@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createEmptyScene } from "../scene/scene";
+import { restack } from "../scene/transform";
 import { ICON_KINDS, type SpriteKind } from "../sprites/registry";
 import type { GenerateResult } from "../engine/generator/generate";
 import type { OverlapPolicy } from "../engine/terrain/overlap";
@@ -206,9 +207,30 @@ interface EditorState {
   newMap: (preset: CanvasPreset) => void;
   /** Switch to an existing draft. Clears history, which belongs to the map that made it. */
   openScene: (scene: Scene) => void;
+  /**
+   * Delete whatever is selected, across every layer holding any of it, as one step.
+   *
+   * Lifted here by WP-32 because it had **three** copies — the rail's button, the Delete key,
+   * and now the Edit menu — each already reaching for `getState()` in its own body. They were
+   * store actions wearing a component's clothes.
+   */
+  deleteSelection: () => void;
+  /**
+   * Restacking is per layer even for a cross-layer selection: layer order is fixed and z-order
+   * lives *within* a layer (ADR-15), so each object moves inside its own stack and cross-layer
+   * z never has to mean anything.
+   */
+  restackSelection: (direction: 1 | -1) => void;
 }
 
 const TERRAIN = "terrain";
+
+/**
+ * The layers holding any of these ids — every write that touches a cross-layer selection walks
+ * exactly this list. Lived in `useSelection` until WP-32 gave the store two callers of its own.
+ */
+export const layersHolding = (layers: Scene["layers"], ids: Set<string>) =>
+  layers.filter((layer) => layer.objects.some((object) => ids.has(object.id)));
 
 /** Undo can delete what is selected; a selection of ghosts would draw a frame on nothing. */
 const survivors = (scene: Scene, layerId: LayerId, selection: string[]): string[] => {
@@ -477,6 +499,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   openScene: (scene) => set({ scene, selection: [], past: [], future: [] }),
 
   newMap: (preset) => set({ scene: createEmptyScene(preset), selection: [], past: [], future: [] }),
+
+  deleteSelection: () => {
+    const state = get();
+    if (state.selection.length === 0) return;
+    const doomed = new Set(state.selection);
+    state.record("delete", () => {
+      for (const layer of layersHolding(get().scene.layers, doomed)) {
+        get().removeObjects(
+          layer.id,
+          layer.objects.filter((object) => doomed.has(object.id)).map((object) => object.id),
+        );
+      }
+    });
+  },
+
+  restackSelection: (direction) => {
+    const state = get();
+    if (state.selection.length === 0) return;
+    const ids = new Set(state.selection);
+    state.record(direction === 1 ? "bring forward" : "send back", () => {
+      for (const layer of layersHolding(get().scene.layers, ids)) {
+        get().setLayerObjects(layer.id, restack(layer.objects, ids, direction));
+      }
+    });
+  },
 }));
 
 export const selectLandmasses = (state: EditorState): Landmass[] =>

@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import { hasFootprint } from "../scene/bounds";
 import { BIOME_FILL } from "../canvas/palette";
 import type { Biome, Label, Landmass } from "../scene/types";
-import { restack } from "../scene/transform";
 import { ICON_KINDS } from "../sprites/registry";
 import { LAYER_OBJECT, LAYER_TOOLS, useEditorStore, type ObjectTool } from "../state/editorStore";
 import { Slider, Toggle } from "./controls";
@@ -57,6 +56,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const setSettings = useEditorStore((s) => s.setSettings);
   const patchObject = useEditorStore((s) => s.patchObject);
   const record = useEditorStore((s) => s.record);
+  const deleteSelection = useEditorStore((s) => s.deleteSelection);
+  const restackSelection = useEditorStore((s) => s.restackSelection);
   const terrainBiome = useEditorStore((s) => s.terrainBiome);
   const setTerrainBiome = useEditorStore((s) => s.setTerrainBiome);
   const overlapPolicy = useEditorStore((s) => s.overlapPolicy);
@@ -108,36 +109,6 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   /** The one selected label, so the size slider edits the thing rather than the default. */
   const editingLabel =
     onlyType === "label" && selected.length === 1 ? (selected[0] as Label) : undefined;
-
-  /**
-   * Restacking is per layer even for a cross-layer selection: layer order is fixed and
-   * z-order lives *within* a layer (ADR-15), so each object moves inside its own stack and
-   * cross-layer z never has to mean anything.
-   */
-  const restackSelection = (direction: 1 | -1) => {
-    const state = useEditorStore.getState();
-    const ids = new Set(state.selection);
-    const touched = state.scene.layers.filter((l) => l.objects.some((o) => ids.has(o.id)));
-    state.record(direction === 1 ? "bring forward" : "send back", () => {
-      for (const layer of touched) {
-        state.setLayerObjects(layer.id, restack(layer.objects, ids, direction));
-      }
-    });
-  };
-
-  const deleteSelection = () => {
-    const state = useEditorStore.getState();
-    const doomed = new Set(state.selection);
-    const touched = state.scene.layers.filter((l) => l.objects.some((o) => doomed.has(o.id)));
-    state.record("delete", () => {
-      for (const layer of touched) {
-        state.removeObjects(
-          layer.id,
-          layer.objects.filter((o) => doomed.has(o.id)).map((o) => o.id),
-        );
-      }
-    });
-  };
 
   return (
     <aside className={panel({ side: "left" })} aria-label="Tool options">

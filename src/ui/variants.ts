@@ -146,6 +146,56 @@ export const toolbar = tv({
   base: "mbf:bg-panel mbf:border-line mbf:flex mbf:items-center mbf:gap-1 mbf:border-b mbf:px-3 mbf:py-2",
 });
 
+/**
+ * The menu bar — WP-32's top row (`11` §4). Shorter than the tool row below it, because it
+ * carries text rather than icons and the two rows together must not cost more height than the
+ * one row plus the autosave strip they replace.
+ */
+export const menuBar = tv({
+  base: "mbf:bg-panel mbf:border-line mbf:flex mbf:items-center mbf:gap-1 mbf:border-b mbf:px-3 mbf:py-1",
+});
+
+export const menuTrigger = tv({
+  base:
+    "mbf:text-ink mbf:hover:bg-panel-2 mbf:data-[state=open]:bg-panel-2 mbf:cursor-pointer " +
+    "mbf:rounded-md mbf:px-2 mbf:py-1 mbf:text-xs mbf:select-none " +
+    "mbf:focus-visible:outline-accent mbf:focus-visible:outline-2",
+});
+
+export const menuContent = tv({
+  base:
+    "mbf:bg-panel mbf:border-line mbf:z-50 mbf:min-w-52 mbf:rounded-lg mbf:border mbf:p-1 " +
+    "mbf:shadow-xl mbf:focus-visible:outline-none",
+});
+
+/** `pl-7` on every item, radio or not, so labels line up whether or not a dot is showing. */
+export const menuItem = tv({
+  base:
+    "mbf:text-ink mbf:data-[highlighted]:bg-accent/12 mbf:data-[highlighted]:text-accent-ink " +
+    "mbf:relative mbf:flex mbf:cursor-pointer mbf:items-center mbf:gap-2 mbf:rounded-md " +
+    "mbf:py-1.5 mbf:pr-2 mbf:pl-7 mbf:text-xs mbf:outline-none mbf:select-none " +
+    "mbf:data-[disabled]:pointer-events-none mbf:data-[disabled]:opacity-40",
+});
+
+export const menuShortcut = tv({
+  base: "mbf:text-muted mbf:ml-auto mbf:pl-6 mbf:font-mono mbf:text-[10px]",
+});
+
+export const menuSeparator = tv({ base: "mbf:bg-line mbf:my-1 mbf:h-px" });
+
+/** The dot or tick a radio/checkbox item shows, in the gutter `menuItem` reserves for it. */
+export const menuIndicator = tv({
+  base: "mbf:text-accent mbf:absolute mbf:left-2 mbf:inline-flex mbf:items-center",
+});
+
+/** The map's name, in the menu bar — a document title, not a form field (`11` §3). */
+export const titleInput = tv({
+  base:
+    "mbf:text-ink mbf:hover:border-line mbf:focus:border-accent mbf:min-w-0 mbf:rounded-md " +
+    "mbf:border mbf:border-transparent mbf:bg-transparent mbf:px-1.5 mbf:py-0.5 mbf:text-xs " +
+    "mbf:outline-none",
+});
+
 export const statusBar = tv({
   base:
     "mbf:bg-panel/85 mbf:border-line mbf:text-muted mbf:pointer-events-none mbf:absolute mbf:inset-x-0 mbf:bottom-0 " +

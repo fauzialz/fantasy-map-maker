@@ -10,14 +10,15 @@ import {
   type Format,
 } from "../export/image";
 import { loadScene } from "../persistence/drafts";
-import { useAutosave, type SaveStatus } from "../persistence/useAutosave";
+import { useAutosave } from "../persistence/useAutosave";
 import { navigate, usePage } from "../routes";
-import type { Label } from "../scene/types";
+import type { CanvasPreset, Label } from "../scene/types";
 import { selectLandmasses, useEditorStore } from "../state/editorStore";
 import { useToastStore } from "../state/toastStore";
 import { TooltipProvider } from "./controls";
-import { ExportDialog, GenerateDialog } from "./dialogs";
+import { ConfirmDialog, ExportDialog, GenerateDialog, ShortcutsDialog } from "./dialogs";
 import { MapPanel } from "./MapPanel";
+import { MenuBar } from "./MenuBar";
 import { Toasts } from "./Toasts";
 import { Toolbar } from "./Toolbar";
 import { ToolOptions } from "./ToolOptions";
@@ -25,13 +26,6 @@ import { hint } from "./variants";
 
 const fileSize = (bytes: number) =>
   bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-
-const SAVE_LABEL: Record<SaveStatus, string> = {
-  new: "saves as you work",
-  saving: "saving…",
-  saved: "saved",
-  failed: "not saved",
-};
 
 /**
  * `/maps/edit/{uuid}` — the URL is the source of truth (`14` §4.4).
@@ -88,9 +82,10 @@ export function EditorRoute({ id }: { id: string }) {
 }
 
 /**
- * The shell: toolbar across the top, contextual tool options left, the map, and what the
- * map *is* on the right (`ux-wireframe.html`). It owns nothing but the two modals and the
- * two async actions they run — every control below reads and writes the store directly.
+ * The shell: menu bar and tool row across the top, contextual tool options left, the map, and
+ * what the map *is* on the right (`ux-wireframe.html`, `11` §4). It owns the dialogs, the two
+ * async actions they run, and which rails are open — every control below reads and writes the
+ * store directly.
  */
 function Editor() {
   const scene = useEditorStore((s) => s.scene);
@@ -98,11 +93,21 @@ function Editor() {
   const redo = useEditorStore((s) => s.redo);
   const saveStatus = useAutosave();
   const rival = useRivalTab(scene.meta.id);
+  const resetCanvas = useEditorStore((s) => s.resetCanvas);
 
   const [generating, setGenerating] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  /** Which preset the reset confirm is asking about — `null` while it is closed. */
+  const [resetting, setResetting] = useState<CanvasPreset | null>(null);
+  /**
+   * Which rails are showing (`11` §3's View menu). Session state and deliberately not in the
+   * scene: hiding a panel changes what *you* are looking at, not what the map is — the same
+   * reasoning that keeps layer visibility out of the undo stack.
+   */
+  const [panels, setPanels] = useState({ tools: true, layers: true });
   /** The label the rail asked to rename; the stage opens its editor on it. */
   const [editingLabel, setEditingLabel] = useState<Label | undefined>();
 
@@ -218,20 +223,26 @@ function Editor() {
             write wins — close one before you keep editing.
           </p>
         )}
-        <Toolbar onGenerate={() => setGenerateOpen(true)} onExport={() => setExportOpen(true)} />
+        {/*
+          Two fixed rows (`11` §4): commands on top, mode below. The bottom autosave strip is
+          gone — `saved` sits in the menu bar — so the second row costs no height.
+        */}
+        <MenuBar
+          saveStatus={saveStatus}
+          panels={panels}
+          onTogglePanel={(panel) => setPanels((open) => ({ ...open, [panel]: !open[panel] }))}
+          onResetCanvas={setResetting}
+          onGenerate={() => setGenerateOpen(true)}
+          onExport={() => setExportOpen(true)}
+          onShortcuts={() => setShortcutsOpen(true)}
+        />
+        <Toolbar />
 
         <div className="mbf:flex mbf:min-h-0 mbf:grow">
-          <ToolOptions onEditLabel={setEditingLabel} />
+          {panels.tools && <ToolOptions onEditLabel={setEditingLabel} />}
           <MapStage editing={editingLabel} />
-          <MapPanel />
+          {panels.layers && <MapPanel />}
         </div>
-
-        <p
-          data-autosave
-          className="mbf:bg-panel mbf:border-line mbf:text-muted mbf:border-t mbf:px-3 mbf:py-1 mbf:text-[11px]"
-        >
-          {SAVE_LABEL[saveStatus]}
-        </p>
       </div>
 
       <GenerateDialog
@@ -246,6 +257,27 @@ function Editor() {
         busy={exporting}
         onExport={(format, scale) => void exportImage(format, scale)}
         onOpenChange={setExportOpen}
+      />
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      {/*
+        The reset confirm followed `Canvas size ▸` and `Reset canvas…` up to the menu bar, and
+        it is the same dialog for both: changing the size *is* emptying the map, which is why
+        the size is free only on the create page (`14` §4.3). The New map signpost matters more
+        than it reads — with that command gone from the editor, someone wanting a fresh map
+        reaches for the nearest thing that sounds close, and this is it.
+      */}
+      <ConfirmDialog
+        open={resetting !== null}
+        title="Empty this map?"
+        description={
+          `This clears everything on “${scene.meta.title || "Untitled Map"}” and sets the ` +
+          `canvas to ${resetting ?? ""}. The map keeps its name and its place in Your maps, ` +
+          `and you can undo it in one step. ` +
+          `To start a fresh map and keep this one, cancel and choose New map in Your maps.`
+        }
+        confirmLabel="Empty the map"
+        onConfirm={() => resetting && resetCanvas(resetting)}
+        onOpenChange={(next) => !next && setResetting(null)}
       />
       <Toasts />
     </TooltipProvider>

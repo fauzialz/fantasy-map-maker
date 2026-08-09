@@ -55,12 +55,13 @@ prompts** used to drive an AI coding agent through the build.
   and the box is a poor stand-in for the shape — measured at 53% ink for mountains and **28%
   for the compass**. Silhouette tie-break, tighter boxes, and a parser that fails loudly.
   See ADR-30.
-- `11-editor-shell.md` — **Batch 5, and it ships in two packages** (ADR-40): **WP-23** is §5 —
+- `11-editor-shell.md` — **Batch 5, built as two packages** (ADR-40) — **both are done**: **WP-23** is §5 —
   ADR-21's generate confirm folded into the generate dialog, an off switch you can actually see,
   and the seed turned into a shareable world code — and **WP-32** is §3–§4, the menu bar and the
-  slimmed rail. The right rail stacks five unrelated concerns and **Generate** exists twice;
-  commands move to a menu bar and the rail keeps only what you steer while watching the map.
-  **WP-30 lands between them**, so no menu item is built and then deleted. See ADR-36 and ADR-40.
+  slimmed rail. The right rail stacked five unrelated concerns and **Generate** existed twice;
+  commands moved to a menu bar and the rail kept only what you steer while watching the map —
+  two sections, and it no longer scrolls.
+  **WP-30 landed between them**, so no menu item was built and then deleted. See ADR-36 and ADR-40.
 - `12-tools-that-say-what-they-do.md` — **scheduled as WP-24 → WP-27.** Four places where a
   tool's behaviour and the UI's description of it have drifted apart: a brush with no feedback
   until you drag, an Erase that means two things and cannot touch landmasses or rivers **at
@@ -182,9 +183,9 @@ P0 alone is a complete portfolio piece.
   bumping the world code to **`w2-`**) and WP-28 settled `13` **D5** (mountains shrink by changing
   the shared constant, at **100**). **Batch 8 gave the app an address space**: `/` is a static
   landing page, `/maps` is the gallery, `/maps/create` the one screen where canvas size is free, and
-  `/maps/edit/{uuid}` the editor — so **every driver now targets a route** (`07` §1). **What is left
-  is WP-32**, the menu bar and the slimmed rail, which was deliberately held until the routes
-  existed so no menu item would be built and then deleted. None of it needs a host.
+  `/maps/edit/{uuid}` the editor — so **every driver now targets a route** (`07` §1). **Batch 5 closed with WP-32**, the menu
+  bar and the slimmed rail, held until the routes existed so no menu item would be built and then
+  deleted — so **every scheduled 0.5 package is now built**. None of it needed a host.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
   first-class water bodies/canals, auto-generated rivers, rich blended biome
   transitions, tile-render export, WebGL renderer.
