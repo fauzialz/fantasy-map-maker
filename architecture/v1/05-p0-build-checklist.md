@@ -441,7 +441,7 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
 **Batch 7 — reading the map.** Three complaints about the finished picture rather than the tools
 that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
 
-- [~] **WP-28 · The map at a glance** — two constants, judged by looking. **Mountains smaller**:
+- [x] **WP-28 · The map at a glance** — two constants, judged by looking. **Mountains smaller**:
   `SPRITE_HEIGHT.mountain` 190 → 100, against 84 for a tree and 165 for a
   landmark. **Settle `13` D5 first** — the constant is the base height for the *kind*, so changing it
   is silently retroactive across every saved map; the alternative is scaling at placement and
@@ -533,6 +533,37 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   Ship the sign-in slot now, the buttons at P2. Acceptance: the headline and every section heading
   are **in the HTML body** before any JavaScript, and the page loads **no editor bundle** —
   asserted on the response and the network, not on feel.
+
+**Batch 9 — the size of what you place.** Raised after Batch 6 shipped, and the direct twin of
+WP-27: `anchorAt` hardcodes `scale: scatter ? 1 + jitter(0.28) : 1`, so *how big* a placed sprite
+is has no control at all — the same "constant pretending to be a decision" that rotation was.
+**No design doc yet**, like Batch 4 before ADR-33.
+
+- [ ] **WP-33 · How big is the thing you are about to place** — a size control in the tool options
+  for mountains, forests and icons, live for **both** scatter and place. It writes `object.scale`,
+  which is the field the resize handles already edit ([transform.ts:83](../../src/scene/transform.ts#L83)
+  multiplies it) — so the knob sets the starting value and a drag changes it afterwards. **The two
+  do not compete**: drawn height is `SPRITE_HEIGHT[kind] × object.scale`
+  ([raster.ts:128](../../src/sprites/raster.ts#L128)), the constant being *what a mountain is* and
+  the scale *what this mountain is*.
+  **A multiplier shown as a percentage, not map units.** Labels and rivers store absolute sizes
+  because their size *is* the stored number; a sprite has a base constant underneath, so an
+  absolute knob would have to divide by `SPRITE_HEIGHT` and would silently change meaning whenever
+  the art is retuned — which WP-28 just did, twice.
+  **Double duty, following the rail's own precedent**: resize the selection when there is one, set
+  the next-placement default when there is not. That is what the biome palette does (`08` D6) and
+  what the label-size slider already does for a selected label. A knob that sits inert while a
+  mountain is selected is the inconsistency that would feel wrong — not the handles.
+  **The scale jitter comes with it**: `jitter(0.28)` is the sibling constant, and a size knob
+  without a spread knob leaves half the question unanswered.
+  **Settle D1 first — does the generator read it?** This is `12` D4 again, and **the precedent
+  answers it: no.** A world code must rebuild the same world regardless of a session slider, so
+  the generator needs its own field — which means a **`w3-`** code. The format has already moved
+  `w1 → w2` once this week, so if a generator size field is wanted at all, land it in this package
+  rather than bumping a third time.
+  Acceptance reads the **scene**, not the render: with the knob at 150%, a placed sprite stores
+  `scale` 1.5, and one already on the map is untouched until it is selected and resized.
+
 
 ## Later phases (see the phase prompts)
 

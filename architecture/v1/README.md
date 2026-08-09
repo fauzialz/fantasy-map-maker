@@ -169,11 +169,11 @@ P0 alone is a complete portfolio piece.
 - **v1 design: complete.** All load-bearing decisions locked (see the ADR log).
 - **Phase 0: built.** WP-0 … WP-13 all pass their acceptance criteria; the one part not
   done is the deploy itself, which needs a host and a domain. See the tracker.
-- **0.5: Batches 1–4 and 6 built**, plus **WP-23** — so WP-14 … WP-27 all pass their acceptance.
-  Batch 6 ended by settling `12` **D4**: the generator keeps its own rotation spread rather than
-  reading the scatter brush's, which bumped the world code to **`w2-`**. **What is left is
-  WP-28 → WP-29 → WP-30 → WP-31 → WP-32**, because ADR-40's routes change what the menu bar
-  contains. None of it needs a host.
+- **0.5: Batches 1–4 and 6 built**, plus **WP-23** and **WP-28** — so WP-14 … WP-28 all pass their
+  acceptance. Batch 6 settled `12` **D4** (the generator keeps its own rotation spread, bumping the
+  world code to **`w2-`**) and WP-28 settled `13` **D5** (mountains shrink by changing the shared
+  constant, at **100**). **What is left is WP-29 → WP-30 → WP-31 → WP-32**, because ADR-40's routes
+  change what the menu bar contains, plus **WP-33** in a new Batch 9. None of it needs a host.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
   first-class water bodies/canals, auto-generated rivers, rich blended biome
   transitions, tile-render export, WebGL renderer.
