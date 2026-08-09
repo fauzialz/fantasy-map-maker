@@ -137,9 +137,6 @@ map.byfauzi.com {
         file_server
     }
 
-    # Until the landing page exists, / is a redirect rather than a half-built page.
-    redir / /maps
-
     # Everything else is a static page: the landing page at /, /how-it-works, and an
     # HTML 404 for an unknown path, which never loads the application bundle.
     handle {

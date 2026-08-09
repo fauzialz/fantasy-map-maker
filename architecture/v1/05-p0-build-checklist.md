@@ -589,7 +589,7 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   stay that way: backing out of the create page proves history *survives*, completing it proves it
   is *dropped* — but the first check ends by pressing undo, which empties the stack, so the second
   would have passed on any code at all. It re-dirties the map first.
-- [ ] **WP-31 · The landing page** — a static HTML file at `/`, styled with the Tailwind build and
+- [x] **WP-31 · The landing page** — a static HTML file at `/`, styled with the Tailwind build and
   `tokens.css` the app already uses, so the page cannot drift from the application and a visitor
   arrives at `/maps` with the stylesheet cached. **No React, no router, no editor bundle.** Hero is
   a **WebP exported from the editor itself**, one primary CTA → `/maps`, six sections each with one
@@ -602,6 +602,38 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   Ship the sign-in slot now, the buttons at P2. Acceptance: the headline and every section heading
   are **in the HTML body** before any JavaScript, and the page loads **no editor bundle** —
   asserted on the response and the network, not on feel.
+  **The pages sit at the repo root, not in a `landing/` folder.** §7 named the folder; Rollup names
+  its outputs after the *input path*, so `landing/index.html` builds to `dist/landing/index.html`
+  and `/` would need a rewrite to reach it. One file per URL, and the mapping is the identity.
+  **The stylesheet is genuinely shared, and that is measured**: all four HTML files link the same
+  `assets/src-*.css`, and only `app.html` carries a `<script>`. So the landing page pays for the
+  tokens once and the visitor arrives at `/maps` with them cached — which was the whole reason
+  §5 asked for the app's own stylesheet rather than a hand-written one.
+  **Every picture is a real export.** A driver builds each map, drives the export dialog, and
+  catches the blob by wrapping `HTMLAnchorElement.prototype.click` — the one call `download()`
+  makes — then downscales it to 1600 px in the same browser. **176–299 KB** for a full 4000×3000
+  world as WebP; six images, ~740 KB in total, all lazy but the hero.
+  **The theme is chosen, not inherited, for the images**: a single file cannot follow a palette, so
+  the driver sets `mbf-theme` to light before rendering — WP-5's parchment is what the product
+  looks like. The *page* still follows the theme, because it reads the same tokens.
+  **Five sections carry an image and the sixth does not.** "Free, and specifically how" is a claim
+  about a price, and there is nothing to photograph; padding it with a UI screenshot would also
+  break D11's rule that every image on this page is an export, which is what stops the page
+  promising something the renderer does not draw.
+  **A `@source "../*.html"` was needed in `index.css`** — Tailwind's automatic detection is rooted
+  at the CSS file, and every landing class lives one directory up. A class that silently fails to
+  generate looks exactly like a styling mistake, so it is named rather than inferred.
+  **Dev gained Caddy's `handle_errors` too**, gated on the `Accept` header rather than on the shape
+  of the path: `/@vite/client` and `/__vite_ping` are extensionless as well, and a path-shaped rule
+  hands both of them a 404 page. The *page* now matches production; the **status does not**, since
+  Vite serves HTML as 200 and overwrites what the middleware sets. That one is Caddy's to give.
+  **22 driven checks and two mutations — and the driver runs against `vite preview`, not
+  `npm run dev`**, which is the opposite of every other driver in this repo. The dev server injects
+  its HMR client as a module script into every HTML file it serves, so "this page ships no script"
+  is *false in dev and true in production*: the claim is about the artifact, so the artifact is what
+  it is asked of. Both mutations discriminate — a `<script type="module">` added to the page fails
+  the response check *and* the network check, and deleting the stylesheet link fails all four theme
+  measurements at `rgba(0, 0, 0, 0)` where the app paints `rgb(238, 241, 236)`.
 
 **Batch 9 — the size of what you place.** Raised after Batch 6 shipped, and the direct twin of
 WP-27: `anchorAt` hardcodes `scale: scatter ? 1 + jitter(0.28) : 1`, so *how big* a placed sprite
