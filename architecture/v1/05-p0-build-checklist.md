@@ -882,10 +882,25 @@ that stops short of where the last package moved its sibling. No design doc.
   | cached bitmaps | 11.5 MB | **7.7 MB** |
 
   The median was 16.7 ms throughout, before and after: this was never sustained slowness, it was
-  a hitch, which is why it read as lag rather than as a slow app. **Panning is improved but is
-  still the worst of the three** — the remaining 200 ms is the five-layer re-cache when a drag
-  finally does leave the padded region, and spreading that across frames is the next lever if it
-  still shows.
+  a hitch, which is why it read as lag rather than as a slow app.
+  **Then a CPU profile found the rest of it, and it was not what any of the above assumed.**
+  Every guess so far had been about *how often* the cache is rebuilt; the profile said the cost
+  is in **what `cache()` builds**. Konva allocates a *second* full-size canvas for hit detection
+  on every cache — `HitCanvas → setSize → scale` was **51% of a whole space-drag**, against
+  **0.4% in `drawLayer`**, the function actually drawing the map. Nothing in this app reads it:
+  the layer and its shape are both `listening={false}`, and per-object picking is rbush's job
+  (ADR-16). It cannot be switched off and `0` falls back to `1`, so `hitCanvasPixelRatio: 0.01`
+  makes it a few pixels instead of a few megapixels.
+
+  | | before | cache invalidation | + hit canvas |
+  |---|---|---|---|
+  | zoom in, p95 · max | 66.7 · 83.4 ms | 16.7 · 33.3 ms | **16.8 · 16.8 ms** |
+  | zoom out, p95 · max | 116.6 · 150 ms | 16.8 · 33.4 ms | **16.7 · 16.8 ms** |
+  | space-drag, p95 · max | 249.9 · **749.9 ms** | 133.3 · 200.1 ms | **16.7 · 33.3 ms** |
+
+  **Not one frame over 33 ms in any of the three gestures**, from a 750 ms freeze. The lesson is
+  the ordinary one: two rounds of reasoning about the right mechanism moved the number 3–7×, and
+  ten minutes of profiling moved what was left to the floor. **Profile before the second guess.**
   **Two more driver bugs, both the same lesson twice.** The pan check first dragged a fixed distance and
   never reached the wall, so it measured nothing — `07` §1's overshoot rule, fixed by dragging until
   the reading stops moving. And the hidden-layer check first compared the **landmass count**, which
