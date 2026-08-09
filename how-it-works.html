@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>How it works — map.byfauzi.com</title>
+    <meta
+      name="description"
+      content="How map.byfauzi.com is built: the geometry pipeline behind the coastal rings, the generator, and the decisions along the way."
+    />
+    <link rel="stylesheet" href="/src/index.css" />
+    <script>
+      try {
+        var t = localStorage.getItem("mbf-theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+  </head>
+
+  <body class="mbf:h-auto">
+    <div class="mbf:mx-auto mbf:max-w-2xl mbf:px-6">
+      <header class="mbf:flex mbf:items-center mbf:gap-3 mbf:py-5">
+        <a
+          href="/"
+          class="mbf:bg-accent mbf:text-panel mbf:font-display mbf:grid mbf:size-7 mbf:shrink-0 mbf:place-items-center mbf:rounded-md mbf:text-sm"
+          aria-label="map.byfauzi.com"
+          >M</a
+        >
+        <span class="mbf:font-display mbf:grow mbf:text-sm">map.byfauzi.com</span>
+      </header>
+
+      <!--
+        Reserved, shell only (`14` §5). The content is written when the rest is done: the
+        strait fix, the 2 493 ms → 119 ms offsetter swap (ADR-26), the measured ink
+        percentages (ADR-30) and the seeded-screenshot lesson (`07` §1). It is a page rather
+        than a link so the address exists before anything points at it.
+      -->
+      <main class="mbf:flex mbf:flex-col mbf:gap-4 mbf:py-10">
+        <h1 class="mbf:font-display mbf:text-3xl">How it works</h1>
+        <p class="mbf:text-muted">
+          The write-up is still being written: how a brush stroke becomes a polygon, how the coastal
+          rings are derived rather than drawn, and what the generator actually does with a noise
+          field.
+        </p>
+        <p>
+          <a href="/maps" class="mbf:text-accent mbf:hover:underline">Open the editor</a> in the
+          meantime — it is the shorter explanation.
+        </p>
+      </main>
+
+      <footer class="mbf:border-line mbf:text-muted mbf:border-t mbf:py-6 mbf:text-xs">
+        <a href="/" class="mbf:hover:text-ink">Back to the front page</a>
+      </footer>
+    </div>
+  </body>
+</html>

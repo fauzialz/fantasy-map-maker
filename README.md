@@ -19,37 +19,54 @@ the one-time [CLA](CLA.md).
 
 ```sh
 npm install
-npm run dev      # editor at http://localhost:5173
+npm run dev      # landing page at http://localhost:5173, editor at /maps
 npm test         # scene + engine tests (vitest)
 npm run lint     # oxlint
 npm run build    # typecheck + production bundle
+npm run preview  # serve dist/ with the same routing rules as production
 ```
 
 ## Deploying
 
 `npm run build` emits a completely static `dist/` — no server, no API, no environment
-variables, and a single route, so it needs no SPA rewrite rules. Upload `dist/` to any
-static host or CDN (Netlify, Cloudflare Pages, GitHub Pages, S3+CloudFront):
+variables. Upload it to any static host or CDN (Netlify, Cloudflare Pages, GitHub Pages,
+S3+CloudFront).
 
-```sh
-npm run build
-npx serve dist        # or any static server, to check the bundle before shipping
-```
+**The host must route, though.** Since WP-30 the app has an address space, and `dist/`
+holds two kinds of file:
 
-Two things the host must get right: serve `.woff2` with a long cache lifetime (the fonts
-are content-hashed and self-hosted — there is no CDN fallback), and do not add a
+| Request | Serve |
+|---|---|
+| `/maps`, `/maps/*` | `app.html` — one file for every route; the client router reads the path |
+| `/`, `/how-it-works` | `index.html`, `how-it-works.html` — static pages, no application bundle |
+| anything else | `404.html` |
+
+The Caddy version of exactly that is in
+[`architecture/platform/01-zitadel-setup.md`](architecture/platform/01-zitadel-setup.md) §4,
+and the local mirror of it is the `map-routes` plugin in `vite.config.ts` — `npm run dev`
+and `npm run preview` both go through it, so a routing mistake shows up before a deploy
+rather than after one.
+
+Two more things the host must get right: serve `.woff2` with a long cache lifetime (the
+fonts are content-hashed and self-hosted — there is no CDN fallback), and do not add a
 Content-Security-Policy that blocks `worker-src blob:`, which the geometry worker needs.
 
 ## Layout
 
 ```
+index.html         the landing page — static, no bundle
+how-it-works.html  reserved, shell only
+404.html           unknown paths, served without loading the app
+app.html           the SPA entry, served for every /maps* route
+public/landing/    the page's pictures, all exported from the editor itself
 src/
+  routes.ts     the whole router: match, navigate, title, scroll, focus
   scene/        scene types (the hard contract), createEmptyScene, migrate, (de)serialize
   engine/       geometry pipeline + the Web Worker that hosts it
   canvas/       Konva stage, layers, viewport, and draw.ts — every mark on the map
-  ui/           the chrome: toolbar, rails, dialogs, and the tailwind-variants styles
+  ui/           the chrome: pages, toolbar, rails, dialogs, and the tailwind-variants styles
   export/       PNG/JPG/WebP export with the resolution clamp
-  persistence/  IndexedDB autosave and restore
+  persistence/  IndexedDB autosave and drafts
   styles/       design tokens, light and dark
 ```
 

@@ -1,16 +1,26 @@
 import { useEffect, useState } from "react";
 import { useEditorStore } from "../state/editorStore";
 import { useToastStore } from "../state/toastStore";
-import type { Scene } from "../scene/types";
-import { loadLatestScene, loadScene, rememberOpen, rememberedOpen, saveScene } from "./drafts";
+import { saveScene } from "./drafts";
 
 /** At most one write per this long — enough that a scatter drag or slider sweep coalesces. */
 const SAVE_EVERY_MS = 800;
 
-export type SaveStatus = "loading" | "new" | "restored" | "saving" | "saved" | "failed";
+export type SaveStatus = "new" | "saving" | "saved" | "failed";
 
 /**
- * Restore the last draft on startup, then autosave every scene change (WP-12).
+ * The live editor's flush, or a no-op when no editor is mounted.
+ *
+ * A module-level handle rather than a hook result, because the caller is `navigate()` — and
+ * by the time React has unmounted the editor the throttle it was holding is gone. The flush
+ * has to run *before* that, from outside the tree (`14` §4.7).
+ */
+let activeFlush: (() => Promise<void>) | null = null;
+
+export const flushAutosave = (): Promise<void> => activeFlush?.() ?? Promise.resolve();
+
+/**
+ * Autosave every scene change (WP-12), throttled.
  *
  * **Throttled, not debounced.** A debounce waits out the burst, so an isolated edit — one
  * click on Re-roll — would sit unwritten for the whole interval, and a scatter drag that
@@ -24,20 +34,19 @@ export type SaveStatus = "loading" | "new" | "restored" | "saving" | "saved" | "
  * transaction opened during unload is not guaranteed to commit, and a hard navigation
  * inside the window does abort it. The flush below narrows the tail; the leading-edge save
  * is what makes the window small enough not to matter.
+ *
+ * **Restoring is no longer this hook's business** (WP-30). The map to open is in the URL, so
+ * the editor route loads it — which is why `rememberOpen` and the newest-draft fallback were
+ * deleted rather than moved. This hook mounts *inside* the editor, so the gallery and the
+ * create page write nothing at all: §4.3's "no draft until the user clicks through" holds by
+ * construction rather than by a guard.
  */
 export function useAutosave(): SaveStatus {
-  const [status, setStatus] = useState<SaveStatus>("loading");
+  const [status, setStatus] = useState<SaveStatus>("new");
 
   useEffect(() => {
-    /**
-     * The load is in flight across an unmount, and StrictMode unmounts every effect once.
-     * Without this the discarded run still applies its restore, which the live run then
-     * reads as an edit and writes straight back — a wasted save that also starts the
-     * throttle, delaying the user's next real one.
-     */
-    let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    /** What is already on disk, so a restore doesn't immediately save itself back. */
+    /** What is already on disk, so an opened map doesn't immediately save itself back. */
     let saved = useEditorStore.getState().scene;
     let pending = saved;
     let lastSaveAt = 0;
@@ -58,48 +67,12 @@ export function useAutosave(): SaveStatus {
         useToastStore.getState().show(`Autosave failed: ${(err as Error).message}`);
       }
     };
-
-    /**
-     * The map that was open, falling back to the newest (WP-22).
-     *
-     * `loadLatestScene` alone was right while there was one working copy. With a gallery it
-     * is wrong in a specific way: open an older map, change nothing, reload, and "newest by
-     * `updatedAt`" hands back a *different* map. The remembered id is tried first and the
-     * fallback covers a draft deleted since — including deleted in another tab.
-     */
-    const restore = async (): Promise<Scene | null> => {
-      const remembered = rememberedOpen();
-      return (remembered ? await loadScene(remembered) : null) ?? (await loadLatestScene());
-    };
-
-    void restore()
-      .then((scene) => {
-        if (cancelled) return;
-        if (!scene) {
-          setStatus("new");
-          return;
-        }
-        // Never restore over work already in progress: the load is async, and a draft
-        // landing on top of a stroke the user just painted would be the data loss this
-        // package exists to prevent.
-        if (useEditorStore.getState().past.length > 0) return;
-        saved = pending = scene;
-        useEditorStore.setState({ scene, selection: [] });
-        setStatus("restored");
-      })
-      .catch((err: Error) => {
-        if (cancelled) return;
-        setStatus("failed");
-        useToastStore.getState().show(`Could not read your saved map: ${err.message}`);
-      });
+    activeFlush = flush;
 
     // Fires for every state change, most of which are session state (tool, brush, hover).
     // Comparing scene identity keeps a mouse-move from endlessly pushing the save out.
     const unsubscribe = useEditorStore.subscribe((state) => {
       if (state.scene === pending) return;
-      // One place catches every way the open map can change — a new map, opening one from
-      // the gallery, or the restore above — rather than each caller remembering to.
-      if (state.scene.meta.id !== pending.meta.id) rememberOpen(state.scene.meta.id);
       pending = state.scene;
       clearTimeout(timer);
       timer = setTimeout(
@@ -117,7 +90,9 @@ export function useAutosave(): SaveStatus {
     window.addEventListener("pagehide", onPageHide);
 
     return () => {
-      cancelled = true;
+      // Only if it is still ours: StrictMode mounts twice, and the discarded run's cleanup
+      // would otherwise unhook the live run's flush.
+      if (activeFlush === flush) activeFlush = null;
       unsubscribe();
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onHide);

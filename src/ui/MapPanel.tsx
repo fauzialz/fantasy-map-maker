@@ -4,7 +4,6 @@ import type { CanvasPreset } from "../scene/types";
 import { useEditorStore } from "../state/editorStore";
 import { Slider, Toggle } from "./controls";
 import { ConfirmDialog } from "./dialogs";
-import { MapGallery } from "./MapGallery";
 import { hint, layerRow, panel, panelTitle, segment, toolButton } from "./variants";
 
 const PRESETS: CanvasPreset[] = ["landscape", "square", "portrait"];
@@ -25,9 +24,7 @@ export function MapPanel() {
   const setSettings = useEditorStore((s) => s.setSettings);
   const record = useEditorStore((s) => s.record);
   const setTitle = useEditorStore((s) => s.setTitle);
-  const newMap = useEditorStore((s) => s.newMap);
   const resetCanvas = useEditorStore((s) => s.resetCanvas);
-  const [galleryOpen, setGalleryOpen] = useState(false);
   const [resetting, setResetting] = useState<CanvasPreset | null>(null);
 
   return (
@@ -115,35 +112,20 @@ export function MapPanel() {
           "mbf:border mbf:px-2 mbf:py-1 mbf:text-xs mbf:outline-none"
         }
       />
+      {/*
+        `New map` and `My maps` left with WP-30: they are "which map" commands, and the
+        gallery page owns those (`14` §2). What is left here acts on the map in front of you.
+      */}
       <div className={segment()}>
-        <button
-          type="button"
-          data-action="new-map"
-          className={toolButton()}
-          onClick={() => newMap(scene.meta.canvas.preset)}
-        >
-          New map
-        </button>
-        <button
-          type="button"
-          data-action="gallery"
-          className={toolButton()}
-          onClick={() => setGalleryOpen(true)}
-        >
-          My maps
-        </button>
         <button
           type="button"
           data-action="reset"
           className={toolButton()}
           onClick={() => setResetting(scene.meta.canvas.preset)}
         >
-          Reset
+          Reset canvas…
         </button>
       </div>
-      <p className={hint()}>
-        A new map keeps this one — both live in My maps. Reset empties this one.
-      </p>
 
       <p className={panelTitle()}>Canvas</p>
       <div className={segment()}>
@@ -171,14 +153,20 @@ export function MapPanel() {
       </div>
       <p className={hint()}>Changing the canvas size empties this map — undoable in one step.</p>
 
-      <MapGallery open={galleryOpen} onOpenChange={setGalleryOpen} />
       <ConfirmDialog
         open={resetting !== null}
         title="Empty this map?"
+        /**
+         * The signpost matters more than it reads (`14` §4.9). With `New map` gone from the
+         * editor, someone who wants a *fresh* map reaches for the nearest thing that sounds
+         * close — and this is it. The confirm names the other door rather than only blocking
+         * the wrong one.
+         */
         description={
           `This clears everything on “${scene.meta.title || "Untitled Map"}” and sets the ` +
-          `canvas to ${resetting ?? ""}. The map keeps its name and its place in My maps, ` +
-          `and you can undo it in one step.`
+          `canvas to ${resetting ?? ""}. The map keeps its name and its place in Your maps, ` +
+          `and you can undo it in one step. ` +
+          `To start a fresh map and keep this one, cancel and choose New map in Your maps.`
         }
         confirmLabel="Empty the map"
         onConfirm={() => resetting && resetCanvas(resetting)}

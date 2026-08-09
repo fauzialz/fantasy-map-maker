@@ -71,9 +71,10 @@ prompts** used to drive an AI coding agent through the build.
   makes the canvas edge unreachable, and rivers that stop dead at the shore. See ADR-38 (the
   zoom bound widens, amending ADR-02) and ADR-39 (a river's end snaps to a coast or another
   river at draw time, and the mouth reshape is **control points, not stored geometry**).
-- `14-routing-and-landing.md` — **scheduled as WP-30 → WP-31**, Batch 8. The editor has no routes
-  at all: one URL is the whole address space, a map cannot be linked or bookmarked, and which map
-  is open is kept in a localStorage id — the app remembering what an address could say. Adds a
+- `14-routing-and-landing.md` — **built as WP-30 → WP-31; both packages are done.** The editor had
+  no routes at all: one URL was the whole address space, a map could not be linked or bookmarked,
+  and which map was open was kept in a localStorage id — the app remembering what an address could
+  say. Adds a
   static landing page at `/` and the SPA under `/maps`, turns the gallery **dialog into a page**,
   and gives map creation a screen — the one place canvas size is free, since changing it later
   empties the map. **None of it needs a host.** See ADR-40, which also removes `New map` and
@@ -176,11 +177,14 @@ P0 alone is a complete portfolio piece.
 - **v1 design: complete.** All load-bearing decisions locked (see the ADR log).
 - **Phase 0: built.** WP-0 … WP-13 all pass their acceptance criteria; the one part not
   done is the deploy itself, which needs a host and a domain. See the tracker.
-- **0.5: Batches 1–4 and 6 built**, plus **WP-23** and **WP-28** — so WP-14 … WP-28 all pass their
-  acceptance. Batch 6 settled `12` **D4** (the generator keeps its own rotation spread, bumping the
-  world code to **`w2-`**) and WP-28 settled `13` **D5** (mountains shrink by changing the shared
-  constant, at **100**). **What is left is WP-29 → WP-30 → WP-31 → WP-32**, because ADR-40's routes
-  change what the menu bar contains, and **Batch 9's WP-33 is built** (a per-kind placement size for sprites). None of it needs a host.
+- **0.5: Batches 1–4 and 6–10 built**, plus **WP-23** — so WP-14 … WP-31, WP-33 and WP-34 all pass
+  their acceptance. Batch 6 settled `12` **D4** (the generator keeps its own rotation spread,
+  bumping the world code to **`w2-`**) and WP-28 settled `13` **D5** (mountains shrink by changing
+  the shared constant, at **100**). **Batch 8 gave the app an address space**: `/` is a static
+  landing page, `/maps` is the gallery, `/maps/create` the one screen where canvas size is free, and
+  `/maps/edit/{uuid}` the editor — so **every driver now targets a route** (`07` §1). **What is left
+  is WP-32**, the menu bar and the slimmed rail, which was deliberately held until the routes
+  existed so no menu item would be built and then deleted. None of it needs a host.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
   first-class water bodies/canals, auto-generated rivers, rich blended biome
   transitions, tile-render export, WebGL renderer.

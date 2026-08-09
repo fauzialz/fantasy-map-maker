@@ -129,6 +129,15 @@ interface EditorState {
    * because a brush slider moved an hour ago.
    */
   generatorRotation: number;
+  /**
+   * The create page asked for a world; the editor runs it on arrival and clears this
+   * (`14` D7 — generation happens after the navigation, so the app appears sooner and the
+   * existing toast still covers the undo).
+   *
+   * Session state, not a history entry or a URL parameter: a reload must **not** regenerate,
+   * which is exactly the trap `14` D12 rejected `?w=` for.
+   */
+  generateOnOpen: boolean;
   /** undo stack, oldest first; the last entry is what `undo()` reverses */
   past: Step[];
   /** steps undone and still redoable, cleared by the next edit */
@@ -226,6 +235,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   generatorRotation: 5,
   mountainDensity: 0.5,
   forestDensity: 0.5,
+  generateOnOpen: false,
   past: [],
   future: [],
 

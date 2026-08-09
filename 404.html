@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Not found — map.byfauzi.com</title>
+    <meta name="robots" content="noindex" />
+    <link rel="stylesheet" href="/src/index.css" />
+    <script>
+      try {
+        var t = localStorage.getItem("mbf-theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+  </head>
+
+  <!--
+    The static half of `14` §4.5: an unknown *path* never loads the application bundle, so
+    /mapz costs a visitor one small HTML file. An unknown *map id* is the other kind and is
+    handled in the app, which is already running by then.
+  -->
+  <body class="mbf:h-auto">
+    <div
+      class="mbf:mx-auto mbf:flex mbf:max-w-md mbf:flex-col mbf:gap-4 mbf:px-6 mbf:py-24 mbf:text-center"
+    >
+      <h1 class="mbf:font-display mbf:text-3xl">There is nothing at this address</h1>
+      <p class="mbf:text-muted">
+        The page you asked for does not exist. Your maps are where you left them.
+      </p>
+      <p class="mbf:flex mbf:justify-center mbf:gap-4">
+        <a
+          href="/maps"
+          class="mbf:border-accent mbf:bg-accent mbf:text-panel mbf:dark:text-ground mbf:inline-flex mbf:items-center mbf:rounded-lg mbf:border mbf:px-4 mbf:py-2 mbf:text-sm mbf:font-medium mbf:hover:opacity-90"
+          >Your maps</a
+        >
+        <a
+          href="/"
+          class="mbf:border-line mbf:bg-panel mbf:text-ink mbf:inline-flex mbf:items-center mbf:rounded-lg mbf:border mbf:px-4 mbf:py-2 mbf:text-sm mbf:font-medium"
+          >Front page</a
+        >
+      </p>
+    </div>
+  </body>
+</html>

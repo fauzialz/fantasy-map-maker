@@ -118,11 +118,33 @@ auth.byfauzi.com {
 
 map.byfauzi.com {
     encode zstd gzip
+    root * /srv/map
+
     # P2: uncomment when the API exists — same origin, so no CORS, ever.
     # handle /api/* { reverse_proxy map-api:8081 }
+
+    # P2's share and embed pages are server-rendered for their meta tags, so they must
+    # match BEFORE the SPA fallback below or that fallback swallows them.
+    # handle /s/* { reverse_proxy map-api:8081 }
+    # handle /embed/* { reverse_proxy map-api:8081 }
+
+    # The application. One HTML file for every route under /maps; the client router
+    # reads the path. Mirrored by the dev-server middleware in `vite.config.ts` — the
+    # two hold one rule in two places, and "works locally, 404s in production" has
+    # exactly one signal, which is a deploy.
+    handle /maps* {
+        rewrite * /app.html
+        file_server
+    }
+
+    # Everything else is a static page: the landing page at /, /how-it-works, and an
+    # HTML 404 for an unknown path, which never loads the application bundle.
     handle {
-        root * /srv/map
-        try_files {path} /index.html          # SPA fallback
+        try_files {path} {path}.html
+        file_server
+    }
+    handle_errors {
+        rewrite * /404.html
         file_server
     }
 }

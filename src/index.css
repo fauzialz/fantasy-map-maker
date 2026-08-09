@@ -1,6 +1,11 @@
 @import "tailwindcss" prefix(mbf);
 @import "./styles/tokens.css";
 
+/* The landing pages are HTML at the repo root, outside this file's directory — named
+   explicitly rather than left to auto-detection, since a class that silently fails to
+   generate looks exactly like a styling mistake. */
+@source "../*.html";
+
 /* Self-hosted, shipped with the app — never a font CDN (CSP + silent-fallback risk). */
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/jetbrains-mono";

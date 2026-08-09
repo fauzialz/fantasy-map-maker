@@ -3,10 +3,202 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>map.byfauzi.com</title>
+    <title>map.byfauzi.com — a fantasy map editor in the browser</title>
+    <meta
+      name="description"
+      content="Paint fantasy coastlines and the concentric wave rings draw themselves. Scatter mountains and woodland, generate a whole world, then edit every piece of it. Free, no account, runs in your browser."
+    />
+    <link rel="canonical" href="https://map.byfauzi.com/" />
+    <meta property="og:title" content="map.byfauzi.com — a fantasy map editor in the browser" />
+    <meta
+      property="og:description"
+      content="Paint a coastline and the wave rings draw themselves. Generate a world, then edit every piece of it."
+    />
+    <meta property="og:image" content="https://map.byfauzi.com/landing/hero.webp" />
+    <meta property="og:type" content="website" />
+
+    <!--
+      The application's own stylesheet, tokens and all: the page and the app cannot drift,
+      and a visitor arrives at /maps with it already cached. No editor bundle — this page
+      ships no module script at all (`14` §5).
+    -->
+    <link rel="stylesheet" href="/src/index.css" />
+    <script>
+      // The theme the app was last set to, before first paint. Two lines and no bundle;
+      // `tokens.css` already answers the OS preference on its own when there is no choice.
+      try {
+        var t = localStorage.getItem("mbf-theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
   </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+
+  <!-- The app pins body to the viewport for its flex shell; a document scrolls instead. -->
+  <body class="mbf:h-auto">
+    <div class="mbf:mx-auto mbf:max-w-5xl mbf:px-6">
+      <header class="mbf:flex mbf:items-center mbf:gap-3 mbf:py-5">
+        <a
+          href="/"
+          class="mbf:bg-accent mbf:text-panel mbf:font-display mbf:grid mbf:size-7 mbf:shrink-0 mbf:place-items-center mbf:rounded-md mbf:text-sm"
+          aria-label="map.byfauzi.com"
+          >M</a
+        >
+        <span class="mbf:font-display mbf:grow mbf:text-sm">map.byfauzi.com</span>
+        <a href="/how-it-works" class="mbf:text-muted mbf:hover:text-ink mbf:text-xs"
+          >How it works</a
+        >
+        <!--
+          The sign-in slot, empty on purpose (`14` §5.1, D9/D10). Zitadel hosts the login, so
+          P2 adds a button here that fires the PKCE redirect, and a localStorage hint decides
+          whether it reads "Sign in" or "Go to your maps" — a label, never an authorization
+          decision. A Sign in button that does nothing today would be worse than none, and a
+          prominent one would read as the wall ADR-07 promises is not there.
+        -->
+        <span data-signin-slot></span>
+      </header>
+
+      <main>
+        <section class="mbf:flex mbf:flex-col mbf:gap-5 mbf:py-8">
+          <h1 class="mbf:font-display mbf:max-w-2xl mbf:text-4xl mbf:leading-tight">
+            Draw a world that looks like it came out of a book
+          </h1>
+          <p class="mbf:text-muted mbf:max-w-xl mbf:text-base">
+            A fantasy map editor that runs in your browser. Paint a coastline and the concentric
+            wave rings derive themselves; scatter mountains and woodland; or generate a whole world
+            and then edit every piece of it.
+          </p>
+          <p class="mbf:flex mbf:flex-wrap mbf:items-center mbf:gap-4">
+            <a
+              href="/maps"
+              class="mbf:border-accent mbf:bg-accent mbf:text-panel mbf:dark:text-ground mbf:inline-flex mbf:items-center mbf:rounded-lg mbf:border mbf:px-4 mbf:py-2 mbf:text-sm mbf:font-medium mbf:hover:opacity-90"
+              >Start a map</a
+            >
+            <span class="mbf:text-muted mbf:text-xs"
+              >No account, nothing to install — your maps stay on your device.</span
+            >
+          </p>
+          <img
+            src="/landing/hero.webp"
+            width="1600"
+            height="1200"
+            fetchpriority="high"
+            decoding="async"
+            alt="A generated world: two forested continents with mountain ranges, ringed by concentric wave bands on a parchment sea."
+            class="mbf:border-line mbf:w-full mbf:rounded-xl mbf:border"
+          />
+        </section>
+
+        <section class="mbf:border-line mbf:flex mbf:flex-col mbf:gap-3 mbf:border-t mbf:py-10">
+          <h2 class="mbf:font-display mbf:text-2xl">The rings draw themselves</h2>
+          <p class="mbf:text-muted mbf:max-w-xl">
+            Paint a coast and the concentric wave bands are derived from the land itself — around
+            islands, around lakes, and merging into one band where a strait pinches two shores
+            together.
+          </p>
+          <img
+            src="/landing/rings.webp"
+            width="1600"
+            height="920"
+            loading="lazy"
+            decoding="async"
+            alt="A close view of a painted coast with a lake inland; both the coastline and the lake carry their own concentric rings."
+            class="mbf:border-line mbf:w-full mbf:rounded-xl mbf:border"
+          />
+        </section>
+
+        <section class="mbf:border-line mbf:flex mbf:flex-col mbf:gap-3 mbf:border-t mbf:py-10">
+          <h2 class="mbf:font-display mbf:text-2xl">Paint the land, don't place tiles</h2>
+          <p class="mbf:text-muted mbf:max-w-xl">
+            The brush adds area. Overlapping strokes merge into a single landmass, the sea brush can
+            cut one in two, and a lake is simply a hole you left behind.
+          </p>
+          <img
+            src="/landing/paint.webp"
+            width="1600"
+            height="933"
+            loading="lazy"
+            decoding="async"
+            alt="An island painted by hand in overlapping brush strokes, with a lake in the middle and mountains along its northern edge."
+            class="mbf:border-line mbf:w-full mbf:rounded-xl mbf:border"
+          />
+        </section>
+
+        <section class="mbf:border-line mbf:flex mbf:flex-col mbf:gap-3 mbf:border-t mbf:py-10">
+          <h2 class="mbf:font-display mbf:text-2xl">Or generate a world, then edit it</h2>
+          <p class="mbf:text-muted mbf:max-w-xl">
+            Noise becomes coastlines, biomes, mountains and woodland in a fraction of a second — and
+            all of it is ordinary geometry you can move, recolour or delete. Nothing is locked.
+          </p>
+          <img
+            src="/landing/generate.webp"
+            width="1600"
+            height="1200"
+            loading="lazy"
+            decoding="async"
+            alt="A generated archipelago of dozens of islands, with snow, desert and forest biomes across them."
+            class="mbf:border-line mbf:w-full mbf:rounded-xl mbf:border"
+          />
+        </section>
+
+        <section class="mbf:border-line mbf:flex mbf:flex-col mbf:gap-3 mbf:border-t mbf:py-10">
+          <h2 class="mbf:font-display mbf:text-2xl">Everything is an object</h2>
+          <p class="mbf:text-muted mbf:max-w-xl">
+            Drag a continent and the mountains standing on it come with it. Select across layers,
+            resize, restack, rename, delete — and undo any of it in one step.
+          </p>
+          <img
+            src="/landing/objects.webp"
+            width="1600"
+            height="918"
+            loading="lazy"
+            decoding="async"
+            alt="Woodland and mountain ranges scattered across a coastline, each one a separate object on the map."
+            class="mbf:border-line mbf:w-full mbf:rounded-xl mbf:border"
+          />
+        </section>
+
+        <section class="mbf:border-line mbf:flex mbf:flex-col mbf:gap-3 mbf:border-t mbf:py-10">
+          <h2 class="mbf:font-display mbf:text-2xl">Export what you make</h2>
+          <p class="mbf:text-muted mbf:max-w-xl">
+            PNG, JPG or WebP, at up to four times the canvas — drawn through the same renderer as
+            the screen, so an export cannot drift from the map you were looking at. Every picture on
+            this page came out of it.
+          </p>
+          <img
+            src="/landing/detail.webp"
+            width="1600"
+            height="918"
+            loading="lazy"
+            decoding="async"
+            alt="A magnified detail of an export: a river winding between individually drawn trees and mountains, lines still crisp."
+            class="mbf:border-line mbf:w-full mbf:rounded-xl mbf:border"
+          />
+        </section>
+
+        <section class="mbf:border-line mbf:flex mbf:flex-col mbf:gap-3 mbf:border-t mbf:py-10">
+          <h2 class="mbf:font-display mbf:text-2xl">Free, and specifically how</h2>
+          <p class="mbf:text-muted mbf:max-w-xl">
+            Everything that runs in your browser is free: every tool, every export format, and as
+            many maps as your device will hold. There is no account to make, and the editor never
+            asks for one.
+          </p>
+          <p>
+            <a
+              href="/maps"
+              class="mbf:border-accent mbf:bg-accent mbf:text-panel mbf:dark:text-ground mbf:inline-flex mbf:items-center mbf:rounded-lg mbf:border mbf:px-4 mbf:py-2 mbf:text-sm mbf:font-medium mbf:hover:opacity-90"
+              >Start a map</a
+            >
+          </p>
+        </section>
+      </main>
+
+      <footer
+        class="mbf:border-line mbf:text-muted mbf:flex mbf:flex-wrap mbf:gap-4 mbf:border-t mbf:py-6 mbf:text-xs"
+      >
+        <span class="mbf:grow">map.byfauzi.com</span>
+        <a href="/maps" class="mbf:hover:text-ink">Your maps</a>
+        <a href="/how-it-works" class="mbf:hover:text-ink">How it works</a>
+      </footer>
+    </div>
   </body>
 </html>

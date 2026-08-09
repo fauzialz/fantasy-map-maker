@@ -299,6 +299,10 @@ batches is therefore **WP-23 → WP-30 → WP-31 → WP-32**.
   `/maps`** and is the way back. `data-action="new-map"` and `"gallery"` keep their values on their
   new homes; every other `data-*` hook keeps its value here, since the CDP recipes in
   `07-interaction-invariants.md` drive them.
+  **Inherited from WP-30: the canvas preset chips are still in the rail.** `14` §7 had them leaving
+  with the routes, but their only other home is this package's `Canvas size ▸`, and removing them
+  early would have left canvas size unreachable across two packages. They come out **here**, with
+  the submenu that replaces them — the rail must not end up holding both.
   Acceptance is driven input per menu item and no rail scrollbar at 900 px.
 
 **Batch 6 — tools that say what they do.** Four places where a tool's behaviour and the UI's
@@ -517,7 +521,7 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
 **Prerequisite:** WP-22, and **WP-23** for the generate form the create page reuses.
 **None of this needs a host** — the deploy is WP-13's separate unfinished half.
 
-- [ ] **WP-30 · The routes** — `/maps` (the gallery as a page, titled **Your maps**),
+- [x] **WP-30 · The routes** — `/maps` (the gallery as a page, titled **Your maps**),
   `/maps/create` (a setup page), `/maps/edit/{uuid}` (the editor), plus two kinds of not-found.
   **Hand-rolled router, ~30 lines**, no new dependency — revisit at P2's nested or guarded routes,
   or on a measurement. It also owns the three things the primitive does not give you: per-route
@@ -547,7 +551,63 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   **Dev and production hold the same routing rule twice** — a Vite `configureServer` middleware and
   the Caddyfile — and must agree; every CDP driver runs against the dev server, so this is not
   polish. Acceptance is driven throughout, including **a mutation proving the flush discriminates**.
-- [ ] **WP-31 · The landing page** — a static HTML file at `/`, styled with the Tailwind build and
+  **The router is 88 lines including its comments** — `matchRoute`, a `useSyncExternalStore` over
+  `location.pathname`, `navigate`, and the three things the primitive does not give you. The
+  snapshot is the pathname *string*, not a parsed object, because `useSyncExternalStore` demands a
+  stable identity and a fresh object every read is an infinite render.
+  **The flush went into `navigate`, not into `<Link>`** — the design put it on the link, but the
+  redirects are navigations too, and a guard that every *caller* must remember is the shape of a
+  bug. One line, one place, and the create page's completion and the empty-list redirect inherit it.
+  **The entry HTML moved to `app.html`** so `index.html` can be WP-31's landing page: with
+  `appType: "mpa"` Vite serves HTML by literal path, and the ~10-line middleware puts `/maps*` on
+  the app exactly as `handle /maps*` does in Caddy. **Measured equal**: `/ /maps /maps/create
+  /maps/edit/abc /mapz` answer `302 200 200 200 404` on `npm run dev` and the same five on
+  `vite preview`.
+  **`rememberOpen`, `rememberedOpen` and `loadLatestScene` are all deleted** — a localStorage key,
+  a fallback branch and a whole query, replaced by the route parameter, which was already this
+  store's keyPath. Autosave lost its restore half with them, so the gallery and the create page now
+  write **nothing at all**: §4.3's "no draft until the user clicks through" is true by construction
+  rather than by a guard, because the hook only mounts inside the editor.
+  **Two deviations, both recorded rather than quietly taken.** The **canvas preset chips stay in
+  the rail**: §7's table has them leaving here, but their new home is WP-32's `Canvas size ▸`
+  submenu, so removing them now would leave canvas size unreachable for two packages. And **no
+  separate empty state was built for `/maps`** — while the redirect is unconditional it is
+  unreachable, so the redirect *is* the empty state; P2 adds the second precondition and the
+  surface together, which is where §4.2 says the real risk lives.
+  **`generateOnOpen` is a store field, not a history-state flag.** `pushState` state survives a
+  reload, which would regenerate the map on every refresh — D12's trap wearing different clothes.
+  Session state cannot: a reload re-initialises the store, and a driven check asserts the toast
+  does *not* come back.
+  **Rides along: every switch in the app was unnamed to a screen reader** — WP-24's slider defect,
+  one control over. A wrapping `<label>` names *labelable* elements, and Radix's switch is a
+  `<button role="switch">`, which is not one. Found because the driver had nothing to select on.
+  One line in `ui/controls.tsx`.
+  **42 driven checks and four mutations, one per trap.** Deleting the flush leaves the record at
+  `parchment=false rings=true` — the *first* edit landed on autosave's leading edge and only the
+  second was lost, which is why the check makes two edits 120 ms apart: **an isolated edit is on
+  disk in ~20 ms, so a single-edit check could never fail.** `pushState` on the empty-list redirect
+  puts Back on `/maps/create` instead of out of the app (trap 2); `pushState` on completion puts it
+  on `/maps` two entries early (trap 1); and dropping the "same id, do nothing" shortcut fails the
+  undo-intact pair at `disabled: true` where an enabled button was required.
+  **The undo pair is what makes the history checks discriminating**, and it needed a third edit to
+  stay that way: backing out of the create page proves history *survives*, completing it proves it
+  is *dropped* — but the first check ends by pressing undo, which empties the stack, so the second
+  would have passed on any code at all. It re-dirties the map first.
+  **The gallery's thumbnail broke, in dev only, and the shape is worth keeping.** WP-22's capture
+  effect bailed on unmount. That was invisible while the gallery was a modal — the effect was gated
+  on `open`, false at mount, so StrictMode's discarded pass did nothing. As a *page* it runs at
+  mount: the first pass claimed the `captured` ref, started the work and was cancelled; the second
+  skipped because the ref was taken. **Production was fine the whole time**, which is the worst
+  shape a defect can have — nothing in a built preview would ever have shown it. The fix is a
+  deletion: the ref already answers "has this scene been done", while the flag answered "is this
+  effect still mounted", which a write to IndexedDB does not care about.
+  **And the first mutation aimed at it passed, which was the useful part.** Restoring the guard
+  *before* `planExport` changes nothing, because on a map with no landmasses nothing is awaited
+  before it — it runs synchronously, ahead of React's cleanup. Only the guard **after**
+  `await toBlob` is reached with `cancelled` already true. Two guards that looked
+  interchangeable in the diff, and exactly one of them was the bug. The check now fails at
+  **0 bytes stored** against 632.
+- [x] **WP-31 · The landing page** — a static HTML file at `/`, styled with the Tailwind build and
   `tokens.css` the app already uses, so the page cannot drift from the application and a visitor
   arrives at `/maps` with the stylesheet cached. **No React, no router, no editor bundle.** Hero is
   a **WebP exported from the editor itself**, one primary CTA → `/maps`, six sections each with one
@@ -560,6 +620,38 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   Ship the sign-in slot now, the buttons at P2. Acceptance: the headline and every section heading
   are **in the HTML body** before any JavaScript, and the page loads **no editor bundle** —
   asserted on the response and the network, not on feel.
+  **The pages sit at the repo root, not in a `landing/` folder.** §7 named the folder; Rollup names
+  its outputs after the *input path*, so `landing/index.html` builds to `dist/landing/index.html`
+  and `/` would need a rewrite to reach it. One file per URL, and the mapping is the identity.
+  **The stylesheet is genuinely shared, and that is measured**: all four HTML files link the same
+  `assets/src-*.css`, and only `app.html` carries a `<script>`. So the landing page pays for the
+  tokens once and the visitor arrives at `/maps` with them cached — which was the whole reason
+  §5 asked for the app's own stylesheet rather than a hand-written one.
+  **Every picture is a real export.** A driver builds each map, drives the export dialog, and
+  catches the blob by wrapping `HTMLAnchorElement.prototype.click` — the one call `download()`
+  makes — then downscales it to 1600 px in the same browser. **176–299 KB** for a full 4000×3000
+  world as WebP; six images, ~740 KB in total, all lazy but the hero.
+  **The theme is chosen, not inherited, for the images**: a single file cannot follow a palette, so
+  the driver sets `mbf-theme` to light before rendering — WP-5's parchment is what the product
+  looks like. The *page* still follows the theme, because it reads the same tokens.
+  **Five sections carry an image and the sixth does not.** "Free, and specifically how" is a claim
+  about a price, and there is nothing to photograph; padding it with a UI screenshot would also
+  break D11's rule that every image on this page is an export, which is what stops the page
+  promising something the renderer does not draw.
+  **A `@source "../*.html"` was needed in `index.css`** — Tailwind's automatic detection is rooted
+  at the CSS file, and every landing class lives one directory up. A class that silently fails to
+  generate looks exactly like a styling mistake, so it is named rather than inferred.
+  **Dev gained Caddy's `handle_errors` too**, gated on the `Accept` header rather than on the shape
+  of the path: `/@vite/client` and `/__vite_ping` are extensionless as well, and a path-shaped rule
+  hands both of them a 404 page. The *page* now matches production; the **status does not**, since
+  Vite serves HTML as 200 and overwrites what the middleware sets. That one is Caddy's to give.
+  **22 driven checks and two mutations — and the driver runs against `vite preview`, not
+  `npm run dev`**, which is the opposite of every other driver in this repo. The dev server injects
+  its HMR client as a module script into every HTML file it serves, so "this page ships no script"
+  is *false in dev and true in production*: the claim is about the artifact, so the artifact is what
+  it is asked of. Both mutations discriminate — a `<script type="module">` added to the page fails
+  the response check *and* the network check, and deleting the stylesheet link fails all four theme
+  measurements at `rgba(0, 0, 0, 0)` where the app paints `rgb(238, 241, 236)`.
 
 **Batch 9 — the size of what you place.** Raised after Batch 6 shipped, and the direct twin of
 WP-27: `anchorAt` hardcodes `scale: scatter ? 1 + jitter(0.28) : 1`, so *how big* a placed sprite

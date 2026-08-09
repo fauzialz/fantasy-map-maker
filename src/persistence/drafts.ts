@@ -126,14 +126,6 @@ export async function saveScene(scene: Scene): Promise<void> {
   await complete(tx, "autosave failed");
 }
 
-/** The most recently saved draft, or null on a first visit. */
-export async function loadLatestScene(): Promise<Scene | null> {
-  const db = await open();
-  const index = db.transaction(STORE, "readonly").objectStore(STORE).index("updatedAt");
-  const cursor = await settle(index.openCursor(null, "prev"), "could not read drafts");
-  return cursor ? deserialize((cursor.value as DraftRecord).json) : null;
-}
-
 /** One draft by id, or null if it is not there — deleted in another tab, most likely. */
 export async function loadScene(id: string): Promise<Scene | null> {
   const db = await open();
@@ -189,27 +181,7 @@ export async function putThumb(id: string, thumb: Blob): Promise<void> {
   await complete(tx, "could not store the thumbnail");
 }
 
-/**
- * Which map the editor had open, so a reload comes back to it rather than to whichever was
- * written last (WP-22). An id is not scene data, so localStorage is the right home for it —
- * ADR-07's rule is about scenes, which are megabytes; this is 36 bytes and wants to be
- * readable synchronously at boot rather than adding a second async race to `useAutosave`.
- */
-const OPEN_KEY = "map-byfauzi:open";
-
-export const rememberOpen = (id: string): void => {
-  try {
-    localStorage.setItem(OPEN_KEY, id);
-  } catch {
-    // Private mode or a full quota. Boot falls back to the newest draft, which is WP-12's
-    // behaviour — worse, but not broken, and not worth failing a save over.
-  }
-};
-
-export const rememberedOpen = (): string | null => {
-  try {
-    return localStorage.getItem(OPEN_KEY);
-  } catch {
-    return null;
-  }
-};
+// `rememberOpen` / `rememberedOpen` lived here until WP-30: a localStorage id recording which
+// map was open, so a reload came back to it. The URL says that now (`14` §4.4), and the route
+// parameter is already this store's keyPath — so routing *removed* a mechanism rather than
+// adding one, and `loadLatestScene` went with it.
