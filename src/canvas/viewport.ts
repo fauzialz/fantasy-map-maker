@@ -28,11 +28,23 @@ export const ZOOM_STEP = 1.1;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
-/** Scale at which the whole map fits the viewport — also the minimum zoom. */
+/**
+ * How far below fit the canvas may shrink (WP-28, **ADR-38**).
+ *
+ * `fitScale` used to be the minimum zoom as well as the fitting scale, so the furthest you
+ * could pull back was the exact moment the canvas filled the viewport — you could never see
+ * the map as an object with edges, which is what you want when judging composition.
+ *
+ * **Still bounded.** ADR-02 rejected *infinite* zoom for unbounded memory and export; half of
+ * fit is a wider bound, not the absence of one.
+ */
+export const MIN_FIT_FRACTION = 0.5;
+
+/** Scale at which the whole map fits the viewport. The floor sits below it — see above. */
 export const fitScale = (map: Size, view: Size): number => Math.min(view.w / map.w, view.h / map.h);
 
 export function clampScale(scale: number, map: Size, view: Size): number {
-  const min = fitScale(map, view);
+  const min = fitScale(map, view) * MIN_FIT_FRACTION;
   // A viewport larger than the map at MAX_SCALE would invert the range.
   return clamp(scale, min, Math.max(MAX_SCALE, min));
 }

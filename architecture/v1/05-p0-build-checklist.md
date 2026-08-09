@@ -441,8 +441,8 @@ covers WP-26 only. Build order is numeric, and WP-25 precedes WP-26 because both
 **Batch 7 — reading the map.** Three complaints about the finished picture rather than the tools
 that make it. Design in `13-reading-the-map.md`; **ADR-38** and **ADR-39**.
 
-- [ ] **WP-28 · The map at a glance** — two constants, judged by looking. **Mountains at
-  three-quarters**: `SPRITE_HEIGHT.mountain` 190 → 142, against 84 for a tree and 165 for a
+- [~] **WP-28 · The map at a glance** — two constants, judged by looking. **Mountains smaller**:
+  `SPRITE_HEIGHT.mountain` 190 → 100, against 84 for a tree and 165 for a
   landmark. **Settle `13` D5 first** — the constant is the base height for the *kind*, so changing it
   is silently retroactive across every saved map; the alternative is scaling at placement and
   leaving one map holding two mountain sizes. Recommended: change the constant, since "mountains

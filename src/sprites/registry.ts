@@ -133,7 +133,21 @@ export const SPRITES: Record<SpriteKind, Sprite[]> = {
 
 /** Height in map units at scale 1. Mountains read as landmarks, trees as texture. */
 export const SPRITE_HEIGHT: Record<SpriteKind, number> = {
-  mountain: 190,
+  /**
+   * WP-28 — was 190, which read as a landmark standing on a continent two sizes too small
+   * for it. `13` **D5 settled: change the constant**, not the placement scale. This is the
+   * base height for the *kind*, so the shrink is silently retroactive across every saved
+   * map — which is the point. "Mountains are too big" is a statement about the art, and art
+   * has one size; scaling at placement instead would leave a single map holding two mountain
+   * sizes with nothing in the UI to explain which was which. Nothing is deployed, so no
+   * saved map belongs to anyone but the author.
+   *
+   * **100, not the design's 142** (190 × 0.75 rounded down). Three-quarters was the doc's
+   * estimate of "too big"; judged against a generated world it was still too big, and the
+   * owner set the size by eye. That is the right way to settle a number about artwork — the
+   * doc proposed a ratio, the map decided the value.
+   */
+  mountain: 100,
   tree: 84,
   // Icons leave more of their grid empty than mountains do, so the nominal height has to
   // run higher for a castle to read as a landmark rather than a speck beside a peak.

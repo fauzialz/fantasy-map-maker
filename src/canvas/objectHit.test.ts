@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasFootprint } from "../scene/bounds";
+import { footprint, hasFootprint } from "../scene/bounds";
 import type { Landmark, Landmass, Mountain, River, SceneObject, Tree } from "../scene/types";
 import { isUnderBrush } from "./objectHit";
 
@@ -32,8 +32,21 @@ describe("object eraser hit-test", () => {
     // A large mountain's feet sit outside the brush, but its body is right under it.
     const big = peak(180, 100, 2);
     const small = at(180, 100, 0.5);
-    expect(isUnderBrush(big, [100, 100], 30)).toBe(true);
-    expect(isUnderBrush(small, [100, 100], 30)).toBe(false);
+    const radius = 30;
+    /**
+     * Probe from between the two sprites' own reaches rather than at a literal distance.
+     * The old fixture pressed at a fixed 80 units away, which silently encoded
+     * `SPRITE_HEIGHT.mountain` — and broke the moment the art was retuned from 190 to 100,
+     * reporting a defect in code that had not changed. The rule under test is "a bigger body
+     * reaches further than a smaller one", and that is true at any art size.
+     */
+    const reach = (o: Mountain | Tree) => {
+      const { left, right } = footprint(o);
+      return radius + (right - left) * 0.3;
+    };
+    const away = (reach(big) + reach(small)) / 2;
+    expect(isUnderBrush(big, [180 - away, 100], radius)).toBe(true);
+    expect(isUnderBrush(small, [180 - away, 100], radius)).toBe(false);
   });
 
   it("picks up icons, which are sprites with a named variant", () => {

@@ -23,7 +23,10 @@ Two constants and one review pass. They land together because they are the same 
 landmark. A peak reads as a landmark, which was the intent — it now reads as a landmark
 standing on a continent two sizes too small for it.
 
-**Change: 190 → 142** (190 × 0.75, rounded down). One constant.
+**Change: 190 → 100.** One constant. This section proposed 142 (190 × 0.75); judged against a
+generated world that was still too big, and the value was set by eye at **100** — a little over
+half. The ratio was an estimate, the map is the authority, and "mountains are too big" is
+answered by looking rather than by arithmetic.
 
 **Open decision D5 — where the shrink applies.** `SPRITE_HEIGHT` is the base height for the
 *kind*, and the drawn size is `SPRITE_HEIGHT × object.scale`. So changing it re-renders **every**
@@ -31,7 +34,7 @@ mountain, on every saved map, at the new size. The alternative is leaving the co
 scaling only at placement, in `anchorAt` ([useObjectBrush.ts:20](../../src/canvas/useObjectBrush.ts#L20)),
 which shrinks new mountains and leaves existing ones.
 
-**Recommended: change the constant.** "Mountains are too big" is a statement about the art, not
+**D5 — settled: change the constant.** "Mountains are too big" is a statement about the art, not
 about a default, and a per-placement scale would leave one map holding two mountain sizes with
 nothing in the UI to explain it. Nothing is deployed yet (P1 and the deploy are paused), so no
 saved map belongs to anyone but the author. Recorded as a decision because it is silently
@@ -73,7 +76,7 @@ point: the canvas gains a visible edge.
 
 ### Acceptance
 
-- A generated world's peaks measure three-quarters of their previous height against the same
+- A generated world's peaks measure **a little over half** their previous height against the same
   coastline — compared as **two screenshots at the same zoom**, since this is a judgement about
   art and the assertion is visual.
 - Clicking a mountain still selects that mountain, and the marquee still catches it: the boxes
