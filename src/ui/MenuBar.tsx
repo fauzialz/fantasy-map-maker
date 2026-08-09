@@ -1,5 +1,5 @@
 import { Check, ChevronRight, Circle, Moon, Sun, Wand2 } from "lucide-react";
-import { DropdownMenu } from "radix-ui";
+import { Menubar } from "radix-ui";
 import type { ReactNode } from "react";
 import type { SaveStatus } from "../persistence/useAutosave";
 import { CANVAS_PRESETS, type CanvasPreset } from "../scene/types";
@@ -90,64 +90,65 @@ export function MenuBar({
         M
       </Link>
 
-      <Menu label="Map">
-        <DropdownMenu.Sub>
-          <DropdownMenu.SubTrigger className={menuItem()} data-menu-item="canvas-size">
-            Canvas size
-            <ChevronRight size={12} className={menuShortcut()} />
-          </DropdownMenu.SubTrigger>
-          <DropdownMenu.Portal>
-            <DropdownMenu.SubContent className={menuContent()} sideOffset={2}>
-              {/*
+      <Menubar.Root className="mbf:flex mbf:items-center mbf:gap-0.5">
+        <Menu label="Map">
+          <Menubar.Sub>
+            <Menubar.SubTrigger className={menuItem()} data-menu-item="canvas-size">
+              Canvas size
+              <ChevronRight size={12} className={menuShortcut()} />
+            </Menubar.SubTrigger>
+            <Menubar.Portal>
+              <Menubar.SubContent className={menuContent()} sideOffset={2}>
+                {/*
                 A radio group, not three commands: what you are already on is a *value*, so the
                 menu shows it rather than offering it (`11` §3). Radix still fires
                 `onValueChange` for the active item, so the no-op guard stays — what changed is
                 that you can now see which one you are on before you reach for it.
               */}
-              <DropdownMenu.RadioGroup
-                value={preset}
-                onValueChange={(next) => next !== preset && onResetCanvas(next as CanvasPreset)}
-              >
-                {PRESETS.map((option) => (
-                  <DropdownMenu.RadioItem
-                    key={option}
-                    value={option}
-                    className={menuItem()}
-                    data-preset={option}
-                    data-preset-active={option === preset || undefined}
-                  >
-                    <DropdownMenu.ItemIndicator className={menuIndicator()}>
-                      <Circle size={7} fill="currentColor" />
-                    </DropdownMenu.ItemIndicator>
-                    <span className="mbf:capitalize">{option}</span>
-                    <span className={menuShortcut()}>
-                      {CANVAS_PRESETS[option].w}×{CANVAS_PRESETS[option].h}
-                    </span>
-                  </DropdownMenu.RadioItem>
-                ))}
-              </DropdownMenu.RadioGroup>
-            </DropdownMenu.SubContent>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Sub>
+                <Menubar.RadioGroup
+                  value={preset}
+                  onValueChange={(next) => next !== preset && onResetCanvas(next as CanvasPreset)}
+                >
+                  {PRESETS.map((option) => (
+                    <Menubar.RadioItem
+                      key={option}
+                      value={option}
+                      className={menuItem()}
+                      data-preset={option}
+                      data-preset-active={option === preset || undefined}
+                    >
+                      <Menubar.ItemIndicator className={menuIndicator()}>
+                        <Circle size={7} fill="currentColor" />
+                      </Menubar.ItemIndicator>
+                      <span className="mbf:capitalize">{option}</span>
+                      <span className={menuShortcut()}>
+                        {CANVAS_PRESETS[option].w}×{CANVAS_PRESETS[option].h}
+                      </span>
+                    </Menubar.RadioItem>
+                  ))}
+                </Menubar.RadioGroup>
+              </Menubar.SubContent>
+            </Menubar.Portal>
+          </Menubar.Sub>
 
-        <DropdownMenu.Item
-          className={menuItem()}
-          data-action="reset"
-          onSelect={() => onResetCanvas(preset)}
-        >
-          Reset canvas…
-        </DropdownMenu.Item>
-        <DropdownMenu.Separator className={menuSeparator()} />
-        <DropdownMenu.Item className={menuItem()} data-menu-item="generate" onSelect={onGenerate}>
-          Generate world…
-        </DropdownMenu.Item>
-        <DropdownMenu.Item className={menuItem()} data-menu-item="export" onSelect={onExport}>
-          Export image…
-        </DropdownMenu.Item>
-      </Menu>
+          <Menubar.Item
+            className={menuItem()}
+            data-action="reset"
+            onSelect={() => onResetCanvas(preset)}
+          >
+            Reset canvas…
+          </Menubar.Item>
+          <Menubar.Separator className={menuSeparator()} />
+          <Menubar.Item className={menuItem()} data-menu-item="generate" onSelect={onGenerate}>
+            Generate world…
+          </Menubar.Item>
+          <Menubar.Item className={menuItem()} data-menu-item="export" onSelect={onExport}>
+            Export image…
+          </Menubar.Item>
+        </Menu>
 
-      <Menu label="Edit">
-        {/*
+        <Menu label="Edit">
+          {/*
           `data-menu-item`, **not** `data-action="undo"` — the toolbar still owns that value and
           `11` §7's rule is that a hook keeps its value on whichever element it *moves* to.
           Copying one onto a second element is the case the rule does not cover, and it is
@@ -155,101 +156,102 @@ export function MenuBar({
           A driver clicking `[data-action="undo"]` with this menu open hits the toolbar button
           behind Radix's overlay, and nothing happens at all.
         */}
-        <DropdownMenu.Item
-          className={menuItem()}
-          data-menu-item="undo"
-          disabled={past.length === 0}
-          onSelect={undo}
-        >
-          Undo <span className={menuShortcut()}>Ctrl+Z</span>
-        </DropdownMenu.Item>
-        <DropdownMenu.Item
-          className={menuItem()}
-          data-menu-item="redo"
-          disabled={future.length === 0}
-          onSelect={redo}
-        >
-          Redo <span className={menuShortcut()}>Ctrl+Shift+Z</span>
-        </DropdownMenu.Item>
-        <DropdownMenu.Separator className={menuSeparator()} />
-        {/*
+          <Menubar.Item
+            className={menuItem()}
+            data-menu-item="undo"
+            disabled={past.length === 0}
+            onSelect={undo}
+          >
+            Undo <span className={menuShortcut()}>Ctrl+Z</span>
+          </Menubar.Item>
+          <Menubar.Item
+            className={menuItem()}
+            data-menu-item="redo"
+            disabled={future.length === 0}
+            onSelect={redo}
+          >
+            Redo <span className={menuShortcut()}>Ctrl+Shift+Z</span>
+          </Menubar.Item>
+          <Menubar.Separator className={menuSeparator()} />
+          {/*
           Deliberate duplication of a *command* (`11` §2): these are high-frequency during a
           selection so the rail keeps them, and undiscoverable so the menu lists them with their
           shortcuts. Unlike the two Generate buttons, which were duplication by accident — and
           both surfaces call the same store action, so there is one implementation either way.
         */}
-        <DropdownMenu.Item
-          className={menuItem()}
-          data-menu-item="forward"
-          disabled={selection.length === 0}
-          onSelect={() => restackSelection(1)}
-        >
-          Bring forward
-        </DropdownMenu.Item>
-        <DropdownMenu.Item
-          className={menuItem()}
-          data-menu-item="back"
-          disabled={selection.length === 0}
-          onSelect={() => restackSelection(-1)}
-        >
-          Send back
-        </DropdownMenu.Item>
-        <DropdownMenu.Item
-          className={menuItem()}
-          data-menu-item="delete"
-          disabled={selection.length === 0}
-          onSelect={deleteSelection}
-        >
-          Delete selected <span className={menuShortcut()}>Del</span>
-        </DropdownMenu.Item>
-      </Menu>
+          <Menubar.Item
+            className={menuItem()}
+            data-menu-item="forward"
+            disabled={selection.length === 0}
+            onSelect={() => restackSelection(1)}
+          >
+            Bring forward
+          </Menubar.Item>
+          <Menubar.Item
+            className={menuItem()}
+            data-menu-item="back"
+            disabled={selection.length === 0}
+            onSelect={() => restackSelection(-1)}
+          >
+            Send back
+          </Menubar.Item>
+          <Menubar.Item
+            className={menuItem()}
+            data-menu-item="delete"
+            disabled={selection.length === 0}
+            onSelect={deleteSelection}
+          >
+            Delete selected <span className={menuShortcut()}>Del</span>
+          </Menubar.Item>
+        </Menu>
 
-      <Menu label="View">
-        <DropdownMenu.CheckboxItem
-          className={menuItem()}
-          data-menu-item="panel-tools"
-          checked={panels.tools}
-          onSelect={(event) => {
-            event.preventDefault(); // keep the menu open: these two are usually set together
-            onTogglePanel("tools");
-          }}
-        >
-          <DropdownMenu.ItemIndicator className={menuIndicator()}>
-            <Check size={12} />
-          </DropdownMenu.ItemIndicator>
-          Tool options
-        </DropdownMenu.CheckboxItem>
-        <DropdownMenu.CheckboxItem
-          className={menuItem()}
-          data-menu-item="panel-layers"
-          checked={panels.layers}
-          onSelect={(event) => {
-            event.preventDefault();
-            onTogglePanel("layers");
-          }}
-        >
-          <DropdownMenu.ItemIndicator className={menuIndicator()}>
-            <Check size={12} />
-          </DropdownMenu.ItemIndicator>
-          Layers panel
-        </DropdownMenu.CheckboxItem>
-      </Menu>
+        <Menu label="View">
+          <Menubar.CheckboxItem
+            className={menuItem()}
+            data-menu-item="panel-tools"
+            checked={panels.tools}
+            onSelect={(event) => {
+              event.preventDefault(); // keep the menu open: these two are usually set together
+              onTogglePanel("tools");
+            }}
+          >
+            <Menubar.ItemIndicator className={menuIndicator()}>
+              <Check size={12} />
+            </Menubar.ItemIndicator>
+            Tool options
+          </Menubar.CheckboxItem>
+          <Menubar.CheckboxItem
+            className={menuItem()}
+            data-menu-item="panel-layers"
+            checked={panels.layers}
+            onSelect={(event) => {
+              event.preventDefault();
+              onTogglePanel("layers");
+            }}
+          >
+            <Menubar.ItemIndicator className={menuIndicator()}>
+              <Check size={12} />
+            </Menubar.ItemIndicator>
+            Layers panel
+          </Menubar.CheckboxItem>
+        </Menu>
 
-      <Menu label="Help">
-        <DropdownMenu.Item className={menuItem()} data-menu-item="shortcuts" onSelect={onShortcuts}>
-          Keyboard shortcuts…
-        </DropdownMenu.Item>
-        {/*
+        <Menu label="Help">
+          <Menubar.Item className={menuItem()} data-menu-item="shortcuts" onSelect={onShortcuts}>
+            Keyboard shortcuts…
+          </Menubar.Item>
+          {/*
           `11` §3 called this "About". It is a real page rather than a dialog about a version
           number — and it opens in a new tab, because Help must not take you off the map you
           are drawing.
         */}
-        <DropdownMenu.Item className={menuItem()} asChild>
-          <a href="/how-it-works" target="_blank" rel="noreferrer" data-menu-item="about">
-            About map.byfauzi
-          </a>
-        </DropdownMenu.Item>
-      </Menu>
+          <Menubar.Item className={menuItem()} asChild>
+            <a href="/how-it-works" target="_blank" rel="noreferrer" data-menu-item="about">
+              About map.byfauzi
+            </a>
+          </Menubar.Item>
+        </Menu>
+      </Menubar.Root>
 
       <span className={divider()} />
 
@@ -309,17 +311,26 @@ export function MenuBar({
   );
 }
 
+/**
+ * One menu in the bar.
+ *
+ * **`Menubar`, not four independent `DropdownMenu`s** — which is a correction to `11` §6, and
+ * the reason is the defect it fixes: each dropdown is its own modal dismiss layer, so with one
+ * open a click on another trigger was swallowed closing the first, and reaching the next menu
+ * took **two clicks**. A menu bar is a single roving widget, so an open menu hands over on one
+ * click — and arrow keys move between menus, which four dropdowns could never do.
+ */
 function Menu({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger className={menuTrigger()} data-menu={label.toLowerCase()}>
+    <Menubar.Menu>
+      <Menubar.Trigger className={menuTrigger()} data-menu={label.toLowerCase()}>
         {label}
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content className={menuContent()} align="start" sideOffset={4}>
+      </Menubar.Trigger>
+      <Menubar.Portal>
+        <Menubar.Content className={menuContent()} align="start" sideOffset={4}>
           {children}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+        </Menubar.Content>
+      </Menubar.Portal>
+    </Menubar.Menu>
   );
 }

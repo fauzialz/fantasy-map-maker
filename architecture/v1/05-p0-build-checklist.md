@@ -948,6 +948,18 @@ result compared against one rule.
   it, which is the argument for driven checks having to be *re-read* when behaviour changes
   rather than merely re-run.
 
+- [x] **WP-38 · One click between menus** — `MenuBar.tsx` moves from four `DropdownMenu.Root`s to
+  a single `Menubar.Root`, which is the primitive this widget always was. Each dropdown is its own
+  modal dismiss layer, so an open menu **swallowed** the click meant for the next trigger and
+  switching menus cost two clicks. Same package, no new dependency, and every part keeps its name
+  — the diff is a rename and one wrapper, and the local `Menu` helper survives unchanged.
+  **It buys the keyboard too**: arrow keys move between menus and the row is a real `role="menubar"`,
+  neither of which four dropdowns can do however they are arranged.
+  **11 driven checks, and the old version is the mutation**: on four dropdowns, clicking Edit while
+  Map is open leaves *nothing* open — `open: null`, the swallowed click, exactly as reported — and
+  five of the eleven fail. WP-32's 33 menu checks still pass unchanged, which is the evidence that
+  a rename is all this was.
+
 ## Later phases (see the phase prompts)
 
 - [ ] **P1** — self-contained HTML embed export + `.map.json` import/export.
