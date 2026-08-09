@@ -1,6 +1,11 @@
 # Routes, a front door, and a page to start from
 
-**Batch 8.** Design document for **WP-30** and **WP-31**. Decision: **ADR-40**.
+**Batch 8.** Design document for **WP-30** and **WP-31**. Decision: **ADR-40**. **Both are
+built.** Two deviations, recorded where they happened: the static pages sit at the **repo root**
+rather than in a `landing/` folder (§7), because Rollup names its outputs after the input path and
+`landing/index.html` would build to `dist/landing/index.html`; and `/maps` has **no separate empty
+state** (§4.2), because while the redirect is unconditional it is unreachable — the redirect *is*
+the empty state, and P2 adds the surface with the second precondition that makes it reachable.
 **Prerequisite:** WP-22 (the gallery this batch turns into a page) and **WP-23** (the generate
 form the create page reuses — which is why `11-editor-shell.md` ships in two packages, see §7).
 
@@ -449,8 +454,10 @@ bulk claim would make logging in the most punitive moment in the product.
 | `vite.config.ts` | multi-entry input; `appType: "mpa"` plus the dev/preview middleware |
 | `Caddyfile` | static at `/`, SPA fallback under `/maps`, **`/s/*` and `/embed/*` first** |
 
-**WP-31** — `landing/index.html`, `landing/how-it-works.html` (shell), `landing/404.html`, the
-exported hero and section images, and the shared stylesheet already built.
+**WP-31** — **built at the repo root**, not in `landing/`: `index.html`, `how-it-works.html`
+(shell), `404.html`, the exported images under `public/landing/`, and the shared stylesheet. One
+file per URL, so the mapping is the identity rather than a rewrite. Measured: all four HTML files
+link the same `assets/src-*.css` and only `app.html` carries a script.
 
 **No new dependency in either.** The router is thirty lines, `BroadcastChannel` is a platform
 API, and the landing page is HTML.

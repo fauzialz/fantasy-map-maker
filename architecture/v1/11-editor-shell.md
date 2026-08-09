@@ -1,6 +1,7 @@
 # The editor shell — menu bar, and a rail that holds one idea
 
-**Batch 5.** Decision: **ADR-36**, amended by **ADR-40**.
+**Batch 5.** Decision: **ADR-36**, amended by **ADR-40**. **Both packages are built** — WP-23 and
+WP-32 — with the corrections marked inline below (the primitive, and the radio's no-op).
 **Prerequisite:** WP-13 (the real UI) and WP-22 (the gallery).
 
 > **This document ships in two packages, with WP-30 between them.** ADR-40 gives the app routes,
@@ -100,10 +101,14 @@ Export image…         Send back
 - **Theme stays a button**, on the menu bar, not a menu item. It is one click today and a menu
   item would make it two. A menu bar is for grouping *many* commands, not for hiding the one
   that is already a single control.
-- **`Canvas size ▸`** is a radio submenu — landscape / square / portrait — and keeps the rule
-  [MapPanel.tsx:270](../../src/ui/MapPanel.tsx#L270) documents: **re-picking the size you are
-  already on is a no-op, not a reset.** A radio item makes that structural rather than a guard,
-  since a radio group's current value is not a command.
+- **`Canvas size ▸`** is a radio submenu — landscape / square / portrait — and keeps the rule the
+  old preset chips documented: **re-picking the size you are already on is a no-op, not a reset.**
+  A radio item was expected to make that *structural* rather than a guard, since a radio group's
+  current value is not a command.
+  > **Corrected while building it (WP-32): Radix fires `onValueChange` for the already-selected
+  > item, so the guard stays** — proved by mutation, which raises a reset confirm nobody asked
+  > for. What the radio actually buys is that you can *see* which size you are on before you
+  > reach for it, which three chips never showed.
 - ~~**`Open Map…`** is the gallery WP-22 built, renamed from "My maps".~~ **Retired by ADR-40**
   along with the item itself. The gallery is a *page* at `/maps` titled **Your maps**, and P2's
   cloud maps merge into it there (ADR-33). The whose/where ambiguity this bullet worried about was
@@ -111,10 +116,20 @@ Export image…         Send back
   possessive is the convention everywhere (`Your repositories`, `My Drive`).
 - **No `Rename`.** The map title becomes an inline input in the menu bar, which is where a
   document's name lives in every editor and removes a command instead of adding one.
+- **`Help` holds a link, not an About box.** "About" here is `/how-it-works`, opened in a new tab
+  — a real page rather than a modal with a version number in it, and Help must not navigate you
+  off the map you are drawing. The shortcuts sheet beside it is **read off the live handlers**;
+  a sheet listing something the app does not do is worse than no sheet.
 
 **The right rail keeps two sections:** the layer list, and the four render settings you tune
 against the canvas — parchment, coastal rings, ring count, ring gap — retitled **Appearance**.
-Nothing scrolls at 900 px of viewport height.
+Nothing scrolls at 900 px of viewport height. **Built and measured: 814/814**, no scrollbar with
+a 1 300-object world on screen.
+
+> **The *left* rail got the same treatment a package later (WP-37, ADR-43).** This document sorts
+> controls by kind and `14` sorts them by scope; the third axis is **applicability** — the tool
+> options rail shows only what the tool in your hand can act on. Select had never been given the
+> guard Erase got, so it was still showing whichever create tool preceded it.
 
 ## 4. Layout
 
@@ -237,7 +252,7 @@ New `src/engine/generator/worldCode.ts`, ~30 lines, with a round-trip test.
 
 | File | Change |
 |---|---|
-| `src/ui/MenuBar.tsx` | **new**, ~170 lines — Radix `DropdownMenu`, plus the title input, save status, theme, Generate, Export |
+| `src/ui/MenuBar.tsx` | **new**, ~310 lines — Radix **`Menubar`** (see the correction below), plus the title input, save status, theme, Generate, Export |
 | `src/ui/dialogs.tsx` | `GenerateDialog` + `ShortcutsDialog` — this file is already the home of the modals |
 | `src/engine/generator/worldCode.ts` | **new**, ~30 lines |
 | `src/ui/MapPanel.tsx` | 300 → ~110 |
@@ -247,10 +262,18 @@ New `src/engine/generator/worldCode.ts`, ~30 lines, with a round-trip test.
 | `src/ui/variants.ts` | menu variants — every class string stays in one file (`06`) |
 | `src/App.tsx` | composes, owns dialog state and the two rail-visibility booleans |
 
-**No new dependency.** `radix-ui` ^1.6.7 already ships `DropdownMenu`, imported the same way as
+**No new dependency.** `radix-ui` ^1.6.7 ships the menu primitives, imported the same way as
 `Dialog` and `AlertDialog` in [dialogs.tsx:1](../../src/ui/dialogs.tsx#L1), so keyboard
-navigation, Escape, typeahead, focus return and `role="menu"` all come from the primitive.
+navigation, Escape, typeahead, focus return and the roles all come from the primitive.
 Write none of it.
+
+> **Correction (WP-38): the primitive is `Menubar`, not four `DropdownMenu`s.** They ship in the
+> same package, and this section named the wrong one. Four dropdowns are four independent modal
+> dismiss layers — so with one open, a click on another trigger is **swallowed** closing the
+> first, and reaching the next menu costs two clicks. `Menubar` is one roving widget: one click
+> hands over, hovering an adjacent trigger switches while open, arrow keys move between menus,
+> and the row carries `role="menubar"`. Every part has the same name under it, so the fix was a
+> rename plus one wrapper. **Do not "simplify" it back.**
 
 **`deleteSelection` and `restackSelection` move to the store** rather than being duplicated.
 They already reach for `useEditorStore.getState()` inside their own bodies

@@ -47,27 +47,31 @@ prompts** used to drive an AI coding agent through the build.
   a time, the toolbar split so a pointer mode stops looking like a peer of the six layers, and
   then the same frame extended to path-based objects: **rivers first**, because every
   transform is lossless on a river, then land. See ADR-28 and ADR-29.
-- `08-terrain-as-objects.md` — **scheduled as WP-14 → WP-17, the first work after P0.**
+- `08-terrain-as-objects.md` — **built as WP-14 → WP-17, the first work after P0.**
   Making landmasses selectable, colourable and transformable: the constraints it must
   satisfy, tiers split by which operations are lossless, the overlap policy (default **keep
   apart**), and a replacement for invariant I9. See ADR-25.
-- `10-hit-testing-precision.md` — **scheduled as WP-21.** Sprites are picked by their box,
+- `10-hit-testing-precision.md` — **built as WP-21.** Sprites are picked by their box,
   and the box is a poor stand-in for the shape — measured at 53% ink for mountains and **28%
   for the compass**. Silhouette tie-break, tighter boxes, and a parser that fails loudly.
   See ADR-30.
-- `11-editor-shell.md` — **Batch 5, built as two packages** (ADR-40) — **both are done**: **WP-23** is §5 —
+- `11-editor-shell.md` — **Batch 5, built as two packages** (ADR-40) — **both are done**, with two
+  corrections marked inline: the primitive is Radix **`Menubar`**, not four `DropdownMenu`s
+  (WP-38), and the canvas-size radio still needs its no-op guard because Radix fires
+  `onValueChange` for the item already selected. **WP-23** is §5 —
   ADR-21's generate confirm folded into the generate dialog, an off switch you can actually see,
   and the seed turned into a shareable world code — and **WP-32** is §3–§4, the menu bar and the
   slimmed rail. The right rail stacked five unrelated concerns and **Generate** existed twice;
   commands moved to a menu bar and the rail kept only what you steer while watching the map —
   two sections, and it no longer scrolls.
   **WP-30 landed between them**, so no menu item was built and then deleted. See ADR-36 and ADR-40.
-- `12-tools-that-say-what-they-do.md` — **scheduled as WP-24 → WP-27.** Four places where a
+- `12-tools-that-say-what-they-do.md` — **built as WP-24 → WP-27; amended by ADR-43.** Four places where a
   tool's behaviour and the UI's description of it have drifted apart: a brush with no feedback
   until you drag, an Erase that means two things and cannot touch landmasses or rivers **at
   all**, a Select that exists twice, and a scatter rotation hardcoded at ±5°. See ADR-37, which
   covers the eraser split only.
-- `13-reading-the-map.md` — **scheduled as WP-28 → WP-29.** Three complaints about the finished
+- `13-reading-the-map.md` — **built as WP-28 → WP-29**; its pan passage is superseded in part by
+  ADR-42. Three complaints about the finished
   picture rather than the tools: mountains too big for the land they stand on, a zoom floor that
   makes the canvas edge unreachable, and rivers that stop dead at the shore. See ADR-38 (the
   zoom bound widens, amending ADR-02) and ADR-39 (a river's end snaps to a coast or another
@@ -185,7 +189,11 @@ P0 alone is a complete portfolio piece.
   landing page, `/maps` is the gallery, `/maps/create` the one screen where canvas size is free, and
   `/maps/edit/{uuid}` the editor — so **every driver now targets a route** (`07` §1). **Batch 5 closed with WP-32**, the menu
   bar and the slimmed rail, held until the routes existed so no menu item would be built and then
-  deleted — so **every scheduled 0.5 package is now built**. None of it needed a host.
+  deleted. Three small batches followed from using it: **Batch 11** (WP-35, the scatter brush
+  leaves room — ADR-45), **Batch 12** (WP-36, five controls that were saying the wrong thing,
+  plus the gesture-performance work — ADR-42, ADR-44) and **Batch 13** (WP-37 the rail follows the
+  tool in your hand and WP-38 one click between menus — ADR-43). **Every scheduled 0.5 package is
+  built.** None of it needed a host.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
   first-class water bodies/canals, auto-generated rivers, rich blended biome
   transitions, tile-render export, WebGL renderer.
