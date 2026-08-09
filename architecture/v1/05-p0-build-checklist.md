@@ -733,6 +733,48 @@ is has no control at all — the same "constant pretending to be a decision" tha
   required.
 
 
+**Batch 11 — how close two may stand.** Raised after Batch 8: a scattered mountain half-buried
+behind a sibling is nobody's intent, and the brush had no way to prevent it. **No design doc**,
+like Batches 4 and 9 — the whole change is one predicate and one slider.
+
+- [x] **WP-35 · The scatter brush leaves room** — `crowded()` in `canvas/objectHit.ts`, tested in
+  `scatterAt` before the candidate is added. **Nothing is deleted and nothing is moved**: a
+  crowded candidate is simply not placed, which is why this was built rather than the
+  cull-what-is-already-down version that prompted it — principle 2 says every object is the
+  user's, and this never destroys one.
+  **The brush already had a spacing rule, and it was the wrong one.** `step()` gates the *cursor
+  path* at `max(brushSize × 0.42, 12)`, and then `scatterAt` jitters the drop by up to half the
+  brush across — so two consecutive sprites could still land on top of each other, and a second
+  pass over the same ground remembered nothing of the first. The generator never had the problem:
+  `poisson()` rejects against *accepted points*. This is that rule, borrowed. The path gate stays,
+  because it limits **work** and this limits **result**.
+  **The radius is a fraction of drawn height, and pairwise** — the mean of the two sprites'
+  heights. A fraction because `SPRITE_HEIGHT` has been retuned twice and an absolute spacing would
+  silently change meaning each time (WP-33's lesson, one level along); pairwise because
+  `spriteScale` is a knob, so 300% mountains beside 50% ones is an ordinary map and a single
+  radius would be visibly wrong on it.
+  **Per kind, and the defaults are not new numbers**: 0.58 for mountains and 0.40 for trees are
+  the generator's own accepted ratios — `scatter.ts` spaces mountains at 58 against a 100-unit
+  sprite and trees at 34 against 84. One shared fraction was the alternative and would have been
+  smaller; it cannot express that whoever tuned those wanted peaks further apart than trees
+  relative to their own size. **0 is off**, and it restores the pre-WP-35 brush exactly, so the
+  escape hatch needs no control of its own.
+  **`place` is exempt.** A deliberate click must never be silently refused — the same rule that
+  lets the frame's handles overrule the size knob — and the slider is *absent* rather than
+  disabled in that mode, so nothing implies otherwise.
+  **The generator is untouched**, the same disanalogy WP-33's D1 recorded: its constants are its
+  own and its world code is a reproducibility contract, so a brush knob adds no world input and
+  there is **no `w3-`**.
+  **6 unit fixtures, 10 driven checks, 2 mutations.** The driven shape is **the same stroke three
+  times**, because one pass proves nothing — a sparse result could just be a sparse brush. With
+  spacing off the passes add **+30 +30 +30**; with it at maximum they add **+25 +13 +5**. Deleting
+  the rejection turns the second run into +30 +30 +30 and fails both it and the size check;
+  replacing the pairwise mean with the candidate's own height fails the unit fixture built for it.
+  **The first driven attempt was not decisive and the numbers say why.** A single-line stroke drops
+  ~18 candidates and the jitter spreads them over a band wide enough that a second pass legitimately
+  finds gaps: 6 → 9 looked like a weak pass rather than a working rule. Rastering the stroke over an
+  *area* is what turned "fewer" into **saturation**, which is the claim actually being made.
+
 **Batch 10 — the mouth takes the coast's shape.** Raised on looking at WP-29's result: a straight
 cap on the coast *tangent* reads as a spike through the shoreline. **ADR-41**, which amends ADR-39
 and lifts the ceiling that document named.

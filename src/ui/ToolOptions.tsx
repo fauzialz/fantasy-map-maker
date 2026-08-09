@@ -43,6 +43,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const setScatterRotation = useEditorStore((s) => s.setScatterRotation);
   const spriteScale = useEditorStore((s) => s.spriteScale);
   const setSpriteScale = useEditorStore((s) => s.setSpriteScale);
+  const spriteSpacing = useEditorStore((s) => s.spriteSpacing);
+  const setSpriteSpacing = useEditorStore((s) => s.setSpriteSpacing);
   const setObjectTool = useEditorStore((s) => s.setObjectTool);
   const iconKind = useEditorStore((s) => s.iconKind);
   const setIconKind = useEditorStore((s) => s.setIconKind);
@@ -172,6 +174,31 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
             onChange={(value) => setSpriteScale(spriteKind, value)}
           />
         )}
+
+      {/*
+        WP-35 — how much room the brush leaves between siblings, as a fraction of what they are
+        drawn at. Scatter only: `place` is a deliberate gesture and must never be silently
+        refused, which is the same rule that lets the frame's handles overrule the size knob.
+
+        The display says what it *means* rather than what it is — "0.58× height" is the number,
+        "no crowding" is the promise, and **off** is a real value rather than a second control.
+      */}
+      {spriteKind && spriteKind !== "label" && objectTool === "scatter" && (
+        <Slider
+          label="Spacing"
+          value={spriteSpacing[spriteKind]}
+          min={0}
+          max={1.5}
+          step={0.02}
+          display={
+            spriteSpacing[spriteKind] === 0
+              ? "off"
+              : `${spriteSpacing[spriteKind].toFixed(2)}× high`
+          }
+          hint="How close two may stand, measured against their own drawn height. Off lets them pile up, which is how the brush behaved before."
+          onChange={(value) => setSpriteSpacing(spriteKind, value)}
+        />
+      )}
 
       {/*
         WP-27 — this was `jitter(5)` hardcoded in `anchorAt`, so the only way to find out how

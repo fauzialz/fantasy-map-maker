@@ -107,6 +107,20 @@ interface EditorState {
    * did, twice, in one package.
    */
   spriteScale: Record<SpriteKind, number>;
+  /**
+   * How much room the scatter brush leaves between siblings, per kind (WP-35), as a
+   * **fraction of drawn height** — 0.5 means half a mountain's height between mountains.
+   *
+   * A fraction rather than map units, for the reason `spriteScale` is a multiplier: the art
+   * constant it measures against has already been retuned twice. Per kind rather than one
+   * shared number because the generator's own accepted ratios are not equal — 58/100 for
+   * mountains against 34/84 for trees — so whoever tuned those wanted peaks further apart
+   * than trees, relative to their own size, and one value cannot say that.
+   *
+   * **0 is off**, and it restores the pre-WP-35 brush exactly, which is why the escape hatch
+   * needs no control of its own.
+   */
+  spriteSpacing: Record<SpriteKind, number>;
   /** font size for the next label, in map units */
   labelSize: number;
   /** width of the next river at its mouth, in map units */
@@ -152,6 +166,7 @@ interface EditorState {
   setOverlapPolicy: (policy: OverlapPolicy) => void;
   setScatterRotation: (degrees: number) => void;
   setSpriteScale: (kind: SpriteKind, scale: number) => void;
+  setSpriteSpacing: (kind: SpriteKind, spacing: number) => void;
   setLabelSize: (size: number) => void;
   setRiverWidth: (width: number) => void;
   setRiverTaper: (taper: boolean) => void;
@@ -249,6 +264,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   overlapPolicy: "apart",
   scatterRotation: 0,
   spriteScale: { mountain: 1, tree: 1, landmark: 1 },
+  // The generator's own ratios, which produce a look this project already accepted:
+  // `scatter.ts` spaces mountains at 58 against a 100-unit sprite and trees at 34 against 84.
+  // Landmarks are placed one at a time and never scattered, so theirs is inert.
+  spriteSpacing: { mountain: 0.58, tree: 0.4, landmark: 0.5 },
   labelSize: 96,
   riverWidth: 26,
   riverTaper: true,
@@ -286,6 +305,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setScatterRotation: (scatterRotation) => set({ scatterRotation }),
   setSpriteScale: (kind, scale) =>
     set((state) => ({ spriteScale: { ...state.spriteScale, [kind]: scale } })),
+  setSpriteSpacing: (kind, spacing) =>
+    set((state) => ({ spriteSpacing: { ...state.spriteSpacing, [kind]: spacing } })),
   setLabelSize: (labelSize) => set({ labelSize }),
   setRiverWidth: (riverWidth) => set({ riverWidth }),
   setRiverTaper: (riverTaper) => set({ riverTaper }),
