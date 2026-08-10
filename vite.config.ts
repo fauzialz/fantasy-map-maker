@@ -4,7 +4,7 @@ import type { Connect, PluginOption } from "vite";
 import { defineConfig } from "vitest/config";
 
 /**
- * The routing rule, held locally exactly as Caddy holds it in production
+ * The routing rule, held locally exactly as nginx holds it in production
  * (`architecture/v1/14-routing-and-landing.md` §4.1, `architecture/platform/01-zitadel-setup.md` §4).
  *
  * Vite's default `appType: "spa"` falls back to the root `index.html` for every unmatched
@@ -21,13 +21,13 @@ const routing = (): Connect.NextHandleFunction => (req, _res, next) => {
   const path = (req.url ?? "/").split("?")[0];
   // Nothing under /maps is ever a file, so this cannot swallow an asset request.
   if (path === "/maps" || path.startsWith("/maps/")) req.url = "/app.html";
-  // Extensionless static pages, as Caddy's `try_files {path} {path}.html` serves them.
+  // Extensionless static pages, as nginx's `try_files $uri $uri.html` serves them.
   else if (path === "/how-it-works") req.url = "/how-it-works.html";
-  // Caddy's `handle_errors`, locally. Gated on the `Accept` header rather than on the shape
+  // nginx's `error_page 404`, locally. Gated on the `Accept` header rather than on the shape
   // of the path, because that is what separates a navigation from Vite's own `/@vite/client`
   // and `/__vite_ping` — both extensionless too, and both would otherwise get a 404 page.
   // The *page* matches production; the status does not, because Vite serves HTML as 200 and
-  // overwrites anything set here. The status is Caddy's to give.
+  // overwrites anything set here. The status is the host's to give.
   else if ((req.headers.accept ?? "").includes("text/html") && path !== "/" && !path.includes("."))
     req.url = "/404.html";
   next();

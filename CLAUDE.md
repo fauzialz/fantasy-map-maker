@@ -6,7 +6,7 @@ the ADR log; `07-interaction-invariants.md` is mandatory reading before touching
 pointer-driven.
 
 `architecture/platform/` is **not this app's design** — it holds infrastructure shared with
-other byfauzi apps (Zitadel, Postgres, Caddy) and **moves to a `byfauzi-infra` repo** when
+other byfauzi apps (Zitadel, Postgres, nginx) and **moves to a `byfauzi-infra` repo** when
 that exists (ADR-34). Read it before any auth or backend work; never build an IdP service in
 this repo. Keep it free of imports from `v1/`, and `v1/` free of imports from it, so the move
 stays one `git mv`.

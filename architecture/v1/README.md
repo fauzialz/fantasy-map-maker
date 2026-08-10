@@ -96,10 +96,10 @@ prompts** used to drive an AI coding agent through the build.
   P1's offline embed both require that), the 100×100 grid with feet on the baseline, and the
   path-dialect conversion step that currently fails silently.
 - `../platform/` — **shared infrastructure, not this app's design.** Zitadel, Postgres and
-  Caddy are operated for *every* byfauzi app, so they sit in a sibling folder that **moves
+  nginx are operated for *every* byfauzi app, so they sit in a sibling folder that **moves
   whole to a `byfauzi-infra` repo** when it exists (ADR-34). `README.md` there has the
   topology, the auth decisions (D1–D5) and the migration plan to a consolidated backend;
-  `01-zitadel-setup.md` is the paste-ready compose, Caddyfile and app registration. Mandatory
+  `01-zitadel-setup.md` is the paste-ready compose, nginx sites and app registration. Mandatory
   before P2 WP-1 or WP-2.
 - `../DEBT.md` — **the debt ledger**, one level up because it tracks the codebase rather than
   this version's design. Deliberately the *last* of three destinations: shortcuts live as

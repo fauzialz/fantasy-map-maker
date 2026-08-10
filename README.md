@@ -41,9 +41,10 @@ holds two kinds of file:
 | `/`, `/how-it-works` | `index.html`, `how-it-works.html` — static pages, no application bundle |
 | anything else | `404.html` |
 
-The Caddy version of exactly that is in
-[`architecture/platform/01-zitadel-setup.md`](architecture/platform/01-zitadel-setup.md) §4,
-and the local mirror of it is the `map-routes` plugin in `vite.config.ts` — `npm run dev`
+The nginx version of exactly that is in
+[`architecture/platform/01-zitadel-setup.md`](architecture/platform/01-zitadel-setup.md) §4
+(nginx and not Caddy per ADR-46 — the VPS already runs it), and the local mirror of it is the
+`map-routes` plugin in `vite.config.ts` — `npm run dev`
 and `npm run preview` both go through it, so a routing mistake shows up before a deploy
 rather than after one.
 

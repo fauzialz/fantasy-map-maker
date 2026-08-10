@@ -24,7 +24,7 @@ One thing is shared between every byfauzi app: **identity**. Nothing else.
 | | Shared | Owner |
 |---|---|---|
 | Sign-in, user profile, sessions | ✅ | Zitadel |
-| TLS, routing, DNS | ✅ | Caddy, this folder |
+| TLS, routing, DNS | ✅ | nginx (ADR-46), this folder |
 | Postgres *server* | ✅ | one container, one per-app database |
 | Application data | ❌ | each app, its own database and role |
 | Billing / entitlements | ❌ | each app — **billing is separate per app** |
@@ -42,7 +42,7 @@ Three repositories, separate backends, shared IdP.
                             Internet
                                │
                       ┌────────▼────────┐
-                      │  Caddy  (TLS)   │        byfauzi-infra
+                      │  nginx  (TLS)   │        byfauzi-infra
                       └──┬──────┬─────┬─┘
           ┌──────────────┘      │     └──────────────┐
           │                     │                    │
@@ -70,13 +70,13 @@ Three repositories, separate backends, shared IdP.
 |---|---|---|
 | `fantasy-map-maker` | map SPA, map Go API, `architecture/` | MIT, public (ADR-32) |
 | `writing-app` | write frontend + Go API, its own docs | TBD |
-| `byfauzi-infra` | compose, Caddyfile, Zitadel config, **this folder** | private |
+| `byfauzi-infra` | compose, nginx sites, Zitadel config, **this folder** | private |
 
 **Today only the static frontend is deployed.** P0 ships frontend-only — no Zitadel, no
-Postgres, no API. Caddy serves `dist/` from the VPS and nothing else. The rest of this
+Postgres, no API. nginx serves `dist/` from the VPS and nothing else. The rest of this
 diagram arrives with P2. Serving from the VPS now rather than a static host is deliberate:
-it keeps the API **same-origin** when it arrives, so `/api/*` is a Caddy route rather than a
-migration and a CORS policy.
+it keeps the API **same-origin** when it arrives, so `/api/*` is one nginx `location` rather
+than a migration and a CORS policy.
 
 ## Authorization — there are no roles
 
@@ -112,7 +112,7 @@ never written by the app, safe to truncate and rebuild. See `01-zitadel-setup.md
 | **D1** | Access token format | **JWT**, validated via JWKS. Opaque tokens would mean an introspection round-trip per request and a live dependency on Zitadel for every API call. |
 | **D2** | Session renewal | **Access token in memory, renewed by `prompt=none`.** No refresh token in the browser. All apps are subdomains of one registrable domain, so the IdP session cookie is same-site and the silent path is reliable. Refresh tokens with rotation only if an app ever moves off `byfauzi.com`. |
 | **D3** | Logout | **"Sign out" = RP-initiated** (`end_session_endpoint`) — ends the Zitadel session in *this browser*, which signs the user out of every byfauzi app on that machine. **"Sign out of all devices"** is a separate action. Local-only logout was rejected: the app clears its tokens, the next `prompt=none` finds the session alive and signs the user straight back in. |
-| **D4** | Where P0 deploys | **The VPS, frontend only.** Caddy serves static `dist/`; no backend containers until P2. |
+| **D4** | Where P0 deploys | **The VPS, frontend only.** nginx serves static `dist/`; no backend containers until P2. **Amended by ADR-46** — this row said Caddy, which the box cannot run: nginx already holds `:80`/`:443` in front of a live site, and Caddy's automatic-certificate advantage is void behind a Cloudflare Origin cert. |
 | **D5** | Account deletion propagation | **A reconcile cron, one per app.** Each app walks its own `users` against Zitadel's Management API; a missing `sub` means purge. A webhook can be missed while an app is down and never noticed; a cron cannot silently fail. Consolidates to one job under Option 3. |
 
 Profile **edits** need no cron — they self-heal from token claims on the user's next
@@ -138,7 +138,7 @@ rewrite:**
 |---|---|---|
 | 1 | Extract `auth/`, `users/`, the Zitadel client into their own module, in place. No deploy change. | fully — it is a refactor |
 | 2 | Stand up `byfauzi-platform`: one binary, `internal/maps/` and `internal/writing/`, shared `users` schema, per-app schemas keep their own migrations. Deploy it serving nothing. | fully — nothing routes to it |
-| 3 | Repoint Caddy `map.byfauzi.com/api/*` at it. Watch. Then `write`. | **trivially** — one Caddy config |
+| 3 | Repoint nginx `map.byfauzi.com/api/*` at it. Watch. Then `write`. | **trivially** — one `proxy_pass` |
 | 4 | Merge the two `users` projections into one row per human, joined on `zitadel_sub`. | ❌ **point of no return** |
 | 5 | Scope-based authorization per route. | additive |
 
@@ -171,5 +171,5 @@ that may never happen is work spent on a maybe.
 
 ## Contents
 
-- `01-zitadel-setup.md` — paste-ready Zitadel + Postgres + Caddy setup, the app
+- `01-zitadel-setup.md` — paste-ready Zitadel + Postgres + nginx setup, the app
   registrations, and the gotchas that produce confusing login failures.

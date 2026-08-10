@@ -74,12 +74,13 @@ Two consequences, both of which remove controls rather than add them:
 | `/s/{slug}`, `/embed/{slug}` | **Go**, SSR meta | P2 |
 
 **One origin.** `map.byfauzi.com` serves all of it. ADR-34 promises `/api/*` stays same-origin so
-P2 arrives as three lines of Caddy config instead of a CORS policy; an app subdomain would throw
+P2 arrives as three lines of host config instead of a CORS policy; an app subdomain would throw
 that away and buy nothing, because the URL does not move the bytes. See **D1**.
 
-**`/s/*` and `/embed/*` must match before the SPA fallback**, or the fallback swallows Go's
-routes. Worth writing into the Caddy file with a comment now, while the fallback is being added,
-rather than discovering it at P2.
+**`/s/*` and `/embed/*` must not be swallowed by the SPA fallback.** Under nginx that is free —
+`location ^~ /s/` beats `location /` by prefix length, wherever it sits in the file (ADR-46; it was
+an ordering rule when the host was Caddy). Worth writing into the site file with a comment now,
+while the fallback is being added, rather than rediscovering the reasoning at P2.
 
 **`/edit` does not exist and is not redirected.** Nothing is deployed, so no URL is load-bearing
 yet, and supporting two spellings of one route from day one is how an address space rots.
@@ -106,7 +107,7 @@ reputation.
 back to the root `index.html`, which would serve the **landing page** at `/maps/create`;
 `appType: "mpa"` serves HTML by literal path, so `/maps/create` 404s. What is needed is `"mpa"`
 plus a ~10-line `configureServer` middleware rewriting `/maps*` to the app entry — and the same
-for `vite preview`. That middleware is the local mirror of the Caddy config, and **they must
+for `vite preview`. That middleware is the local mirror of the nginx site, and **they must
 agree**. "Works locally, 404s in production" has exactly one signal, and it is a deploy.
 
 This is not optional polish: **every CDP driver in the repo runs against the dev server**
@@ -236,7 +237,7 @@ an address instead of a path string.
 
 ### 4.5 Two kinds of not-found
 
-- **Unknown path** (`/edit`, `/mapz`) → a **static** 404 served by Caddy. Never loads the SPA.
+- **Unknown path** (`/edit`, `/mapz`) → a **static** 404 served by nginx. Never loads the SPA.
 - **Unknown uuid** → the SPA is already running, so this is in-app: redirect to `/maps` with a
   toast.
 
@@ -452,7 +453,7 @@ bulk claim would make logging in the most punitive moment in the product.
 | `src/persistence/useAutosave.ts` | restore reads the route; `flush` exported for navigation |
 | `src/App.tsx` | renders a route rather than the editor |
 | `vite.config.ts` | multi-entry input; `appType: "mpa"` plus the dev/preview middleware |
-| `Caddyfile` | static at `/`, SPA fallback under `/maps`, **`/s/*` and `/embed/*` first** |
+| nginx site | static at `/`, SPA fallback under `/maps`, `/s/*` and `/embed/*` as `^~` prefixes |
 
 **WP-31** — **built at the repo root**, not in `landing/`: `index.html`, `how-it-works.html`
 (shell), `404.html`, the exported images under `public/landing/`, and the shared stylesheet. One
@@ -462,7 +463,7 @@ link the same `assets/src-*.css` and only `app.html` carries a script.
 **No new dependency in either.** The router is thirty lines, `BroadcastChannel` is a platform
 API, and the landing page is HTML.
 
-**Build order: WP-30, then WP-31.** WP-30 serves `/` as a one-line Caddy redirect to `/maps` so
+**Build order: WP-30, then WP-31.** WP-30 serves `/` as a one-line host redirect to `/maps` so
 nothing is half-built while WP-31 is pending.
 
 ## 8. Acceptance

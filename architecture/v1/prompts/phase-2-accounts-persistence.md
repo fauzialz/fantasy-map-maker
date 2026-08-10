@@ -16,7 +16,7 @@
   gated, and how the cap is enforced) + ADR-33 (opt-in cloud sync, claim, conflicts,
   deletion)** — the last two govern most of WP-2 … WP-4.
 - `../../platform/README.md` and `../../platform/01-zitadel-setup.md` — **mandatory before
-  WP-1 and WP-2.** Zitadel, Postgres and Caddy are shared across apps and are not built in
+  WP-1 and WP-2.** Zitadel, Postgres and nginx are shared across apps and are not built in
   this repo; the setup, app registration, `users` shape and integration contract are
   specified there.
 
@@ -30,7 +30,7 @@ iframe**, and export **SVG/PDF**. Anonymous use is unchanged.
 - **Backend:** **Go** (chi or echo), `pgx` + `sqlc`, **Postgres** (scenes as `jsonb`).
 - **Auth:** **Zitadel** self-hosted; SPA uses **OIDC Authorization Code + PKCE** (no
   client secret in the browser); Go validates JWTs via **JWKS** (no server sessions).
-- **Zitadel, Postgres and Caddy are not built here.** They are shared infrastructure
+- **Zitadel, Postgres and nginx are not built here.** They are shared infrastructure
   operated from `byfauzi-infra` (ADR-34). This repo builds the SPA auth client and the map
   API; it never adds an IdP service of its own.
 - **Identity has one source of truth, and it is Zitadel.** The local `users` row is a
@@ -51,13 +51,13 @@ iframe**, and export **SVG/PDF**. Anonymous use is unchanged.
 
 > **Half of this package does not belong to this repository.** Zitadel is **shared
 > infrastructure** across every byfauzi app, not this app's service — see **ADR-34**. Standing
-> it up is `byfauzi-infra`'s work, and the compose file, Caddyfile, app registrations and
+> it up is `byfauzi-infra`'s work, and the compose file, nginx sites, app registrations and
 > integration contract are already written, paste-ready, in
 > **`../../platform/01-zitadel-setup.md`**. Do not re-derive them here, and do not add a
 > Zitadel service to this repo. What stays in this package is the **SPA auth client**.
 
 - **Infra side (in `byfauzi-infra`, per `../../platform/01-zitadel-setup.md`):** stand up
-  Zitadel + Postgres behind Caddy; configure upstream logins **Google, GitHub,
+  Zitadel + Postgres behind nginx; configure upstream logins **Google, GitHub,
   email/password**; register `map-spa` (User Agent, PKCE, **JWT** access tokens) and
   `map-api` under the **Map** project. Mind the four settings in that document's §3 — each
   fails with a symptom that does not name its cause.
