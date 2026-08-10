@@ -6,10 +6,21 @@
 > applications**, of which this map editor is only the first. It lives here because it has
 > nowhere better to live yet, and because writing it down late is how it gets rebuilt wrong.
 >
-> **Destination: a `byfauzi-infra` repository.** When that repo exists, this folder moves
-> whole — `git mv architecture/platform <infra-repo>/docs`. Nothing in it imports from
-> `../v1/`, and nothing in `../v1/` imports from it, so the move is one command with no
-> edits. Keep it that way.
+> **Destination: `fauzialz/infra`** (private). Named for the *machines*, not for byfauzi:
+> the same host also runs services with no connection to these apps, so a `byfauzi-` prefix
+> would be narrower than the thing it names. This folder lands there as **`platform/`** —
+> `git mv architecture/platform <infra>/platform` — a **subfolder** rather than the whole
+> repo, because the byfauzi product platform is one tenant of that infrastructure and not
+> the entirety of it.
+>
+> **The move is not one clean command, and this paragraph used to claim it was.** Measured
+> 2026-08-10: `platform/` cites `v1/` **21 times** (19 ADR references plus two `../v1/`
+> paths), and ten files under `v1/` and the repo root point back into `platform/`. Those ADR
+> citations are the real cost — they are decisions that live in the *public* map repo and are
+> load-bearing for docs that will sit in a *private* one, so each becomes either a quoted
+> decision or an explicit cross-repo link. **Budget an hour, not a command.** Keeping the
+> coupling to pointers rather than content is still worth doing; pretending it is zero is
+> what made the estimate wrong.
 
 Sits outside `v1/` deliberately, as a **sibling** rather than a child: `v1/` is the map
 product's design at version 1, and platform infrastructure has its own lifecycle. A future
@@ -42,7 +53,7 @@ Three repositories, separate backends, shared IdP.
                             Internet
                                │
                       ┌────────▼────────┐
-                      │  nginx  (TLS)   │        byfauzi-infra
+                      │  nginx  (TLS)   │        fauzialz/infra
                       └──┬──────┬─────┬─┘
           ┌──────────────┘      │     └──────────────┐
           │                     │                    │
@@ -70,7 +81,7 @@ Three repositories, separate backends, shared IdP.
 |---|---|---|
 | `fantasy-map-maker` | map SPA, map Go API, `architecture/` | MIT, public (ADR-32) |
 | `writing-app` | write frontend + Go API, its own docs | TBD |
-| `byfauzi-infra` | compose, nginx sites, Zitadel config, **this folder** | private |
+| `infra` | per-service nginx/systemd/scripts, compose, Zitadel config, **this folder under `platform/`** | private |
 
 **Today only the static frontend is deployed.** P0 ships frontend-only — no Zitadel, no
 Postgres, no API. nginx serves `dist/` from the VPS and nothing else. The rest of this

@@ -1,6 +1,6 @@
 # Zitadel — setup, registration and integration
 
-> **⚠️ This document belongs in `byfauzi-infra`, not in this repository.** It is written
+> **⚠️ This document belongs in `fauzialz/infra`, not in this repository.** It is written
 > paste-ready so that when the infra repo exists, the compose file, the nginx sites and the
 > registration steps can be lifted out unchanged. Nothing here is map-specific.
 >
