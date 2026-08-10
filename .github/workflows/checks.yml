@@ -1,0 +1,53 @@
+# The quality gate — the SAME file for a pull request and for a deploy.
+#
+# It is a reusable workflow rather than two copies precisely so that "what a PR is checked
+# against" and "what gates a deploy" cannot drift apart. Two copies drift the first time
+# someone tightens one and forgets the other, and the gate then quietly stops matching the
+# promise made in CONTRIBUTING.md.
+#
+# Holds no secrets and is never triggered directly.
+name: checks
+
+on:
+  workflow_call:
+
+# The floor, restated here rather than inherited: a workflow should say what it may do.
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # leave no token behind in .git/config
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # --ignore-scripts is the point of this line, not an optimisation: it is what stops a
+      # dependency's preinstall/postinstall executing on a fork's pull request, before a
+      # human has read a word of the diff. Measured when this was written: the installed
+      # tree has ZERO install scripts, so the flag skips nothing and costs nothing. If a
+      # future dependency needs one, name that package here — do not delete the flag.
+      - run: npm ci --ignore-scripts
+
+      - run: npm run lint
+      - run: npx prettier --check . # scoped by .prettierignore — see that file
+      - run: npm test -- --run # vitest once; package.json's script is written for a human
+      - run: npm run build
+
+      # The deploy job consumes this. It is a public artifact, as all artifacts on a public
+      # repo are, and that is safe here for one specific reason: `npm run build` takes no
+      # environment variables and embeds no secrets. Introduce a build-time secret and this
+      # stops being true, and the artifact has to stop being the transport.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist-${{ github.sha }}
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error

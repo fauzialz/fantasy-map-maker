@@ -1,0 +1,154 @@
+# main → staging.
+#
+# Three properties carry the safety here, and all three exist because this repo is PUBLIC:
+#
+#   1. A fork's code never meets a credential. Forks run ci.yml, which has none. This
+#      workflow only ever runs a commit a maintainer merged.
+#   2. The job holding the SSH key installs nothing. `deploy` does not check out the repo
+#      and never runs npm, so no transitive postinstall shares a process with the key.
+#   3. The key is not a shell. On the box it is a forced command taking two verbs, on an
+#      account with no sudo that owns only the staging site tree.
+#
+# The `deploy` and `smoke` jobs use SEPARATE GitHub environments so that "smoke cannot see
+# the SSH key" is enforced by GitHub rather than by care in writing this file. `smoke` is
+# the job most likely to grow over time, and the worst credential in its reach is a
+# password that reads a staging site.
+#
+# NOTE: no `environment.url` anywhere. The Deployments API is public on a public repo, so
+# that field would republish the staging hostname — which is exactly what the secrets below
+# exist to keep out of public view.
+name: deploy-staging
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false # never cancel a deploy mid-flight; queue behind it
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  deploy:
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: staging # holds the SSH key; branch policy restricts it to main
+    steps:
+      # No checkout. No npm. The only third-party code in this job is a GitHub-owned,
+      # SHA-pinned action.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist-${{ github.sha }}
+          path: dist
+
+      # Secrets arrive via `env:` and are referenced as $VAR, never inlined as ${{ }} in the
+      # command itself. GitHub echoes a `run:` line BEFORE the shell expands $VAR, so the
+      # value never reaches the log at all — masking never has to save us, which matters
+      # because masking is best-effort and a re-encoded value slips straight past it.
+      - name: Ship the release
+        env:
+          KEY: ${{ secrets.STAGING_DEPLOY_KEY }}
+          KNOWN: ${{ secrets.STAGING_KNOWN_HOSTS }}
+          HOST: ${{ secrets.STAGING_HOST }}
+          USER: ${{ secrets.STAGING_USER }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$KEY"   > ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+          tar -czf release.tar.gz -C dist .
+          # StrictHostKeyChecking=yes against a PINNED host key. `no` would hand the payload
+          # to whatever answers on port 22, which is that flag's entire value to an attacker.
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o BatchMode=yes \
+              "$USER@$HOST" "receive $GITHUB_SHA" < release.tar.gz
+
+  # The routing rule lives in two places — vite.config.ts and the host's nginx site — and
+  # they must agree. "Works locally, 404s in production" has exactly one signal, and it is a
+  # deploy. This job is what makes that signal automatic instead of remembered.
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: staging-verify # read-only credentials ONLY; cannot reference the SSH key
+    steps:
+      - name: Seven checks against the real host
+        env:
+          BASE: ${{ secrets.STAGING_BASE_URL }}
+          AUTH: ${{ secrets.STAGING_BASIC_AUTH }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          fail=0
+          say()  { [ "$1" = 0 ] && printf 'ok    %s\n' "$2" || { fail=1; printf 'FAIL  %s\n' "$2"; }; }
+          body() { curl -sS -u "$AUTH" -o /tmp/b -w '%{http_code}' --max-time 20 "$BASE$1"; }
+          hdr()  { curl -sSI -u "$AUTH" --max-time 20 "$BASE$1"; }   # NOT `head` — that name is taken
+
+          # 1 — this release, not the last one. Every check below is meaningless without it.
+          c=$(body /version.json)
+          { grep -q "\"sha\":\"$SHA\"" /tmp/b && [ "$c" = 200 ]; }; say $? "/version.json is this commit"
+
+          # 2 — the landing page, and NOT the application bundle (14 §5)
+          c=$(body /); { [ "$c" = 200 ] && ! grep -q 'assets/app' /tmp/b; }; say $? "/ is the landing page"
+
+          # 3 — the address space. Cannot be verified anywhere but on a host.
+          c=$(body /maps/edit/00000000-0000-0000-0000-000000000000)
+          { [ "$c" = 200 ] && grep -q 'assets/app' /tmp/b; }; say $? "/maps/* serves app.html"
+
+          # 4 — try_files $uri $uri.html
+          [ "$(body /how-it-works)" = 200 ]; say $? "/how-it-works resolves"
+
+          # 5 — a real 404 STATUS, not a 200 carrying a not-found page, and not the SPA
+          c=$(body /no-such-path); { [ "$c" = 404 ] && ! grep -q 'assets/app' /tmp/b; }; say $? "unknown path is a 404"
+
+          # 6 — the fonts are content-hashed and self-hosted; there is no CDN fallback.
+          # Re-fetch app.html first: /tmp/b currently holds the 404 body from check 5.
+          body /maps > /dev/null
+          a=$(grep -o '/assets/[A-Za-z0-9._-]*\.js' /tmp/b | head -1)
+          { [ -n "$a" ] && hdr "$a" | grep -qi 'cache-control:.*immutable'; }; say $? "hashed assets immutable"
+
+          # 7 — the geometry worker needs worker-src blob:, and that failure is silent
+          # until someone paints.
+          csp=$(hdr / | grep -i '^content-security-policy:' || true)
+          { [ -z "$csp" ] || printf '%s' "$csp" | grep -q 'blob:'; }; say $? "no CSP blocks blob: workers"
+
+          exit $fail
+
+  # Flip-then-verify, rather than verify-then-flip: the flip is one rename(2) and undoing it
+  # is another, so standing up a second authenticated vhost to test an unflipped release
+  # would be more moving parts than the thing it protects.
+  rollback:
+    needs: [deploy, smoke]
+    if: failure() && needs.deploy.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: staging
+    steps:
+      - name: Flip back to the previous release
+        env:
+          KEY: ${{ secrets.STAGING_DEPLOY_KEY }}
+          KNOWN: ${{ secrets.STAGING_KNOWN_HOSTS }}
+          HOST: ${{ secrets.STAGING_HOST }}
+          USER: ${{ secrets.STAGING_USER }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$KEY"   > ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o BatchMode=yes \
+              "$USER@$HOST" rollback

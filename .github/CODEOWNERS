@@ -1,0 +1,5 @@
+# The diffs that decide what CI executes, and where it may send things, should not be
+# self-mergeable without the owner seeing them.
+/.github/          @fauzialz
+/architecture/     @fauzialz
+/package-lock.json @fauzialz

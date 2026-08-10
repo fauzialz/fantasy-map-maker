@@ -1,0 +1,25 @@
+# Every pull request, including from a stranger's fork.
+#
+# `pull_request`, NEVER `pull_request_target`. `pull_request` builds the fork's merge commit
+# with no secrets and a read-only token. `pull_request_target` runs in the BASE repo's
+# context — with secrets and a write token — while the code under test is the fork's, and
+# nearly every published "public repo compromised via Actions" story is that one line.
+#
+# This workflow therefore cannot deploy anything, and that is structural rather than a rule
+# someone remembers: it holds no credential to deploy with.
+name: ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A superseded PR run is waste. (A superseded deploy is not — see deploy-staging.yml.)
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml

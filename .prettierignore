@@ -1,0 +1,27 @@
+# Markdown is excluded deliberately, and it is not a style opinion.
+#
+# Prettier's only disagreement with this repo's markdown is TABLE-CELL PADDING: it pads
+# every cell to the column width, which turns the compact `|---|---|` tables that
+# `architecture/` is built on into 400-character lines. Measured before adding the check:
+# EVERY markdown file in the tree failed, including ones untouched for months.
+#
+# Formatting them would be a 40-file diff that makes the design documents harder to read,
+# to satisfy a formatter that was never asked the right question. So the check is scoped
+# instead — and scoped in the same commit that added it, because a required check that is
+# red on day one for nobody's change is how a required check becomes non-required.
+*.md
+
+dist
+node_modules
+package-lock.json
+public/landing
+
+# Geometry fixtures are hand-laid-out coordinate lists that get READ and ported by humans —
+# `architecture/v1/fixtures/README.md` treats them as a portable contract, and the strait
+# test is the headline. Prettier explodes them: strait.fixture.json goes 40 → 82 lines for
+# zero semantic change. Formatting data that is optimised for reading is a net loss.
+**/*.fixture.json
+
+# An annotated layout mockup, each region keyed to an ADR. Prettier takes it 379 → 1101
+# lines and buries the annotations that are the whole point of the file.
+architecture/v1/ux-wireframe.html
