@@ -188,7 +188,10 @@ describe("river snap", () => {
     });
 
     it("trims a mouth that crosses the coast, at the coast", () => {
-      const snapped = { ...flowing(), points: snapRiverEnd(flowing().points, [coast()], [], 50).points };
+      const snapped = {
+        ...flowing(),
+        points: snapRiverEnd(flowing().points, [coast()], [], 50).points,
+      };
       const rings = riverOutline(snapped, landMask([coast()]));
       const highest = Math.min(...rings.flat().map(([, y]) => y));
       // Land is y >= 200, so nothing of the drawn river may sit above the shoreline.
@@ -196,7 +199,13 @@ describe("river snap", () => {
     });
 
     it("leaves a river that never reaches the coast alone", () => {
-      const inland: River = { ...flowing(), points: [[500, 600], [500, 500]] };
+      const inland: River = {
+        ...flowing(),
+        points: [
+          [500, 600],
+          [500, 500],
+        ],
+      };
       const rings = riverOutline(inland, landMask([coast()]));
       const highest = Math.min(...rings.flat().map(([, y]) => y));
       // Its rounded mouth survives, well south of the shore — nothing trimmed it.

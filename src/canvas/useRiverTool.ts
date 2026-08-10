@@ -47,9 +47,8 @@ export function useRiverTool({ enabled, scale, toMapPoint }: Options) {
   const landmasses = useEditorStore(
     (s) => s.scene.layers.find((l) => l.id === "terrain")?.objects,
   ) as Landmass[] | undefined;
-  const rivers = useEditorStore(
-    (s) => s.scene.layers.find((l) => l.id === "rivers")?.objects,
-  ) as River[] | undefined;
+  const rivers = useEditorStore((s) => s.scene.layers.find((l) => l.id === "rivers")?.objects) as
+    River[] | undefined;
 
   const drawing = enabled && objectTool === "place";
 
