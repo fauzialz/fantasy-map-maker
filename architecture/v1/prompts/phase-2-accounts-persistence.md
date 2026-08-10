@@ -31,7 +31,7 @@ iframe**, and export **SVG/PDF**. Anonymous use is unchanged.
 - **Auth:** **Zitadel** self-hosted; SPA uses **OIDC Authorization Code + PKCE** (no
   client secret in the browser); Go validates JWTs via **JWKS** (no server sessions).
 - **Zitadel, Postgres and nginx are not built here.** They are shared infrastructure
-  operated from `byfauzi-infra` (ADR-34). This repo builds the SPA auth client and the map
+  operated from `fauzialz/infra` (ADR-34). This repo builds the SPA auth client and the map
   API; it never adds an IdP service of its own.
 - **Identity has one source of truth, and it is Zitadel.** The local `users` row is a
   foreign-key anchor, a lock target for the cap check, and a **cache** of profile claims —
@@ -51,12 +51,12 @@ iframe**, and export **SVG/PDF**. Anonymous use is unchanged.
 
 > **Half of this package does not belong to this repository.** Zitadel is **shared
 > infrastructure** across every byfauzi app, not this app's service — see **ADR-34**. Standing
-> it up is `byfauzi-infra`'s work, and the compose file, nginx sites, app registrations and
+> it up is `fauzialz/infra`'s work, and the compose file, nginx sites, app registrations and
 > integration contract are already written, paste-ready, in
 > **`../../platform/01-zitadel-setup.md`**. Do not re-derive them here, and do not add a
 > Zitadel service to this repo. What stays in this package is the **SPA auth client**.
 
-- **Infra side (in `byfauzi-infra`, per `../../platform/01-zitadel-setup.md`):** stand up
+- **Infra side (in `fauzialz/infra`, per `../../platform/01-zitadel-setup.md`):** stand up
   Zitadel + Postgres behind nginx; configure upstream logins **Google, GitHub,
   email/password**; register `map-spa` (User Agent, PKCE, **JWT** access tokens) and
   `map-api` under the **Map** project. Mind the four settings in that document's §3 — each

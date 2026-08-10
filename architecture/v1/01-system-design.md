@@ -238,7 +238,7 @@ instead — one renderer, so the file and the screen cannot disagree.
   PKCE** (no client secret in the browser). Go validates JWTs against Zitadel's
   **JWKS** — no server session store. Other apps reuse the same IdP by registering each as
   its own OIDC client. **Zitadel is shared infrastructure, not this app's** — it is
-  operated from `byfauzi-infra`, and its setup, app registration and integration contract
+  operated from `fauzialz/infra`, and its setup, app registration and integration contract
   live in **`../platform/01-zitadel-setup.md`** (ADR-34). Settled there: JWT access tokens;
   **no refresh token in the browser** — the access token is held in memory and renewed with
   `prompt=none`, so long editing sessions never 401 mid-save; and sign-out is RP-initiated.

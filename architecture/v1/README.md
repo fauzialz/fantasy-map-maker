@@ -97,7 +97,7 @@ prompts** used to drive an AI coding agent through the build.
   path-dialect conversion step that currently fails silently.
 - `../platform/` — **shared infrastructure, not this app's design.** Zitadel, Postgres and
   nginx are operated for *every* byfauzi app, so they sit in a sibling folder that **moves
-  whole to a `byfauzi-infra` repo** when it exists (ADR-34). `README.md` there has the
+  whole to the private `fauzialz/infra` repo** when it exists (ADR-34). `README.md` there has the
   topology, the auth decisions (D1–D5) and the migration plan to a consolidated backend;
   `01-zitadel-setup.md` is the paste-ready compose, nginx sites and app registration. Mandatory
   before P2 WP-1 or WP-2.

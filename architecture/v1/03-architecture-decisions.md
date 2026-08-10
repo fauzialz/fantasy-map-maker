@@ -614,12 +614,12 @@ conflict warning permanently).
 **Decision:** The map editor is the **first of several byfauzi apps** behind one Zitadel
 sign-in. Topology is **separate backends, separate repositories, one shared IdP**:
 `fantasy-map-maker` (this repo — SPA, map API, `architecture/`), a future `writing-app`, and
-**`byfauzi-infra`** which operates nginx, Postgres and Zitadel for all of them. The one
+**`fauzialz/infra`** (private) which operates nginx, Postgres and Zitadel for all of them. The one
 shared thing is **identity**; the data boundary between apps is `user_id` and nothing else,
 enforced by a separate database and role per app rather than by discipline. Full topology,
 decisions D1–D5 and the migration plan to a consolidated backend live in
 **`../platform/README.md`**; the paste-ready setup in **`../platform/01-zitadel-setup.md`**.
-Both folders move to `byfauzi-infra` when it exists — they are sited as a **sibling** of
+Both folders move to `fauzialz/infra` when it exists — they are sited as a **sibling** of
 `v1/`, not inside it, so `v1/` stays the map product's design at version 1 and the move is
 one `git mv`.
 
