@@ -678,7 +678,7 @@ not get simplified away.
 
 **Dev and production hold the same routing rule twice.** Vite's default `appType: "spa"` would
 serve the *landing page* at `/maps/create`; `"mpa"` 404s it. What is needed is `"mpa"` plus a
-~10-line `configureServer` middleware, mirrored in the Caddyfile. *Works locally, 404s in
+~10-line `configureServer` middleware, mirrored in the nginx site. *Works locally, 404s in
 production* has exactly one signal, and it is a deploy.
 
 - **Acceptance:** every route renders its own screen and **Back/Forward move between them** ·

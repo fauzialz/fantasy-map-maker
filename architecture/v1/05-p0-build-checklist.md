@@ -588,7 +588,7 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   **Two tabs on one map** get a `BroadcastChannel` warning — the local save path has never had a
   version check, and linkable URLs make the collision easy.
   **Dev and production hold the same routing rule twice** — a Vite `configureServer` middleware and
-  the Caddyfile — and must agree; every CDP driver runs against the dev server, so this is not
+  the host's site file (a Caddyfile when this shipped; nginx since ADR-46) — and must agree; every CDP driver runs against the dev server, so this is not
   polish. Acceptance is driven throughout, including **a mutation proving the flush discriminates**.
   **The router is 88 lines including its comments** — `matchRoute`, a `useSyncExternalStore` over
   `location.pathname`, `navigate`, and the three things the primitive does not give you. The
@@ -599,7 +599,7 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   bug. One line, one place, and the create page's completion and the empty-list redirect inherit it.
   **The entry HTML moved to `app.html`** so `index.html` can be WP-31's landing page: with
   `appType: "mpa"` Vite serves HTML by literal path, and the ~10-line middleware puts `/maps*` on
-  the app exactly as `handle /maps*` does in Caddy. **Measured equal**: `/ /maps /maps/create
+  the app exactly as the host's `/maps*` rule does. **Measured equal**: `/ /maps /maps/create
   /maps/edit/abc /mapz` answer `302 200 200 200 404` on `npm run dev` and the same five on
   `vite preview`.
   **`rememberOpen`, `rememberedOpen` and `loadLatestScene` are all deleted** — a localStorage key,
@@ -680,10 +680,11 @@ bookmarked, and the only way to reach a second map is a dialog over the editor. 
   **A `@source "../*.html"` was needed in `index.css`** — Tailwind's automatic detection is rooted
   at the CSS file, and every landing class lives one directory up. A class that silently fails to
   generate looks exactly like a styling mistake, so it is named rather than inferred.
-  **Dev gained Caddy's `handle_errors` too**, gated on the `Accept` header rather than on the shape
+  **Dev gained the host's 404 handler too** (Caddy's `handle_errors` then, nginx's `error_page`
+  now — ADR-46), gated on the `Accept` header rather than on the shape
   of the path: `/@vite/client` and `/__vite_ping` are extensionless as well, and a path-shaped rule
   hands both of them a 404 page. The *page* now matches production; the **status does not**, since
-  Vite serves HTML as 200 and overwrites what the middleware sets. That one is Caddy's to give.
+  Vite serves HTML as 200 and overwrites what the middleware sets. That one is the host's to give.
   **22 driven checks and two mutations — and the driver runs against `vite preview`, not
   `npm run dev`**, which is the opposite of every other driver in this repo. The dev server injects
   its HMR client as a module script into every HTML file it serves, so "this page ships no script"

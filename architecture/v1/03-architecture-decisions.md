@@ -614,7 +614,7 @@ conflict warning permanently).
 **Decision:** The map editor is the **first of several byfauzi apps** behind one Zitadel
 sign-in. Topology is **separate backends, separate repositories, one shared IdP**:
 `fantasy-map-maker` (this repo — SPA, map API, `architecture/`), a future `writing-app`, and
-**`byfauzi-infra`** which operates Caddy, Postgres and Zitadel for all of them. The one
+**`byfauzi-infra`** which operates nginx, Postgres and Zitadel for all of them. The one
 shared thing is **identity**; the data boundary between apps is `user_id` and nothing else,
 enforced by a separate database and role per app rather than by discipline. Full topology,
 decisions D1–D5 and the migration plan to a consolidated backend live in
@@ -657,8 +657,8 @@ identifier another system owns makes an IdP change a full-schema rewrite. Local 
 **Consequences:** P2 WP-1 splits — the SPA auth client stays, standing up Zitadel does not,
 and the prompt now says so. `auth/` must keep zero map-specific imports, which is what makes
 a later extraction a move rather than a rewrite. P0 deploys **frontend-only to the VPS**
-behind Caddy rather than to a static host, so `/api/*` stays **same-origin** and arrives as
-three lines of Caddy config instead of a migration and a CORS policy. Account deletion needs
+behind nginx rather than to a static host, so `/api/*` stays **same-origin** and arrives as
+three lines of host config instead of a migration and a CORS policy. Account deletion needs
 a per-app reconcile cron, since nothing announces that a row should stop existing.
 
 **Rejected:** a monorepo (above); a shared central `users` database alongside Zitadel (it
@@ -970,7 +970,7 @@ Linkable URLs also make **two tabs on one map** easy, which the local save path 
 a `BroadcastChannel` warns rather than blocking. `11-editor-shell.md` therefore ships in **two
 packages** — WP-23 (the generate dialog and world code, which the create page reuses) and WP-32
 (the menu bar and rail) — so no menu item is built and then deleted. Dev and production hold the
-same routing rule in two places (a Vite middleware and the Caddyfile) and must agree; *works
+same routing rule in two places (a Vite middleware and the nginx site) and must agree; *works
 locally, 404s in production* has exactly one signal, and it is a deploy.
 
 **Auth is unaffected and gains nothing to build.** ADR-06's OIDC + PKCE redirects to Zitadel's
@@ -1179,3 +1179,48 @@ disabled, so nothing implies otherwise.
 silhouette makes it possible, at O(n·m) polygon intersection per candidate, for a result that
 looks the same — recorded as the ceiling in a `ponytail:` comment); and one shared fraction
 across kinds, which cannot express that peaks want more room than trees relative to their size.
+
+## ADR-46 — The VPS serves through nginx; the Caddyfile becomes an nginx site
+**Decision:** Every reference to **Caddy** in `../platform/` is replaced by **nginx**. The
+VPS terminates TLS and routes in nginx, on the host, using a **Cloudflare Origin
+certificate**; the `caddy` service leaves `compose.yml`, and the Caddyfile in
+`platform/01-zitadel-setup.md` §4 is re-expressed as an nginx site. **Amends ADR-34 and
+`platform/README.md` D4**, both of which named Caddy incidentally while deciding something
+else — ADR-34 decided *the VPS, same-origin*, and that is untouched. **Nothing in `src/`
+changes.**
+
+**Why.** The box already runs nginx on `:80`/`:443`, in front of a live Next.js site. Two
+web servers cannot hold the same ports, so the choice was never "which is nicer" — it was
+"do we displace a running site to match a document". Caddy's headline advantage is
+automatic certificate issuance and renewal, and that advantage does not exist here: the
+domain sits behind Cloudflare with an **Origin certificate valid to 2041**, so there is no
+ACME challenge to serve, nothing to renew, and no `/.well-known/` path that every future
+vhost has to remember to leave unauthenticated. The feature Caddy would be adopted *for* is
+the one feature this deployment cannot use.
+
+**What it costs.** Two config artifacts (a compose service, a site file) and about thirty
+prose mentions. **Zero lines of application code** — the routing *rule* (`/maps*` →
+`app.html`, extensionless → `.html`, everything else → a static 404) is server-agnostic and
+lives in `vite.config.ts` for dev, which is why the mirror in `14` §4.1 needed no change
+beyond the name of the thing it mirrors.
+
+**One documented footgun disappears.** `14` §3 warns that P2's `/s/*` and `/embed/*` must be
+written *before* the SPA fallback, because Caddy's `handle` blocks match in written order.
+nginx matches by **longest prefix**, so `location ^~ /s/` beats `location /` wherever it
+sits in the file. The ordering hazard is not mitigated, it stops existing.
+
+**What gets harder, and it is real.** Zitadel at P2. Caddy proxies its gRPC-Web/Connect API
+with one `transport http { versions h2c 2 }` line; nginx cannot reach an h2c upstream
+through `proxy_pass` at all, and needs `grpc_pass` on the gRPC paths. gRPC-**Web** rides
+HTTP/1.1 and is likely fine through a plain proxy, but *native* gRPC — which a Go service
+calling the Management API would use — is not. This is one config block, months away, and
+`platform/01` §4 now carries both forms with a "verify against the version you pin" note
+rather than a guess.
+
+**Rejected:** displacing nginx and putting Caddy on `:443` in front of the existing site
+(matches the documents, and risks a live site to do it — the documents are cheaper to
+change than the deployment); running Caddy behind nginx on other ports (two proxies, one
+purpose); and leaving the docs saying Caddy while the box runs nginx, which is what
+`platform/` looked like until this ADR and is the state that gets pasted into a terminal at
+2am. Also rejected: certbot/Let's Encrypt, which would work but publishes every hostname it
+issues for to the public Certificate Transparency logs — the Origin cert does not.
