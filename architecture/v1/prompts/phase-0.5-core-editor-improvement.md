@@ -752,7 +752,7 @@ build one, because three of the five decisions it needed depended on features de
 version.
 
 **This is the other way round the problem.** Water becomes a *substance* with its own geometry —
-the "first-class water bodies" the README defers — and the land is drawn as
+the "first-class water bodies" v1 deferred and this batch brings forward — and the land is drawn as
 `union(land) − union(water)`. Both `15` defects stop being representable rather than being
 patched. What it does not deliver is the topology: no graph, no derived width, no deltas, and `15`
 **H2 is closed permanently** by D7. The picture of a network without the network.
@@ -805,12 +805,17 @@ existing:
 - **`07-interaction-invariants.md` I5's top rung** — *"a river's control points outrank the frame's
   handles"* — along with `RiverOverlay`'s use of `selection.riverPoints`. An invariant naming a
   deleted field is worse than none, because the next reader will try to preserve it.
-- **`09-selection-across-layers.md` §WP-20** — *"scale multiplies `width`"*, its acceptance
-  criterion *"scaling 2× doubles the drawn width"*, and the frame-height evidence built on it. With
-  no `width` field, water scales like a landmass and that whole branch collapses. Amend in place,
-  the way `08` T1 carries its *"Revised as built"* correction; do not delete the history.
-- **ADR-29** — same sentence, in the decision log. `16` §7 already says the branch simplifies;
-  ADR-29 should say so where someone reading the log will see it. **The gap is accepted, not overlooked** (`16` §7): what is lost is precision, WP-41
+- **`09-selection-across-layers.md`** — §WP-20's *"scale multiplies `width`"*, its acceptance
+  criterion *"scaling 2× doubles the drawn width"*, the frame-height evidence built on it, **and
+  decision row E10**, which answers a question about a field that will not exist. With no `width`,
+  water scales like a landmass and the whole branch collapses. Amend in place, the way `08` T1
+  carries its *"Revised as built"* correction; do not delete the history.
+- **ADR-29** — the same sentence, in the decision log. `16` §7 already says the branch simplifies;
+  ADR-29 should say so where someone reading the log will see it.
+- **`01-system-design.md` §7** — *"Rivers: a separate spline tool — tapering polyline (wider
+  toward the sea)"*. That is the system description of what a river **is**, and after this package
+  it is neither a polyline nor tapering. §15's deferred list is already updated; this line was
+  missed with it. **The gap is accepted, not overlooked** (`16` §7): what is lost is precision, WP-41
 and WP-42 give back freehand reshaping by brush, and both substances then edit the same way.
 
 - **Acceptance:** a seeded landmass plus water polygon renders a channel with stroked banks and
@@ -916,6 +921,14 @@ says so in its design document.
 
 Anything a later phase owns: distribution and embeds (P1), accounts, backend, cloud
 persistence and hosted sharing (P2), the extracted npm packages (P3). Also the items already
-deferred from v1 — a second map style, formal object grouping, first-class water bodies,
+deferred from v1 — a second map style, formal object grouping,
 auto-generated rivers, blended biome transitions, tile-render export, a WebGL renderer.
 Those return through a v2 design pass, not through this backlog.
+
+> **One item left this list rather than returning through a v2 pass: first-class water bodies,
+> now Batch 14.** That is a deliberate exception and not a precedent. It qualified because the
+> deferral had started to cost something *in the core editor* — rivers-as-ribbons was producing
+> visible defects (DEBT **V-02**) that no local patch could reach — and because `16`'s design
+> needs none of the three unknowns that put it on the list. **A deferred item is admissible here
+> only on that test:** it is already hurting the editor, and it can be built without settling the
+> things it was deferred for. Wanting it is not enough.

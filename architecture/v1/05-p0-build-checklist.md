@@ -1008,10 +1008,11 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       carries every geometric risk in the batch. Bands offset from the cut boundary then intersect `canvas − union(land)` — **no
       provenance tracking**, which no boolean library can give. Ends in a **measurement against
       the 119–488 ms baseline**; if that number is bad, the rest does not start.
-      **It also deletes river point-dragging and `width`, so three documents go stale in the same
-      commit and must be corrected in it**: `07` I5's top rung, `09`'s WP-20 section (*"scale
-      multiplies `width`"* and the acceptance built on it) and **ADR-29**, which carries the same
-      sentence in the decision log. The gap is **accepted**
+      **It also deletes river point-dragging and `width`, so four documents go stale in the same
+      commit and must be corrected in it**: `07` I5's top rung; `09`'s WP-20 section (*"scale
+      multiplies `width`"*, the acceptance built on it, and row E10); **ADR-29**, which carries the
+      same sentence in the decision log; and `01` §7, which still describes a river as a tapering
+      polyline. The gap is **accepted**
       (`16` §7): precision is lost, WP-41 and WP-42 give back freehand reshaping by brush, and
       both substances then edit the same way. Node editing stays unscheduled by choice, not by
       dependency.
