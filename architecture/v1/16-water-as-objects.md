@@ -246,6 +246,31 @@ the pointer is still · the same path drawn twice gives different banks, and nei
 - **You can never grab a river's spine.** Re-routing a course means dragging bank vertices two at a
   time, once node editing exists. The frame from WP-20/ADR-29 still moves, rotates and scales the
   whole object, so gross changes are fine; fine re-routing is not, and this is the price of D2.
+
+### This batch removes a shipped capability, and that is accepted
+
+**Rivers have point-dragging today and will not have it afterwards.** WP-20 shipped it, ADR-29
+specifies it, `RiverOverlay.tsx` draws the points from `selection.riverPoints`, and it is the
+**top rung of I5's precedence stack** — *"a river's control points outrank the frame's handles."*
+ADR-48 deletes the `points` field, so WP-40 deletes all of it.
+
+**WP-40 must therefore update `07-interaction-invariants.md`**, not merely avoid breaking it. I5's
+top rung will describe an object that no longer exists, and an invariant that references a deleted
+field is worse than no invariant — it is one a later reader will try to preserve. Rewriting that
+rung is part of WP-40, not a follow-up.
+
+**What is lost is precision, not editing.** Selecting a river still gives a frame that moves,
+rotates and scales it, and WP-41 and WP-42 give back *local* reshaping by brush — widen a bend by
+laying more water, narrow it by painting land across it. That is exactly how a coastline is edited
+today, and landmasses have never had draggable points. So after the full batch, **both substances
+are edited the same freehand way**, which is the principle this design exists to apply. What no
+object has, until the node-editing batch, is an exact way to move one part of an outline.
+
+**The bare window is inside the batch, not in anyone's hands.** After WP-40 alone a river cannot be
+touched at all; WP-41 and WP-42 restore brush editing immediately after, and nothing ships on WP-40
+by itself. **Decided: accept the gap.** The alternative — folding a fifth package into this batch —
+would put an interaction-invariant change beside a pipeline change, which is the combination `07`
+records seven bugs about.
 - **Deleting a landmass makes the rivers through it vanish**, not merely look wrong. ADR-39 already
   accepted that a moved landmass leaves its river behind visibly; under subtraction it leaves
   nothing behind at all. D16 accepts this and answers it with preview honesty rather than geometry.
@@ -339,9 +364,16 @@ and then decides one of:
 
 Until that decision is recorded here, **treat this design as provisional**:
 
-- **Do not build on it.** No later batch should assume the water model exists, and node editing
-  (D3) in particular must not be scheduled until the evaluation has happened — it is the batch
-  that would be most expensive to throw away.
+- **Do not build on it.** No later batch should assume the water model exists.
+- **Node editing (D3) waits, and the reason is not what an earlier draft of this section said.**
+  It claimed node editing was the batch most expensive to throw away. That overstates the
+  coupling: landmasses have outlines regardless of anything here, so the **landmass half is
+  unblocked today**, and the shared machinery — the edit mode, the falloff, I5's new rung —
+  survives whichever way the evaluation goes. Only the water half depends on this batch, and
+  trivially, because a water object is a landmass's shape. **The real reason it waits is §7's
+  accepted gap:** the owner chose to feel the loss of point-dragging before deciding what should
+  replace it, and building the replacement first would have decided that by default. It stays
+  unscheduled until the evaluation, but that is a choice about sequencing, not a dependency.
 - **Do not pay down its debt early.** A `ponytail:` comment on something this design created is
   cheaper than a fix to something that may be deleted.
 - **Keep the migration reversible in practice**, not merely in principle. §8's deadline exists so

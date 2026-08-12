@@ -1006,6 +1006,11 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       the batch. Bands offset from the cut boundary then intersect `canvas − union(land)` — **no
       provenance tracking**, which no boolean library can give. Ends in a **measurement against
       the 119–488 ms baseline**; if that number is bad, the rest does not start.
+      **It also deletes river point-dragging and must rewrite `07` I5's top rung in the same
+      commit** — dropping `points` removes the object that rung is about. The gap is **accepted**
+      (`16` §7): precision is lost, WP-41 and WP-42 give back freehand reshaping by brush, and
+      both substances then edit the same way. Node editing stays unscheduled by choice, not by
+      dependency.
 - [ ] **WP-41 · The water brush, and water joins the selection** — one brush, two modes (carve
       land / lay water), the mode legible in the hover ring **before** the press. Commit path is
       the landmass brush's; strokes merge on overlap. Selection ships here, not later: a tool

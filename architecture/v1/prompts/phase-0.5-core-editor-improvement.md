@@ -792,6 +792,13 @@ proximity is fragile in the way that shows up on one map in fifty.
 The layer becomes **Water**, because carve makes lakes and lay makes rivers and both are the same
 substance. Keep every `data-*` hook on whichever element it moves to.
 
+**This package deletes river point-dragging and must update `07-interaction-invariants.md` in the
+same commit.** Dropping `points` removes what I5's **top rung** is about — *"a river's control
+points outrank the frame's handles"* — along with `RiverOverlay`'s use of `selection.riverPoints`.
+An invariant naming a deleted field is worse than none, because the next reader will try to
+preserve it. **The gap is accepted, not overlooked** (`16` §7): what is lost is precision, WP-41
+and WP-42 give back freehand reshaping by brush, and both substances then edit the same way.
+
 - **Acceptance:** a seeded landmass plus water polygon renders a channel with stroked banks and
   **no bar across the estuary** · **no band inside a channel, at `ringGap` 4 and 60** · water
   entirely over open sea renders nothing · hiding the water layer closes every channel · a
