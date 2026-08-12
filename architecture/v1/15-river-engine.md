@@ -1,9 +1,24 @@
 # A dedicated river engine — design note
 
-**Status: not scheduled. This is a note, not a work order.** No package points at it and nothing
-in the build order depends on it. It exists because WP-29 and WP-34 shipped two visible defects
-whose real cause is structural, and the owner asked for the analysis to be written down before it
-is forgotten.
+> **Superseded in direction by `16-water-as-objects.md` (Batch 14, WP-40 … WP-43).** The analysis
+> below stands and is why `16` exists — but **its recommendations no longer do.** `16` reaches
+> §1.1 and §1.2 from the opposite side: water becomes a substance subtracted from land, so there
+> is no mouth for a stroke to cross and a union has no trunk and no tributary. Both defects stop
+> being *representable* rather than being mitigated. **Do not take §4's M1 or M3** unless Batch 14
+> is abandoned at its evaluation (`16` §10), in which case this document is the alternative that
+> was not taken and §5's network model is back on the table.
+>
+> **What `16` does not deliver is §5's topology**, and it closes **H2 permanently** (`16` D7):
+> width became an artistic choice, so nothing will ever make it accumulate downstream. Of §6's
+> five decisions, **N3 and N4 are answered** by `16` (ADR-47 and `16` D6), **N1 and N2 are moot**
+> — there is no graph to shape and no derived width to govern — and **N5 alone is still open**
+> (`16` D11).
+
+**Status: not scheduled, and now unlikely to be.** No package points at it and nothing in the
+build order depends on it. It exists because WP-29 and WP-34 shipped two visible defects whose
+real cause is structural, and the owner asked for the analysis to be written down before it is
+forgotten. It is kept because a rejected alternative that is still legible is worth more than one
+that was deleted — and because Batch 14 is experimental, so this may yet be the design that ships.
 
 Everything below marked **hypothesis** is exactly that: reasoning from the code and from two
 screenshots, not from a measurement or a driven check. It is written to be falsified.
@@ -92,6 +107,12 @@ is an inference from the data model, where a river is a point list with one widt
 
 ## 4. What could be done now, cheaply
 
+> **Overtaken by Batch 14 — do not build these.** M1 and M3 mitigate defects that `16` removes
+> structurally, so taking them now would be work thrown away at WP-40, and M2 patches a state
+> `16` makes unrepresentable. They are kept as the cheap fallback if the evaluation in `16` §10
+> rejects the water model. **M4 is what is actually happening**: nothing is being done to these
+> defects until Batch 14 either fixes them or is abandoned.
+
 Ordered by cost. None of these needs the engine.
 
 **M1 — dilate the clip mask (fixes §1.1).** Offset the land polygon outward by half the coast
@@ -169,3 +190,21 @@ The two defects it would fix are cosmetic and bounded, and **M1 and M3 in §4 ad
 half for a fraction of the cost**. The right moment for the engine is when someone wants a delta,
 a braided channel, or generated rivers — at which point the network stops being an improvement
 and becomes the only way to get the feature at all.
+
+### What happened instead
+
+**The reasoning above held, and the conclusion was overtaken.** §7 assumed the only two options
+were *build the graph* or *patch the symptoms*. There was a third: change what a river **is**.
+`16-water-as-objects.md` makes water a substance subtracted from land, which removes both defects
+without answering N1 or N2 and without waiting for the deferred features that made this document
+decline to become a batch.
+
+**It is the cheaper half of the same insight.** This note correctly identified that the defects
+share one cause — a river that knows nothing about anything else. `16` fixes that by putting every
+river into one shared geometry, which is a weaker relationship than a graph and enough for the
+picture. What it buys is the look; what it forgoes is the topology, and this document remains the
+only place that topology is designed.
+
+**So the sentence above is still the right test, narrowed:** the right moment for the engine is
+when someone wants a **delta, a braided channel, or generated rivers** — and `16` helps with none
+of those. If that day comes, start here.

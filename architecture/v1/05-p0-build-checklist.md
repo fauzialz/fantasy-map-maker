@@ -1001,9 +1001,11 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
 > drafts. Staging is live — see WP-39 — so that is nearer than "the deploy has not happened."
 
 - [ ] **WP-40 · Water is a substance** — the `water` type, the `schemaVersion` bump and its
-      `migrate()`, the two-collection derivation, the band rule, the layer rename, the visibility
-      toggle. **No tools**: fixtures and rendering only, and it carries every geometric risk in
-      the batch. Bands offset from the cut boundary then intersect `canvas − union(land)` — **no
+      `migrate()`, **the matching edit to `02-scene-data-model.md`** (§4's `river` entry, §3's
+      layer table, §6's contract — it is *law*, and a bump that lands without it leaves the
+      contract describing a shape nothing writes), the two-collection derivation, the band rule,
+      the layer rename, the visibility toggle. **No tools**: fixtures and rendering only, and it
+      carries every geometric risk in the batch. Bands offset from the cut boundary then intersect `canvas − union(land)` — **no
       provenance tracking**, which no boolean library can give. Ends in a **measurement against
       the 119–488 ms baseline**; if that number is bad, the rest does not start.
       **It also deletes river point-dragging and must rewrite `07` I5's top rung in the same

@@ -778,6 +778,12 @@ every geometric risk in the batch. **If its measurement is bad, the rest does no
 The `water` type, the `schemaVersion` bump with its `migrate()` step, the two-collection
 derivation, the band rule, the layer rename, the visibility toggle. `16` §5.
 
+**`02-scene-data-model.md` changes in this commit, and it is law.** §4's `river` entry — `points`,
+`width`, `taper` — is replaced by the `water` type, §3's layer table takes the rename, and §6's
+`migrate()` contract gains its step. The hard constraints at the top of this file say the scene
+JSON matches that document *exactly*; a bump that lands without editing it leaves the contract
+describing a shape the code no longer writes.
+
 **`migrate()` deletes every existing river** (D14). A deletion, not a conversion — the only saved
 maps are local drafts and the only person holding any is the owner. **Free only until the app has
 users other than its author**, which is nearer than the checklist implies: WP-39 already ships
