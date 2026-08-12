@@ -9,7 +9,8 @@ should be built on the assumption that this survives contact._
 
 _This document **supersedes most of `15-river-engine.md`**, which stays for its analysis. It is
 the **design**; the **work order** is `prompts/phase-0.5-core-editor-improvement.md` (Batch 14).
-Load-bearing calls need **ADR-47 … ADR-49**, unwritten as of this draft._
+Load-bearing calls are **ADR-47** (subtraction), **ADR-48** (one object kind) and **ADR-49** (land
+carves water)._
 
 ## 1. The concept
 
@@ -280,11 +281,12 @@ wants to make under pressure.
 
 **Ship this batch before the app has other users, or re-open D14.** There is no third option.
 
-> **Two documentation gaps found while writing this**, both out of scope here and neither fixed:
-> WP-39 has no row in `05-p0-build-checklist.md`, and no design document mentions the staging
-> host. The checklist is meant to be the backlog *and* the history (`prompts/…` §Adding a future
-> batch), so a shipped package missing from it is exactly the drift that made §8 wrong on the
-> first draft.
+> **Two documentation gaps were found while writing this, and both are now fixed** in the same
+> change: WP-39 had no row in `05-p0-build-checklist.md`, and no document mentioned the staging
+> host — WP-13's entry and `README.md` both still called the deploy simply "not done." The
+> checklist is meant to be the backlog *and* the history, so a shipped package missing from it is
+> exactly the drift that made this section wrong on its first draft. **The deploy is now recorded
+> as half done**: staging live and checked on every release, production outstanding.
 
 ## 9. Decisions
 

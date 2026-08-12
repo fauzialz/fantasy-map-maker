@@ -721,8 +721,9 @@ about how the product feels.
 ## Batch 14 — Water as objects (WP-40 … WP-43) — **EXPERIMENTAL**
 
 **Design:** `../16-water-as-objects.md` — read it in full, **including §10**. **Decisions:**
-ADR-47, ADR-48, ADR-49 — *unwritten as of this entry; write them before WP-40.*
-**Prerequisite:** none. **Deadline:** see `16` §8 — **this batch must land before the deploy.**
+ADR-47 (subtraction), ADR-48 (one object kind), ADR-49 (land carves water).
+**Prerequisite:** none. **Deadline:** see `16` §8 — **this batch must land before the app has
+users other than its author**, which is nearer than it sounds: staging is already live (WP-39).
 
 > **This batch is not approved in shape, and that is deliberate.** Every other entry in this file
 > describes work whose design was settled before building. This one describes work that is

@@ -69,9 +69,13 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 src/` no longer names WP-13, and no native prompt or confirm remains. **The driver is
       built**: 29 checks covering undo, redo, the generate confirm and this package's chrome,
       which closes WP-9's and WP-10's missing interaction evidence too.
-      **Deploy is the one part not done** — `npm run build` emits a static `dist/` and the
-      README documents the two host requirements, but nothing is hosted yet: it needs a host
-      and a domain, which are the owner's to choose.
+      **Deploy is half done** — updated after **WP-39**. `npm run build` emits a static `dist/`,
+      and every merge to `main` now ships to a live **authenticated staging host**, so the two
+      host requirements the README documents are no longer documented-and-assumed: the routing
+      rule, the font cache lifetime and the worker CSP are **checked against a real server** on
+      every release, and a failed smoke test flips back. What remains is **production** — a
+      public domain and the decision to point it at a release — which is still the owner's to
+      choose. Until that happens the app has exactly one user, and `16` §8 depends on it.
 
 ---
 
@@ -960,6 +964,59 @@ result compared against one rule.
   Map is open leaves *nothing* open — `open: null`, the swallowed click, exactly as reported — and
   five of the eleven fail. WP-32's 33 menu checks still pass unchanged, which is the evidence that
   a rename is all this was.
+
+**Batch — CI/CD and a staging host (WP-39).** Not an editor package and it has no design
+document; it is here because this file is the backlog **and the history**, and a shipped package
+missing from it is drift. Recorded late, in the Batch 14 work (`16` §8), after its absence made a
+deadline argument wrong.
+
+- [x] **WP-39 · CI/CD: checks, PR gate, and main → staging** — three workflows, deploying to an
+      account and host already proven by hand rather than debugging two new systems at once.
+      `checks.yml` is **reusable and called by both** the pull-request workflow and the deploy
+      workflow, so "what a PR is checked against" and "what gates a deploy" are literally one
+      file — two copies drift the first time someone tightens one.
+      **The safety is structural rather than procedural**, and follows from the repo being
+      public: `ci.yml` is `pull_request`, never `pull_request_target`, so a fork's code runs with
+      no secrets and a read-only token, and the deploy job checks out nothing and runs no npm.
+      **Seven smoke checks run against the real host** — the address space, the 404, the
+      content-hashed self-hosted fonts, and the `blob:` worker CSP whose failure is silent until
+      someone paints. **Flip-then-verify, with rollback**: the flip is one `rename(2)` and so is
+      undoing it, which is fewer moving parts than a second vhost to test an unflipped release.
+      **This half-closes WP-13's deploy**; production and a public domain remain.
+
+**Batch 14 — water as objects — EXPERIMENTAL, not started (WP-40 … WP-43).** Rivers stop being
+independent ribbons (ADR-14) and water becomes a substance: land is drawn as
+`union(land) − union(water)`, derived at draw time and never stored. Both defects
+`15-river-engine.md` recorded stop being representable rather than patched, at the cost of the
+topology — no drainage graph, and **`15` H2 closed permanently**. Design, constraints C1–C9,
+per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1–D18 all settled**;
+**ADR-47, ADR-48, ADR-49**.
+
+> **This batch ends in an evaluation session, not a tick** (`16` §10). Three of its decisions can
+> only be judged by drawing maps. Until the owner records accept-or-revamp in `16` §10, **nothing
+> may be built on top of it** and node editing (`16` D3) stays unscheduled.
+>
+> **It also has a deadline** (`16` §8): WP-40's `migrate()` **deletes** every existing river
+> rather than converting it, which is free only while the owner is the only person holding
+> drafts. Staging is live — see WP-39 — so that is nearer than "the deploy has not happened."
+
+- [ ] **WP-40 · Water is a substance** — the `water` type, the `schemaVersion` bump and its
+      `migrate()`, the two-collection derivation, the band rule, the layer rename, the visibility
+      toggle. **No tools**: fixtures and rendering only, and it carries every geometric risk in
+      the batch. Bands offset from the cut boundary then intersect `canvas − union(land)` — **no
+      provenance tracking**, which no boolean library can give. Ends in a **measurement against
+      the 119–488 ms baseline**; if that number is bad, the rest does not start.
+- [ ] **WP-41 · The water brush, and water joins the selection** — one brush, two modes (carve
+      land / lay water), the mode legible in the hover ring **before** the press. Commit path is
+      the landmass brush's; strokes merge on overlap. Selection ships here, not later: a tool
+      that makes objects the user cannot select or delete is not a shippable package.
+- [ ] **WP-42 · Land carves water** — the terrain brush subtracts from water **destructively**
+      and severs a river in two. The asymmetry is required (`16` C8), not an oversight. Its own
+      package because two destructive edits meet, and both must land in **one** undo step.
+- [ ] **WP-43 · The spline generator** — a path that emits a water polygon with randomised width
+      and roughness. **The preview shows the water, not a line.** Width is an artistic random
+      walk, variation proportional to base width, no floor, **no Reroll**. The committed object
+      carries no `width`, `seed` or `points` — assert on the scene, not the render.
 
 ## Later phases (see the phase prompts)
 
