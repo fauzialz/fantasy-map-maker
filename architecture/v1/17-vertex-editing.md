@@ -58,7 +58,7 @@ than the deferral notes claim, and **proportional falloff may be a refinement ra
 prerequisite**. That is the single most useful thing in this document: the argument that sent this
 feature to its own batch was weaker than it sounded.
 
-## 4. Four problems, none of them solved
+## 4. Ten problems, none of them solved
 
 **P1 — self-intersection, and it is the dangerous one.** Drag a vertex across another part of the
 same outline and the polygon self-intersects. `polygon-clipping`, `clipper-lib` and the ring
@@ -93,6 +93,77 @@ almost certainly a **mode**, because vertices and frame handles collide at exact
 where a handle sits. `07` records seven bugs from getting this stack wrong; this is not a place to
 improvise.
 
+**P6 — falloff has no single correct metric, and Batch 14 is what makes this bite.** This is the
+deepest problem in the document and it was found late.
+
+ADR-48 merges water eagerly, so a river system is **one polygon**: a single ring running down one
+bank, round the mouth, and back up the other. Two points facing each other across a 20-unit channel
+are **20 units apart in space and half the perimeter apart along the path.**
+
+```
+     ●──●──●──●──●        left bank      one ring, not two lines
+     ░░░░░░░░░░░░░
+     ●──●──●──●──●        right bank
+
+  drag one left-bank point:
+
+   by PATH distance            by SPATIAL distance
+     ●──● ●──●──●               ●──● ●──●──●
+     ░░░░╲░░░░░░░░              ░░░░╲░░░░░░░
+     ●──●──●──●──●              ●──● ●──●──●
+     the river gets wider       the channel moves
+```
+
+So **path-distance falloff cannot move a river's course** — it only changes its width, because the
+facing bank is nowhere near in path terms. Spatial falloff moves the course, which is what
+`16` §7 says you cannot do and what a user will immediately want.
+
+But spatial falloff is wrong elsewhere. On a **narrow isthmus of land** — two coasts 20 units apart
+— it would grab both coastlines and slide the isthmus sideways instead of reshaping one shore.
+Same geometry, opposite intent.
+
+*Hypothesis:* there is no metric that is right for both, and the resolution is a **modifier or a
+setting** rather than a cleverer distance function. *Falsify by:* finding a rule that reads the
+sign of the facing surface's normal and does the right thing unaided — if one exists, this problem
+disappears and shape A gets considerably better.
+
+**P7 — adding and deleting vertices is a separate capability, and it is not addressed anywhere.**
+Everything above assumes the points that exist are the points you get. But a coastline simplified
+at `coastDetail` has no vertex where you want a new headland, and a stretch left noisy by a brush
+has too many. Every vector editor offers insert-on-segment and delete-point; without them, vertex
+editing can only nudge detail that already happens to be there. It also collides head-on with
+**P3**: an inserted point is by definition one the simplifier would remove.
+
+**P8 — holes, and their winding.** A landmass carries `holes` — lakes, wound CW against the outer
+ring's CCW (`02` §4). Three unanswered cases: dragging an outer vertex *into* a lake; dragging a
+lake vertex *out through* the coast; and a lake dragged entirely outside its parent, which is not
+merely self-intersecting but semantically meaningless. Water objects inherit all three, and P1's
+consequences are worse there.
+
+**P9 — selecting several vertices is not the same thing as falloff, and the document conflated
+them.** The natural way to reshape a bay is to marquee twenty points and drag them together —
+uniform motion, sharp edges preserved at the ends. Falloff is a *smooth* transform and gives a
+different result. Real editors offer both. Shape A as written offers neither explicitly.
+
+**P10 — coincident vertices after a carve.** WP-17 subtracts one landmass from another, so two
+objects can end up with near-identical facing edges a `gap` apart, and after roughening, with
+points at very similar positions. Which object's vertex does a click grab? The topmost rule that
+`08` C1 made unnecessary for whole-object hit-testing comes straight back at vertex level.
+
+### Smaller, but each costs an afternoon
+
+- **Derivation on drag.** A vertex drag on water re-derives the land union; on land it re-derives
+  the rings. Both are the 119–488 ms cost, and both need WP-15's suspend-and-fade rather than
+  running per frame. Precedent exists; it still has to be wired.
+- **Undo coalescing.** One drag is one step (I6), but a reshaping session is thirty small nudges
+  and thirty stack entries. Editors coalesce consecutive edits to the same vertex; this app has no
+  such concept.
+- **Entering and leaving the mode.** ADR-28 made Select and Erase peer modes in their own toolbar
+  group; vertex editing is either a third peer or a sub-state of Select reached by double-click,
+  which is the convention but also the gesture WP-19 already spent on "select land plus contents."
+- **Keyboard nudge.** Arrow keys moving a selected vertex by one map unit. Trivial, and the sort of
+  thing that never gets added later.
+
 ## 5. Two shapes it could take
 
 **A — vertex handles, with proportional falloff.** What was asked for. Select an object, see its
@@ -105,13 +176,24 @@ boundary in or out under the cursor. **Hypothesis: this is what a user actually 
 coastline**, and proportional falloff in shape A is already approximating it — except shape A makes
 you acquire a handle first, which is P4.
 
-It also disposes of most of the list. No handles means no hit-target problem and no zoom culling
-(P4 gone). It composes with the brush-first design of every other tool in the app, and the hover
-ring from WP-24 is already the right cursor. P1 remains, P2 remains, and P3 becomes easier because
-a sculpt result is resampled by nature.
+**It disposes of most of the list, and the additions strengthen the case rather than weakening
+it.** No handles means no hit-target problem and no zoom culling (**P4** gone), nothing to insert or
+delete because the brush resamples (**P7** gone), no vertex to grab from a carved neighbour (**P10**
+gone), no multi-select gesture to distinguish from falloff (**P9** gone), and no third mode
+question if it sits in the brush group where every other brush already lives (**P5** softened).
+**P6 changes character rather than disappearing**: a spatial brush is inherently spatial, so it
+moves a river's course by default and would need a way *not* to grab the facing bank — the same
+problem with the sign flipped, but at least with an obvious default. **P1, P2 and P3 remain in
+full**, and P3 becomes easier because a sculpt result is resampled by nature.
+
+It composes with the brush-first design of every other tool in the app, and WP-24's hover ring is
+already the right cursor.
 
 **What B cannot do is be exact.** And exactness is the thing Batch 14 takes away, so if the
 evaluation says exactness is what is missed, B does not answer the complaint.
+
+**Hypothesis, and it is the one to test first: B is the larger half of the value at a fraction of
+the cost.** Six of the eleven problems are shape-A problems, not vertex-editing problems.
 
 *Falsify B by:* using WP-41 and WP-42 for a while. Brush-shaped water editing is a rough version of
 B already, and if it turns out to be enough, B is the whole feature.
@@ -131,6 +213,17 @@ B already, and if it turns out to be enough, B is the whole feature.
 - **V6** — does this apply to labels and sprites too, or only to path objects? They have anchors
   and boxes, not outlines, so almost certainly only path objects — but I9's two-model split is the
   place that question gets answered, not here.
+- **V7** — what is falloff measured along: path distance, spatial distance, or a user-chosen one?
+  P6, and it is the decision the feature's usefulness on rivers turns on.
+- **V8** — can a user add and delete vertices, or only move them? P7. If yes, P3's stickiness stops
+  being a nicety and becomes mandatory, because an inserted point is exactly what a simplifier
+  removes.
+- **V9** — can several vertices be selected and moved rigidly, in addition to falloff? P9. If both,
+  they need distinguishable gestures, and that is another rung in I5.
+- **V10** — what happens to a drag that would put a hole outside its parent, or a coast inside a
+  lake? P8. "Reject" is cheap and "repair" is not, and V3 should answer both together.
+- **V11** — is vertex editing a third mode beside Select and Erase, or a sub-state of Select? It
+  changes the toolbar (ADR-28's mode group) and it changes which gesture enters it.
 
 ## 7. Why this is a note and not a batch
 

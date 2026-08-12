@@ -109,10 +109,11 @@ prompts** used to drive an AI coding agent through the build.
   place this exists today (a river's control points, WP-20), and `16` §7 accepts that gap
   deliberately so the loss can be felt before the replacement is designed. Carries the correction
   that matters most — **a coastline is 9–14 points per 1000 map units, so tens to low hundreds, not
-  the "hundreds" the deferral notes assert** — five problems nobody has solved (self-intersection
+  the "hundreds" the deferral notes assert** — **ten** problems nobody has solved (self-intersection
   corrupting the *terrain* derivation is the dangerous one), and a second shape worth arguing with:
-  a **coast sculpt brush**, which disposes of most of the list but cannot be exact. Six decisions
-  **V1–V6**, none answerable before Batch 14 has been used.
+  a **coast sculpt brush**, which **disposes of six of the ten** — they turn out to be handle
+  problems rather than editing problems — but cannot be exact. Eleven decisions **V1–V11**, none
+  answerable before Batch 14 has been used.
 - `HOW-TO-CHANGE-SPRITE-ART.md` — **procedure for replacing or adding the map's artwork.**
   What format the sprites are (SVG path `d` strings, not `.svg` files, and why the theme and
   P1's offline embed both require that), the 100×100 grid with feet on the baseline, and the
