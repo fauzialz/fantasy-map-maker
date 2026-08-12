@@ -1224,3 +1224,133 @@ purpose); and leaving the docs saying Caddy while the box runs nginx, which is w
 `platform/` looked like until this ADR and is the state that gets pasted into a terminal at
 2am. Also rejected: certbot/Let's Encrypt, which would work but publishes every hostname it
 issues for to the public Certificate Transparency logs — the Origin cert does not.
+
+## ADR-47 — Water is a substance, subtracted from land at draw time
+_WP-40 … WP-43. Design in `16-water-as-objects.md`. **Narrows ADR-14 and ADR-41; does not
+overturn either.** **EXPERIMENTAL** — see `16` §10._
+
+**Decision:** water becomes a **first-class substance with its own geometry**, and the land is
+drawn as `union(landmass.path) − union(water.path)`, **computed at draw time and never stored**.
+Landmass objects on disk are untouched. The coast stroke and the fill follow the cut boundary, so
+a river's banks are stroked and its estuary is ordinary coastline; **coastal bands** offset from
+that same boundary and are then **intersected with `canvas − union(land)`** — the pre-cut sea — so
+a band can never appear inside a channel.
+
+**Why.** `15-river-engine.md` recorded two shipped defects and correctly diagnosed them as one
+missing abstraction: a coast stroke painted across a river mouth, and a tributary fatter than its
+trunk. It proposed a drainage graph and then declined to build one, because three of the five
+decisions that model needed depended on features deferred to a later version. Subtraction reaches
+both defects from the other side and needs none of those five: there is **no mouth for a stroke to
+cross**, because the estuary *is* coastline, and a **union has no trunk and no tributary**. Each
+defect stops being representable rather than being patched.
+
+**Non-destructive, and that is the whole trick.** It is a stencil held over the paper, not a cut
+in it. Delete the water object and the land is whole again with no repair, because nothing was
+ever damaged. This is the contract coastal rings already run under (`02` §7 — derived, never
+stored) with a second ingredient, which is why it needs no new persistence concept.
+
+**What it does not buy, stated so nobody looks for it later.** No drainage graph, no derived
+width, no modelled confluence, no deltas. **`15` H2 is closed permanently** by `16` D7: width is
+an artistic choice and nothing accumulates downstream, ever. This is the *picture* of a network
+without the *topology*. If anyone later wants generated rivers or hydrologically honest width,
+`15` §5 is still the design to read and this ADR will not have helped.
+
+**No provenance tracking, deliberately.** The tempting implementation is to tag each output edge
+with whether it came from land or water, and then stroke or band accordingly. Neither
+`polygon-clipping` nor `clipper-lib` exposes that, and re-associating output vertices to inputs by
+proximity is the class of fragile that shows up on one map in fifty. Two unions and one
+intersection give the same answer with no guessing.
+
+**What it costs.** Terrain's **drawing** gains a dependency on the water layer — the direction
+ADR-41 discussed and DEBT **Q-01** tracks the cache cost of. ADR-14 is untouched in substance:
+water still stays out of the boolean terrain engine *for its own geometry*, because it has no
+geometry of its own to compute. And derivation now unions two collections instead of one, so the
+**119–488 ms** figure is an assumption until WP-40 re-measures it — which is that package's last
+acceptance criterion and the batch's go/no-go.
+
+**Rejected:** painting water over the top of land (cheapest, changes nothing in the pipeline, and
+leaves `15` §1.1 exactly as it is — the river reads as pasted on); **destructive** subtraction like
+today's sea brush (simplest model, reuses WP-17 wholesale, but deleting a river could not restore
+the land and a river would stop being an editable object, contradicting the selection behaviour
+this whole design exists to provide); and `15`'s network model, which is not rejected on merit —
+it is deferred to the moment someone wants a delta, a braided channel or generated rivers, at
+which point it stops being an improvement and becomes the only way to get the feature.
+
+## ADR-48 — One kind of water object; the nodes are outline vertices; everything merges
+_WP-40 … WP-43. Design in `16-water-as-objects.md`. **EXPERIMENTAL** — see `16` §10._
+
+**Decision:** there is **one** water object, whatever made it.
+
+```jsonc
+"landmass": { "id", "type": "landmass", "path", "holes", "biome", "name" }
+"water":    { "id", "type": "water",    "path", "holes" }
+```
+
+It carries **no** `width`, `taper`, `points`, `seed` or `roughness`. Those are **tool settings**
+that shape the geometry at creation and are then gone, the way brush size is gone. The nodes a
+user drags when editing are **outline vertices**, identical to a landmass's — no centreline is
+ever stored. Overlapping water objects **merge**, by union and connected components, with ADR-10's
+identity rule applying exactly as it does to land.
+
+**Why the nodes decide everything.** The request that produced this design asked for node editing
+on **landmass** select as well as on rivers. Landmasses are brush-painted and have no centre path,
+ever — so the nodes cannot be spline control points. They are the vertices of a shape. Once that
+is true there is no such thing as a spline river and a brush river; the spline tool is a
+**generator** whose inputs are consumed and discarded, exactly as `02` §1 already specifies for
+the world generator ("never regenerate from the seed at load time; stored geometry is the truth").
+
+**Merging is then free of consequence.** The alternative considered first was to merge brush water
+with brush water but keep spline rivers separate, so their centrelines survived. With no
+centreline to survive, that split protects nothing and costs an object kind. **A river system
+therefore becomes one object** — one id, one delete, one undo identity — which is eager, and
+WP-42 is the release valve.
+
+**What it costs, and it is real.** You can never grab a river's spine. Re-routing a course means
+dragging bank vertices two at a time once node editing exists; the frame from ADR-29 still moves,
+rotates and scales the whole object, so gross changes are unaffected and fine re-routing is not.
+Accepted knowingly. **ADR-29's river branch simplifies in exchange** — scale multiplying `width`
+as well as points was a path-object special case, and with no `width` field water scales like a
+landmass.
+
+**Rejected:** splitting rivers by authoring form, on the owner's stated principle — *no special
+cases*, said three times in the original request; storing the polygon **and** a centreline as
+provenance, which is coherent until someone edits an outline vertex and then needs a rule for
+which one is the truth (the staleness problem in a new coat); and storing a seed plus roughness so
+the shape could be regenerated on every node move, which is only two small fields but reopens the
+two-kinds split and makes a node drag rescramble bank texture far downstream. **Reroll is
+therefore not offered at all** — with no stored inputs there is nothing to re-run. Undo and draw
+again.
+
+## ADR-49 — Land carves water destructively; the asymmetry is required
+_WP-42. Design in `16-water-as-objects.md` §4 (C8) and §5. **EXPERIMENTAL** — see `16` §10._
+
+**Decision:** the **terrain brush subtracts its stroke from every water object it crosses**,
+destructively, then runs connected components — so painting land across a river **severs it into
+two water objects**. This is the mirror of the sea brush cutting a landmass in two, and it is the
+only way to remove *part* of a water body.
+
+**Why it is needed at all.** ADR-48 makes merging eager and WP-26's eraser kills an object
+**whole**, so a watershed that has merged into one object could otherwise only be deleted
+entirely: lose one tributary, lose the river. Land has the sea brush as its nibbler; without this,
+water would have nothing, and the symmetry the whole design is built on would quietly break at the
+one place a user notices.
+
+**The asymmetry is forced, not chosen.** Water subtracts from land **non-destructively** (ADR-47);
+land carves water **destructively**. Both directions cannot be non-destructive — if land subtracted
+from water while water subtracted from land, the two substances would define each other in a
+circle with no fixed point. One direction must bake. Recorded as constraint **C8** so that a later
+reader does not "fix" it.
+
+**Which direction bakes, and why this one.** The non-destructive half goes to the substance the
+user adds more often and deletes more casually, so *delete the river and the land returns* holds —
+that is the behaviour the design is judged on. The consequence is stated plainly rather than
+hidden: **undo is the only way back from painting land across a river.**
+
+**Its own package** because it is the one place two destructive edits meet. A single stroke can
+grow land and shrink water in the same commit, and both halves must land in **one** undo step or a
+single drag becomes two.
+
+**Rejected:** a third mode on the water brush ("remove water"), which is unambiguous but puts
+three modes of hidden state on one tool — the drift `12-tools-that-say-what-they-do.md` exists to
+prevent; and accepting whole-object deletion only, which needs no code and breaks the symmetry
+this design is entirely about.

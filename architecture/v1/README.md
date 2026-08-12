@@ -91,6 +91,29 @@ prompts** used to drive an AI coding agent through the build.
   **hypotheses**, four cheap mitigations that need no engine, and the five decisions a network
   model would have to settle first. Written down rather than built because three of those five
   depend on features already deferred to a later version.
+- `16-water-as-objects.md` — **Batch 14, scheduled as WP-40 → WP-43, and the first design here
+  deliberately *not* approved in shape.** Water becomes a substance: land is drawn as
+  `union(land) − union(water)`, derived at draw time and never stored, so a river's banks are
+  stroked and its estuary is ordinary coastline. Both defects `15` recorded stop being
+  *representable* rather than patched — but the topology is not delivered, and **`15` H2 is closed
+  permanently**: width is an artistic choice now. One object kind whatever authored it, nodes that
+  are outline vertices, and eager merging. See ADR-47, ADR-48, ADR-49.
+  **§10 is binding: the batch ends in an evaluation session, not a tick.** Three of its decisions
+  can only be judged by drawing maps, so the owner builds it, uses it, and then chooses
+  accept-with-tweaks or complete revamp. Until that is recorded, nothing may be built on top and
+  node editing stays unscheduled. **§8 carries a deadline** — the migration *deletes* every
+  existing river.
+- `17-vertex-editing.md` — **a design note, not a work order; nothing is scheduled against it, and
+  its shape depends on the outcome of Batch 14.** The other half of the request that produced `16`:
+  seeing an object's points and dragging them, on water *and* on land. Batch 14 removes the only
+  place this exists today (a river's control points, WP-20), and `16` §7 accepts that gap
+  deliberately so the loss can be felt before the replacement is designed. Carries the correction
+  that matters most — **a coastline is 9–14 points per 1000 map units, so tens to low hundreds, not
+  the "hundreds" the deferral notes assert** — **ten** problems nobody has solved (self-intersection
+  corrupting the *terrain* derivation is the dangerous one), and a second shape worth arguing with:
+  a **coast sculpt brush**, which **disposes of six of the ten** — they turn out to be handle
+  problems rather than editing problems — but cannot be exact. Eleven decisions **V1–V11**, none
+  answerable before Batch 14 has been used.
 - `HOW-TO-CHANGE-SPRITE-ART.md` — **procedure for replacing or adding the map's artwork.**
   What format the sprites are (SVG path `d` strings, not `.svg` files, and why the theme and
   P1's offline embed both require that), the 100×100 grid with feet on the baseline, and the
@@ -136,7 +159,7 @@ prompts** used to drive an AI coding agent through the build.
 | Phase | Goal | Backend? | Headline deliverables |
 |---|---|---|---|
 | **P0 — Core editor** | A complete, deployable editor | No | Terrain brush, coastal rings, mountains/forests/icons/rivers, multi-select, undo/redo, noise generator, image export, local-first autosave |
-| **0.5 — Core-editor improvement** (ongoing, never closes) | Editor enhancements after P0 | No | **1** terrain as objects (`08`) · **2** selection across layers (`09`) · **3** hit-testing precision (`10`) · **4** more than one map (ADR-33) · **5** the editor shell (`11`) · **6** tools that say what they do (`12`) · **7** reading the map (`13`) · **8** routes and a landing page (`14`). Work order `prompts/phase-0.5-core-editor-improvement.md` |
+| **0.5 — Core-editor improvement** (ongoing, never closes) | Editor enhancements after P0 | No | **1** terrain as objects (`08`) · **2** selection across layers (`09`) · **3** hit-testing precision (`10`) · **4** more than one map (ADR-33) · **5** the editor shell (`11`) · **6** tools that say what they do (`12`) · **7** reading the map (`13`) · **8** routes and a landing page (`14`) · **14** water as objects (`16`) — **experimental, not started**. Work order `prompts/phase-0.5-core-editor-improvement.md` |
 | **P1 — Distribution** | Get maps out, no server | No | Self-contained HTML embed export, `.map.json` import/export |
 | **P2 — Accounts & sharing** | Persistence + hosted sharing | Yes (Go + Postgres + Zitadel) | Login, **opt-in per-map cloud sync** under a server-enforced cap, "my maps", the claim *offer*, share page + hosted iframe, SVG/PDF export (free — client-side) |
 | **P3 — React library** | Reusable component | No | `@byfauzi/map-viewer` then `@byfauzi/map-editor` npm packages |
@@ -180,8 +203,11 @@ P0 alone is a complete portfolio piece.
 ## Status
 
 - **v1 design: complete.** All load-bearing decisions locked (see the ADR log).
-- **Phase 0: built.** WP-0 … WP-13 all pass their acceptance criteria; the one part not
-  done is the deploy itself, which needs a host and a domain. See the tracker.
+- **Phase 0: built.** WP-0 … WP-13 all pass their acceptance criteria. **The deploy is half
+  done**: since **WP-39** every merge to `main` ships to a live authenticated **staging** host,
+  with the routing rule, the font cache lifetime and the worker CSP checked against a real server
+  on every release and a rollback on a failed smoke test. What remains is **production** — a
+  public domain, and the decision to point it at a release. See the tracker.
 - **0.5: Batches 1–4 and 6–10 built**, plus **WP-23** — so WP-14 … WP-31, WP-33 and WP-34 all pass
   their acceptance. Batch 6 settled `12` **D4** (the generator keeps its own rotation spread,
   bumping the world code to **`w2-`**) and WP-28 settled `13` **D5** (mountains shrink by changing
@@ -194,6 +220,12 @@ P0 alone is a complete portfolio piece.
   plus the gesture-performance work — ADR-42, ADR-44) and **Batch 13** (WP-37 the rail follows the
   tool in your hand and WP-38 one click between menus — ADR-43). **Every scheduled 0.5 package is
   built.** None of it needed a host.
+- **Batch 14 is designed and not started** — `16-water-as-objects.md`, WP-40 … WP-43, **experimental
+  by decision** (ADR-47 … ADR-49). It brings **first-class water bodies** forward from the deferred
+  list below, because rivers-as-ribbons is where that deferral was actually costing something. It
+  ends in an evaluation the owner runs by hand, and may be accepted with tweaks or revamped
+  completely — so **nothing may be built on top of it** until `16` §10 says which.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
-  first-class water bodies/canals, auto-generated rivers, rich blended biome
+  ~~first-class water bodies/canals~~ — **brought forward as Batch 14** (`16`); a canal is water a
+  user painted straight, so it needs nothing further — auto-generated rivers, rich blended biome
   transitions, tile-render export, WebGL renderer.

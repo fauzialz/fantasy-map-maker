@@ -718,6 +718,162 @@ about how the product feels.
 
 ---
 
+## Batch 14 — Water as objects (WP-40 … WP-43) — **EXPERIMENTAL**
+
+**Design:** `../16-water-as-objects.md` — read it in full, **including §10**. **Decisions:**
+ADR-47 (subtraction), ADR-48 (one object kind), ADR-49 (land carves water).
+**Prerequisite:** none. **Deadline:** see `16` §8 — **this batch must land before the app has
+users other than its author**, which is nearer than it sounds: staging is already live (WP-39).
+
+> **This batch is not approved in shape, and that is deliberate.** Every other entry in this file
+> describes work whose design was settled before building. This one describes work that is
+> **settled enough to try**. Three of its decisions — `16` D12 (a heavy outline on a narrow river),
+> D7 and D15 (artistic random width), and C2 (whether a two-collection derivation is fast enough)
+> — cannot be judged by a fixture, an assertion, or a screenshot. They are judged by drawing maps.
+>
+> **So the batch ends in an evaluation session, not in a tick.** When all four packages pass, the
+> owner uses the editor and decides: accept with tweaks, or revamp completely. Until that decision
+> is written into `16` §10, **nothing may be built on top of this**, and node editing (`16` D3) in
+> particular must not be scheduled — it is the batch that would be most expensive to throw away.
+> Record shortcuts as `ponytail:` comments rather than fixing them; a fix to something that may be
+> deleted is worse than a note.
+
+**Settle first:** nothing. `16` §9 records **D1–D18, all settled**, in the ideation session of
+2026-08-12. Two of them (D8, D13) dissolved rather than resolved; the table says which and why.
+
+> **Decision numbers are per design document.** `16` D1 is not Batch 1's D1, `12`'s D1 or `14`'s
+> D1. Cite the document.
+
+**What this batch is about.** A river is an independent filled ribbon that knows nothing about any
+other river (ADR-14), and `15-river-engine.md` wrote down where that leads: a coast stroke painted
+across a river mouth, a tributary fatter than the trunk it joins, a mouth faked with control
+points because the model has no mouth in it. `15` proposed a drainage graph and then declined to
+build one, because three of the five decisions it needed depended on features deferred to a later
+version.
+
+**This is the other way round the problem.** Water becomes a *substance* with its own geometry —
+the "first-class water bodies" the README defers — and the land is drawn as
+`union(land) − union(water)`. Both `15` defects stop being representable rather than being
+patched. What it does not deliver is the topology: no graph, no derived width, no deltas, and `15`
+**H2 is closed permanently** by D7. The picture of a network without the network.
+
+**The rule the whole batch applies, and the owner stated it three times:** *no special cases.* One
+object kind, two ways to author it, identical behaviour afterwards. A water body and a landmass
+differ by two fields:
+
+```jsonc
+"landmass": { "id", "type": "landmass", "path", "holes", "biome", "name" }
+"water":    { "id", "type": "water",    "path", "holes" }
+```
+
+No `width`, `taper`, `points`, `seed` or `roughness` on the object. Those shape the geometry at
+creation and are then gone, the way brush size is gone. **If you find yourself adding a field to
+distinguish a spline-drawn river from a painted one, the design has gone wrong** — that split was
+proposed in the ideation session and rejected on exactly this ground.
+
+**Build order is numeric, and it is prototype-first.** WP-40 has no interaction in it and carries
+every geometric risk in the batch. **If its measurement is bad, the rest does not start.**
+
+### WP-40 · Water is a substance  *(no tools — fixtures and rendering only)*
+The `water` type, the `schemaVersion` bump with its `migrate()` step, the two-collection
+derivation, the band rule, the layer rename, the visibility toggle. `16` §5.
+
+**`migrate()` deletes every existing river** (D14). A deletion, not a conversion — the only saved
+maps are local drafts and the only person holding any is the owner. **Free only until the app has
+users other than its author**, which is nearer than the checklist implies: WP-39 already ships
+every merge to `main` to a staging host. See `16` §8, which also records two documentation gaps
+found there.
+
+**Bands need no provenance tracking, and must not attempt any.** Offset from the cut boundary,
+then intersect `canvas − union(land)` — the *pre-cut* sea. Neither `polygon-clipping` nor
+`clipper-lib` can say which output edge came from which input, and re-associating vertices by
+proximity is fragile in the way that shows up on one map in fifty.
+
+The layer becomes **Water**, because carve makes lakes and lay makes rivers and both are the same
+substance. Keep every `data-*` hook on whichever element it moves to.
+
+**This package deletes river point-dragging and must update `07-interaction-invariants.md` in the
+same commit.** Dropping `points` removes what I5's **top rung** is about — *"a river's control
+points outrank the frame's handles"* — along with `RiverOverlay`'s use of `selection.riverPoints`.
+An invariant naming a deleted field is worse than none, because the next reader will try to
+preserve it. **The gap is accepted, not overlooked** (`16` §7): what is lost is precision, WP-41
+and WP-42 give back freehand reshaping by brush, and both substances then edit the same way.
+
+- **Acceptance:** a seeded landmass plus water polygon renders a channel with stroked banks and
+  **no bar across the estuary** · **no band inside a channel, at `ringGap` 4 and 60** · water
+  entirely over open sea renders nothing · hiding the water layer closes every channel · a
+  pre-bump draft loads with zero river objects and no error · **measured: the new derivation cost
+  against the 119–488 ms baseline, with its object count** — C2 is an assumption until that number
+  exists.
+- **Fixtures:** `16` §5 (WP-40) — five, headlined by *a river crossing a coast produces one merged
+  boundary, not two crossing ones.*
+
+### WP-41 · The water brush, and water joins the selection
+One brush, two modes — **carve land** (today's sea brush, unchanged) and **lay water**. The commit
+path is the landmass brush's, against the water collection; strokes merge on overlap (D10) and
+ADR-10's identity rule applies.
+
+**The mode must be legible before the press** (I4). WP-24 already draws the hover ring and already
+gives removal its own reading — this is a third variant, not a mechanism. It is also why D6
+matters: the two modes produce visibly different results, so the mode is legible in the map and
+not only in the rail.
+
+**Selection is nearly free.** `landmassAt` generalises; water joins the pool land already uses,
+takes the same coastline highlight, and dies whole to WP-26's eraser. Precedence is **water first,
+landmass as fallback** — WP-19's footprint-first rule in a new coat.
+
+**Ship selection in this package, not later.** A tool that creates objects the user cannot select
+or delete is not a shippable package.
+
+- **Acceptance:** a driven drag paints a channel and the coastline wraps it · two overlapping
+  strokes make **one** object · one drag is one undo step · clicking a channel selects the water,
+  not the land under it · **exactly one derivation per stroke, not per frame** · the hover ring
+  distinguishes carve from lay **before** the press, read by sweeping the pointer (`07` §1) · a
+  locked or hidden water layer contributes nothing to a click.
+
+### WP-42 · Land carves water
+The terrain brush subtracts its stroke from every water object it crosses, **destructively**, then
+runs connected-components — so painting land across a river severs it in two. The only way to
+remove *part* of a water body, since merging is eager and the eraser kills objects whole.
+
+**The asymmetry is required, not an oversight** (`16` C8): water subtracts from land
+non-destructively, land carves water destructively. Symmetric subtraction would have the two
+substances defining each other in a circle. Do not "fix" it without re-reading C8.
+
+**Its own package because two destructive edits meet here.** One stroke can grow land and shrink
+water in the same commit, and both halves must land in **one** undo step.
+
+- **Acceptance:** a driven terrain drag across a channel severs it, and the scene holds two water
+  objects where it held one · **one** undo restores the single object *and* the land, in one step ·
+  a stroke that merely narrows a river leaves one object · a stroke covering a small water body
+  deletes it and says so.
+
+### WP-43 · The spline generator
+Drag a path, get a water polygon with randomised width and roughness. On commit it merges like any
+other water and is thereafter **indistinguishable from a painted one** (C9).
+
+**The preview shows the water, not a line.** A tool that shows nothing until it commits is the
+complaint `12` opens with and WP-24 was built to answer. The surprise belongs in the *detail*, on
+commit — never in the *object*. The preview must also honour D16: over open sea the tool produces
+nothing, so it must preview nothing there.
+
+**Width is an artistic random walk, not a taper** (D7) — a river may be wide in the middle, and
+nothing accumulates downstream ever. **Variation is proportional to base width** (D15): a 40-unit
+river wanders 28–52, a 6-unit river 4–8. There is no floor, and proportional variation is what
+makes a floor unnecessary.
+
+Width and roughness live in the rail beside brush size. **They are not written to the object, and
+there is no Reroll** (D17) — undo and draw again.
+
+- **Acceptance:** the preview during the drag is the ribbon at the set width, not a line · the
+  committed object has **no** `width`, `seed` or `points` field — read the **scene**, not the
+  render · two rivers drawn across each other make one object · a river drawn entirely over sea
+  commits nothing and previewed nothing · the width setting changes the preview while the pointer
+  is still · the same path drawn twice gives different banks — **assert the difference, not a
+  value; irreproducibility is the design.**
+
+---
+
 ## Adding a future batch
 
 > **Batches 9 and later are tracked in `05-p0-build-checklist.md` only.** This file carries a
