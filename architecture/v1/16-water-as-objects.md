@@ -223,10 +223,12 @@ the pointer is still · the same path drawn twice gives different banks, and nei
 ## 6. What this does not cover
 
 - **Node editing.** Selecting land or water and dragging its outline vertices is **its own batch**
-  (D3), because a brush-committed coastline carries hundreds of vertices: showing them all is a
-  hairball, dragging one moves 1/300th of a coast, and it needs proportional falloff plus an
-  explicit mode before it can enter `07`'s precedence stack without breaking I4 and I5. It is the
-  half of the original request this batch does *not* deliver, and it is deliberate.
+  (D3), and is written up as a note in **`17-vertex-editing.md`** — unscheduled, with its shape
+  depending on this batch's evaluation. It is the half of the original request this batch does
+  *not* deliver, and it is deliberate. **`17` §3 corrects a claim earlier drafts of this document
+  made:** a coastline is 9–14 points per 1000 map units, so tens to low hundreds rather than
+  hundreds, which makes the feature more tractable than the deferral argued and proportional
+  falloff a refinement rather than a prerequisite.
 - **Generated water.** The generator makes no rivers, as today (D11). The only obligation this
   design accepts is negative: **add no field that only a human hand could supply**, so a generator
   can write water objects later without a rewrite. A water object is a polygon; it already
