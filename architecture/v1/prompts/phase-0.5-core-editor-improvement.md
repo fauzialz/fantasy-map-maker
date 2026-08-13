@@ -752,7 +752,7 @@ build one, because three of the five decisions it needed depended on features de
 version.
 
 **This is the other way round the problem.** Water becomes a *substance* with its own geometry —
-the "first-class water bodies" the README defers — and the land is drawn as
+the "first-class water bodies" v1 deferred and this batch brings forward — and the land is drawn as
 `union(land) − union(water)`. Both `15` defects stop being representable rather than being
 patched. What it does not deliver is the topology: no graph, no derived width, no deltas, and `15`
 **H2 is closed permanently** by D7. The picture of a network without the network.
@@ -778,6 +778,12 @@ every geometric risk in the batch. **If its measurement is bad, the rest does no
 The `water` type, the `schemaVersion` bump with its `migrate()` step, the two-collection
 derivation, the band rule, the layer rename, the visibility toggle. `16` §5.
 
+**`02-scene-data-model.md` changes in this commit, and it is law.** §4's `river` entry — `points`,
+`width`, `taper` — is replaced by the `water` type, §3's layer table takes the rename, and §6's
+`migrate()` contract gains its step. The hard constraints at the top of this file say the scene
+JSON matches that document *exactly*; a bump that lands without editing it leaves the contract
+describing a shape the code no longer writes.
+
 **`migrate()` deletes every existing river** (D14). A deletion, not a conversion — the only saved
 maps are local drafts and the only person holding any is the owner. **Free only until the app has
 users other than its author**, which is nearer than the checklist implies: WP-39 already ships
@@ -792,11 +798,24 @@ proximity is fragile in the way that shows up on one map in fifty.
 The layer becomes **Water**, because carve makes lakes and lay makes rivers and both are the same
 substance. Keep every `data-*` hook on whichever element it moves to.
 
-**This package deletes river point-dragging and must update `07-interaction-invariants.md` in the
-same commit.** Dropping `points` removes what I5's **top rung** is about — *"a river's control
-points outrank the frame's handles"* — along with `RiverOverlay`'s use of `selection.riverPoints`.
-An invariant naming a deleted field is worse than none, because the next reader will try to
-preserve it. **The gap is accepted, not overlooked** (`16` §7): what is lost is precision, WP-41
+**This package deletes river point-dragging and `width`, so three documents go stale in the same
+commit and must be corrected in it.** Each is *correct today* and describes a field that stops
+existing:
+
+- **`07-interaction-invariants.md` I5's top rung** — *"a river's control points outrank the frame's
+  handles"* — along with `RiverOverlay`'s use of `selection.riverPoints`. An invariant naming a
+  deleted field is worse than none, because the next reader will try to preserve it.
+- **`09-selection-across-layers.md`** — §WP-20's *"scale multiplies `width`"*, its acceptance
+  criterion *"scaling 2× doubles the drawn width"*, the frame-height evidence built on it, **and
+  decision row E10**, which answers a question about a field that will not exist. With no `width`,
+  water scales like a landmass and the whole branch collapses. Amend in place, the way `08` T1
+  carries its *"Revised as built"* correction; do not delete the history.
+- **ADR-29** — the same sentence, in the decision log. `16` §7 already says the branch simplifies;
+  ADR-29 should say so where someone reading the log will see it.
+- **`01-system-design.md` §7** — *"Rivers: a separate spline tool — tapering polyline (wider
+  toward the sea)"*. That is the system description of what a river **is**, and after this package
+  it is neither a polyline nor tapering. §15's deferred list is already updated; this line was
+  missed with it. **The gap is accepted, not overlooked** (`16` §7): what is lost is precision, WP-41
 and WP-42 give back freehand reshaping by brush, and both substances then edit the same way.
 
 - **Acceptance:** a seeded landmass plus water polygon renders a channel with stroked banks and
@@ -902,6 +921,14 @@ says so in its design document.
 
 Anything a later phase owns: distribution and embeds (P1), accounts, backend, cloud
 persistence and hosted sharing (P2), the extracted npm packages (P3). Also the items already
-deferred from v1 — a second map style, formal object grouping, first-class water bodies,
+deferred from v1 — a second map style, formal object grouping,
 auto-generated rivers, blended biome transitions, tile-render export, a WebGL renderer.
 Those return through a v2 design pass, not through this backlog.
+
+> **One item left this list rather than returning through a v2 pass: first-class water bodies,
+> now Batch 14.** That is a deliberate exception and not a precedent. It qualified because the
+> deferral had started to cost something *in the core editor* — rivers-as-ribbons was producing
+> visible defects (DEBT **V-02**) that no local patch could reach — and because `16`'s design
+> needs none of the three unknowns that put it on the list. **A deferred item is admissible here
+> only on that test:** it is already hurting the editor, and it can be built without settling the
+> things it was deferred for. Wanting it is not enough.

@@ -84,7 +84,12 @@ prompts** used to drive an AI coding agent through the build.
   and gives map creation a screen — the one place canvas size is free, since changing it later
   empties the map. **None of it needs a host.** See ADR-40, which also removes `New map` and
   `Open Map…` from the menu bar: *the menu owns this map, the gallery owns which map.*
-- `15-river-engine.md` — **a design note, not a work order; nothing is scheduled against it.**
+- `15-river-engine.md` — **a design note, superseded in direction by `16` and kept as the road not
+  taken.** Its analysis is why `16` exists; **its recommendations are void** — do not take §4's M1
+  or M3, which patch what Batch 14 removes structurally. Of its five open questions, `16` answers
+  N3 and N4, makes N1 and N2 moot, and leaves only N5. **It is still the only place the topology
+  is designed**, so if anyone ever wants a delta, a braided channel or generated rivers, start
+  here — and if Batch 14 is rejected at its evaluation, this is the alternative that was not taken.
   WP-29 and WP-34 shipped two visible defects — a coast stroke crossing the river mouth, and a
   tributary wider than the trunk it joins — whose real cause is that a river is an independent
   ribbon that knows nothing about any other river (ADR-14). Carries the analysis, four labelled
