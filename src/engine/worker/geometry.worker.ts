@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 import { generateWorld } from "../generator/generate";
 import { resolveDrop } from "../terrain/overlap";
+import { waterCommit } from "../water/commit";
 import { deriveTerrain } from "../water/derive";
 import { terrainCommit } from "../terrain/pipeline";
 import type { GeometryOps, Op, WorkerRequest, WorkerResponse } from "./protocol";
@@ -12,6 +13,7 @@ type Handlers = { [O in Op]: (payload: GeometryOps[O]["payload"]) => GeometryOps
 const handlers: Handlers = {
   ping: (payload) => payload,
   terrainCommit: (payload) => ({ landmasses: terrainCommit(payload) }),
+  waterCommit: (payload) => ({ waters: waterCommit(payload) }),
   deriveTerrain: (payload) => deriveTerrain(payload),
   generate: (payload) => generateWorld(payload),
   resolveDrop: (payload) => resolveDrop(payload),

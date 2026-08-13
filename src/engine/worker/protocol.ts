@@ -1,5 +1,6 @@
-import type { Landmass } from "../../scene/types";
+import type { Landmass, Water } from "../../scene/types";
 import type { GenerateRequest, GenerateResult } from "../generator/generate";
+import type { WaterCommit } from "../water/commit";
 import type { DeriveTerrain, DerivedTerrain } from "../water/derive";
 import type { ResolveDrop, DropResult } from "../terrain/overlap";
 import type { TerrainCommit } from "../terrain/pipeline";
@@ -14,6 +15,8 @@ export interface GeometryOps {
   ping: { payload: { echo: string }; result: { echo: string } };
   /** Pipeline A: one committed brush stroke → the new set of landmasses */
   terrainCommit: { payload: TerrainCommit; result: { landmasses: Landmass[] } };
+  /** WP-41: the same pipeline against the water collection — one laid stroke → the new set */
+  waterCommit: { payload: WaterCommit; result: { waters: Water[] } };
   /**
    * WP-40: the two-collection derivation — the drawn land (`union(land) − union(water)`)
    * and Pipeline C's bands, which grow from that same cut boundary. One op because both

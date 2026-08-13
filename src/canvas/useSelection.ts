@@ -4,7 +4,15 @@ import type { DropGesture } from "../engine/terrain/overlap";
 import { hasFootprint, landmassAt, pathBounds, standingOn, type Bounds } from "../scene/bounds";
 import { frameOf } from "../scene/frame";
 import { rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
-import type { Landmass, Layer as SceneLayer, Point, Scene, SceneObject } from "../scene/types";
+import { mergeWater } from "../engine/water/commit";
+import type {
+  Landmass,
+  Layer as SceneLayer,
+  Point,
+  Scene,
+  SceneObject,
+  Water,
+} from "../scene/types";
 import { layersHolding, useEditorStore } from "../state/editorStore";
 import { useToastStore } from "../state/toastStore";
 import { resolveGesture } from "./gesture";
@@ -13,12 +21,10 @@ import { SpatialIndex } from "./spatialIndex";
 
 /**
  * Everything a selection may touch, wherever it lives (WP-18, ADR-28) — footprint objects,
- * and landmasses since WP-14, hit-tested by their geometry rather than by a box.
- *
- * **Water is deliberately absent until WP-41.** WP-40 ships no tool that can make one, so
- * there is nothing to select; the package that gives water a brush gives it selection in the
- * same breath, because a tool that makes objects the user cannot select or delete is not a
- * shippable package (`16` §5).
+ * landmasses since WP-14, and **water since WP-41**. Both path types are hit-tested by their
+ * geometry rather than by a box, and by the *same* test: they are the same shape (ADR-48), so
+ * `landmassAt` generalised to "which of these polygons covers the point" rather than growing a
+ * second branch.
  *
  * Membership is not decided by layer: hidden and locked layers contribute nothing, which is
  * what keeps a marquee over a forest from taking 200 trees when you wanted three castles.
@@ -32,11 +38,17 @@ const selectablePool = (layers: SceneLayer[]): SceneObject[] =>
   layers
     .filter((layer) => layer.visible && !layer.locked)
     .flatMap((layer) =>
-      layer.objects.filter((object) => hasFootprint(object) || object.type === "landmass"),
+      layer.objects.filter(
+        (object) =>
+          hasFootprint(object) || object.type === "landmass" || object.type === "water",
+      ),
     );
 
 const landmassesIn = (objects: SceneObject[]): Landmass[] =>
   objects.filter((object): object is Landmass => object.type === "landmass");
+
+const watersIn = (objects: SceneObject[]): Water[] =>
+  objects.filter((object): object is Water => object.type === "water");
 
 type Drag =
   | { kind: "move"; start: Point; snapshot: SceneObject[]; gesture?: DropGesture }
@@ -108,17 +120,26 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
 
   const frame = useMemo(() => frameOf(selected, groupRotation), [selected, groupRotation]);
   const selectedLandmasses = useMemo(() => landmassesIn(selected), [selected]);
+  const selectedWaters = useMemo(() => watersIn(selected), [selected]);
 
   /**
    * What lies under the point, in the order the map is drawn (I4 — the press and the
    * cursor both come here, so the pointer promises what a press does).
    *
-   * Footprint first, then land: a mountain standing on a coast wins the click because it is
-   * what you see. The land answers by its own geometry, never by a box.
+   * Footprint first, then **water**, then land: a mountain standing on a coast wins the click
+   * because it is what you see, and a channel wins over the continent it is cut through for the
+   * same reason — the water is what is drawn there. That is WP-19's footprint-first rule in the
+   * shape `16` §5 asks for, and it is the *only* ordering that works: water is always inside
+   * some landmass's outline, so land-first would make a channel unclickable.
+   *
+   * Both path types answer through `landmassAt`, which is a point-in-polygon over a collection
+   * and never cared which substance it was given.
    */
   const objectAt = useCallback(
     (point: Point) =>
-      index.hit(point[0], point[1]) ?? landmassAt(landmassesIn(objects), point[0], point[1]),
+      index.hit(point[0], point[1]) ??
+      landmassAt(watersIn(objects), point[0], point[1]) ??
+      landmassAt(landmassesIn(objects), point[0], point[1]),
     [index, objects],
   );
 
@@ -162,8 +183,9 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
     (point: Point) =>
       selected.length === 0 ||
       selected.some(hasFootprint) ||
-      landmassAt(selectedLandmasses, point[0], point[1]) !== undefined,
-    [selected, selectedLandmasses],
+      landmassAt(selectedLandmasses, point[0], point[1]) !== undefined ||
+      landmassAt(selectedWaters, point[0], point[1]) !== undefined,
+    [selected, selectedLandmasses, selectedWaters],
   );
 
   /**
@@ -448,6 +470,22 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
           : undefined;
       const movedLand = transform?.gesture ? landmassesIn(transform.snapshot) : [];
 
+      /**
+       * **C1 for water, restored on drop.** Water never overlaps water at rest, and a drop is as
+       * much a commit as a stroke — but the answer is far smaller than land's: D10 says water
+       * simply merges, so there is no overlap policy, no slide-back and no shared-delta problem.
+       * A union and a re-split is the whole of it, which is why this runs inline rather than
+       * through `resolveDrop`.
+       *
+       * Before the commit, deliberately: the merge has to be inside the same undo step as the
+       * drag that caused it, or undo leaves two objects where there was one.
+       */
+      if (transform?.gesture && watersIn(transform.snapshot).length > 0) {
+        const store = useEditorStore.getState();
+        const merged = mergeWater(watersIn(store.scene.layers.flatMap((l) => l.objects)));
+        store.setWaters(merged);
+      }
+
       if (before && transform?.gesture && movedLand.length > 0) {
         // C1 has to hold at rest, so a drop that lands on other land resolves before it
         // commits. One worker round-trip on drop — never per frame.
@@ -505,10 +543,18 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
     frame,
     marquee,
     selection,
-    /** Selected landmasses, which draw as an outline rather than entering the frame. */
-    landmasses: selectedLandmasses,
-    /** True while land is being dragged — rings suspend and fade for the duration (C2). */
-    movingLand: transforming && selectedLandmasses.length > 0,
+    /**
+     * Selected **path objects** — land and water alike — which draw as a highlighted outline
+     * rather than entering the frame (`08` §4 T1). One list, because the highlight traces an
+     * outline and both substances have one.
+     */
+    landmasses: [...selectedLandmasses, ...selectedWaters],
+    /**
+     * True while either substance is being dragged — the derivation suspends and fades for the
+     * duration (C2). **Water counts since WP-41**: the cut depends on it, so dragging a river
+     * queues exactly the same per-mousemove derivation that dragging a continent does.
+     */
+    movingLand: transforming && (selectedLandmasses.length > 0 || selectedWaters.length > 0),
     count: selected.length,
     /** what the pointer should look like right now, or undefined to fall back */
     cursor: dragging ? dragCursor : hoverCursor,

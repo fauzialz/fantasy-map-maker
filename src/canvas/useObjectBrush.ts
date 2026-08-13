@@ -119,10 +119,31 @@ export function useObjectBrush({ activeLayerId, enabled, toMapPoint, onPlaceLabe
     // one small disc, so at the ~1-2k budget a distance check per object costs less than
     // keeping an index in step with each removal. Revisit if the budget grows.
     const radius = state.brushSize / 2;
-    for (const layer of state.scene.layers) {
-      if (!layer.visible || layer.locked) continue;
-      const doomed = layer.objects
-        .filter((object) => isUnderBrush(object, point, radius))
+    const live = state.scene.layers.filter((layer) => layer.visible && !layer.locked);
+    const hits = live.map((layer) => ({
+      layer,
+      objects: layer.objects.filter((object) => isUnderBrush(object, point, radius)),
+    }));
+
+    /**
+     * **Water outranks land when the disc touches both (WP-41).**
+     *
+     * Everything else the eraser sweeps is disjoint, so "take what you touch" was the whole
+     * rule. The two substances are not: water lives *inside* some landmass's stored outline by
+     * construction, so a click on a visible channel touches the river **and** the continent it
+     * is cut through — and since path objects are erased whole (ADR-37), that one click deleted
+     * the continent. Aiming at a river and losing the map is not a stroke that "took what you
+     * touched"; it is the disc unable to say which of two stacked things you meant.
+     *
+     * So the same precedence a *click* resolves (`16` §5 — water first, landmass as fallback)
+     * decides it here: what you can see at that point is what you aimed at. The sweep is
+     * untouched where nothing is stacked, which is every other case — a forest still goes in one
+     * drag, and a landmass with no water on it still erases whole.
+     */
+    const anyWater = hits.some(({ objects }) => objects.some((o) => o.type === "water"));
+    for (const { layer, objects } of hits) {
+      const doomed = objects
+        .filter((object) => !anyWater || object.type !== "landmass")
         .map((object) => object.id);
       if (doomed.length > 0) state.removeObjects(layer.id, doomed);
     }

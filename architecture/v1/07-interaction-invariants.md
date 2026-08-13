@@ -150,6 +150,12 @@ Two things make this work well here:
   anything**: `zoomAt` pins the map point under the pointer, so a driver that zooms toward a
   region keeps it exactly as far off-axis as it was, only further out. Zoom at the stage centre,
   then middle-drag the region into it.
+
+  > **A map→screen helper that rounds cannot be asked about small distances.** WP-41's driver
+  > measured pixels-per-map-unit as `toScreen([1,0]) − toScreen([0,0])`, which at fit zoom is
+  > two rounded values a quarter of a pixel apart — so it read **zero**, gave the brush ring a
+  > radius of zero, and sampled a single pixel of empty map while claiming to sample the ring.
+  > Measure over a thousand units and divide.
 - **A cursor probe outside the stage returns the previous answer, not no answer.** WP-20's
   driver reads `.mbf-stage` `style.cursor` at predicted map points. The stage is 1088 px wide
   and the map does not fit inside it, so points past its right edge never receive the

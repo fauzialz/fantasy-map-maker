@@ -44,7 +44,13 @@ const LAYER_TOOLBAR: Tool[] = [
     hint: "Scatter peaks",
   },
   { id: "forests", label: "Forests", icon: Trees, layer: "forests", hint: "Scatter woodland" },
-  { id: "water", label: "Water", icon: Waves, layer: "water", hint: "Rivers, lakes and sea" },
+  {
+    id: "water",
+    label: "Water",
+    icon: Waves,
+    layer: "water",
+    hint: "Lay rivers and lakes, or carve land away",
+  },
   { id: "icons", label: "Icons", icon: Castle, layer: "icons", hint: "Place a landmark" },
   { id: "labels", label: "Labels", icon: Type, layer: "labels", hint: "Name a place" },
 ];
@@ -59,6 +65,7 @@ export function Toolbar() {
   const objectTool = useEditorStore((s) => s.objectTool);
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
   const setTerrainTool = useEditorStore((s) => s.setTerrainTool);
+  const setWaterTool = useEditorStore((s) => s.setWaterTool);
   const setObjectTool = useEditorStore((s) => s.setObjectTool);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
@@ -91,6 +98,13 @@ export function Toolbar() {
     setActiveLayer(layer);
     if (layer === "terrain") {
       setTerrainTool("brush");
+      leaveGlobalMode();
+    } else if (layer === "water") {
+      // Water is the second layer with a brush rather than an `objectTool`, so it takes the
+      // terrain branch's shape: arm the additive mode and drop any global mode, the same trap
+      // `leaveGlobalMode` exists for. Laying is the default because it is the mode that makes
+      // the thing the layer is named after; carving is reachable in one click from the rail.
+      setWaterTool("lay");
       leaveGlobalMode();
     } else setObjectTool(DEFAULT_TOOL(layer));
   };

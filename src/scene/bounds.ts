@@ -11,7 +11,7 @@ import {
 } from "../sprites/registry";
 import { landmassToPolygon } from "../engine/terrain/assemble";
 import { pointInPolygon, pointInRing } from "../engine/geometry/nesting";
-import type { Landmass, SceneObject } from "./types";
+import type { Landmass, SceneObject, Water } from "./types";
 
 export interface Bounds {
   minX: number;
@@ -194,16 +194,25 @@ export const isFramed = (object: SceneObject): boolean =>
   hasFootprint(object) || object.type === "landmass" || object.type === "water";
 
 /**
- * Which landmass covers this point, if any — the path-based half of the two interaction
- * models (I9). Promoted here from the generator's scatter, because selection needs the same
- * question the scatter asks: is this point on land?
+ * Which object in this collection covers the point, if any — the path-based half of the two
+ * interaction models (I9). Promoted here from the generator's scatter, because selection needs
+ * the same question the scatter asks: is this point on land?
+ *
+ * **Generic over the substance since WP-41.** It never cared which one it was given: the
+ * question is "point in this polygon collection", and land and water are the same shape
+ * (ADR-48). Keeping the name is deliberate — a second identically-bodied `waterAt` is exactly
+ * the special case `16` exists to avoid — and the caller's precedence is what decides which
+ * collection is asked first.
  *
  * `pointInPolygon` is even-odd across every ring, so a point in a lake counts as outside its
  * parent — which is what lets an island inside a lake be clicked rather than the continent
  * around it. That is also `08` C4's requirement, for free.
  */
-export const landmassAt = (landmasses: Landmass[], x: number, y: number): Landmass | undefined =>
-  landmasses.find((landmass) => pointInPolygon(landmassToPolygon(landmass), [x, y]));
+export const landmassAt = <T extends Landmass | Water>(
+  landmasses: T[],
+  x: number,
+  y: number,
+): T | undefined => landmasses.find((object) => pointInPolygon([object.path, ...object.holes], [x, y]));
 
 /**
  * What stands on a landmass — the double-click gesture of WP-19 (`09` §4, item 8).

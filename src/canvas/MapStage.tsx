@@ -16,7 +16,7 @@ import { SelectionOverlay } from "./SelectionOverlay";
 import { TerrainSelectionOverlay } from "./TerrainSelectionOverlay";
 import { createLabel, useObjectBrush } from "./useObjectBrush";
 import { useSelection } from "./useSelection";
-import { useTerrainBrush } from "./useTerrainBrush";
+import { useSubstanceBrush, type BrushMode } from "./useSubstanceBrush";
 import {
   clampPan,
   centred,
@@ -236,8 +236,31 @@ export function MapStage({ editing }: { editing?: Label }) {
    */
   const terrainLayer = scene.layers.find((layer) => layer.id === "terrain");
   const terrainEditable = !!terrainLayer?.visible && !terrainLayer.locked;
-  const brush = useTerrainBrush({
-    enabled: activeLayerId === "terrain" && !selecting && !erasing && ready && terrainEditable,
+  /**
+   * WP-41 — the water brush answers to the **water** layer's flags, and carve additionally
+   * needs terrain to be editable: it removes land, so a locked or hidden terrain layer must
+   * refuse it exactly as it refuses the sea brush (`12` D3 — hiding a layer protects it).
+   */
+  const waterTool = useEditorStore((s) => s.waterTool);
+  const waterLayer = scene.layers.find((layer) => layer.id === "water");
+  const waterEditable = !!waterLayer?.visible && !waterLayer.locked;
+  const onWater = activeLayerId === "water";
+  const brushMode: BrushMode | null = onWater
+    ? waterTool === "carve"
+      ? terrainEditable && waterEditable
+        ? "carve"
+        : null
+      : waterEditable
+        ? "lay"
+        : null
+    : activeLayerId === "terrain" && terrainEditable
+      ? terrainTool === "sea"
+        ? "carve"
+        : "paint"
+      : null;
+  const brush = useSubstanceBrush({
+    enabled: brushMode !== null && !selecting && !erasing && ready,
+    mode: brushMode ?? "paint",
     map,
     toMapPoint,
   });
@@ -383,18 +406,21 @@ export function MapStage({ editing }: { editing?: Label }) {
    * it would be a lie. Panning is absent because the press belongs to the pan, not the brush.
    */
   const brushTone: BrushTone | null =
-    !cursor || selecting || panning || spaceHeld || zooming
+    !cursor || selecting || panning || zooming || spaceHeld
       ? null
       : erasing
-        ? "erase" // global since WP-26, so it shows on terrain and rivers too, lock or not
-        : activeLayerId === "terrain"
-          ? // Terrain answers to its own flags, hidden included — a ring over a layer that
-            // will not take the paint is the lie I4 exists to prevent.
-            terrainEditable
-            ? terrainTool === "sea"
-              ? "sea"
+        ? "erase" // global since WP-26, so it shows on terrain and water too, lock or not
+        : brushMode !== null
+          ? // WP-41 — the ring says which of the three the press will do, and that is C6: with
+            // a mode-bearing brush the pointer has to promise *which mode*, not just that a
+            // press paints. `brushMode` is already null wherever the layer will refuse the
+            // stroke, so a ring over a locked or hidden layer cannot be drawn — the lie I4
+            // exists to prevent.
+            brushMode === "carve"
+            ? "sea"
+            : brushMode === "lay"
+              ? "water"
               : "paint"
-            : null
           : !unlocked
             ? null
             : objectTool === "scatter"
@@ -419,9 +445,8 @@ export function MapStage({ editing }: { editing?: Label }) {
       : !unlocked && !selecting && !erasing
         ? "not-allowed"
         : (selection.cursor ??
-          // The eraser is global, so it promises a crosshair on every layer — including
-          // water, which creates nothing through the object brush (I4).
-          (erasing || (!selecting && (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId]))
+          // The eraser is global, so it promises a crosshair on every layer (I4).
+          (erasing || (!selecting && (brushMode !== null || LAYER_OBJECT[activeLayerId]))
             ? "crosshair"
             : "default"));
 
@@ -433,12 +458,13 @@ export function MapStage({ editing }: { editing?: Label }) {
    */
   const overlayFor = (id: LayerId) => {
     if (id !== activeLayerId) return undefined;
-    if (id === "terrain" && brush.previewPoints)
+    if (id === activeLayerId && brush.previewPoints)
       return (
         <Line
           points={brush.previewPoints}
-          // the sea brush previews as water, so erasing reads as erasing
-          stroke={terrainTool === "sea" ? PALETTE.seaDeep : PALETTE.paper}
+          // Carving previews as deep water, so removal reads as removal; laying previews as
+          // the sea tint it will actually cut, and painting land as bare paper.
+          stroke={brushMode === "carve" ? PALETTE.seaDeep : brushMode === "lay" ? PALETTE.sea : PALETTE.paper}
           strokeWidth={brushSize}
           lineCap="round"
           lineJoin="round"

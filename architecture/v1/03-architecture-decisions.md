@@ -822,6 +822,21 @@ brush that shaves a coast when you meant to delete an island is the same surpris
 trying to avoid, only pointed the other way. The destructive case is already covered by
 granularity: one drag is one undo step, so a wide sweep comes back in one Ctrl+Z.
 
+**Amended by WP-41: water outranks land when the disc touches both.** "Take everything you
+touch" assumed the things being touched were disjoint, which was true of every object that
+existed when this was written. It is not true of the two substances: a water object lives
+*inside* some landmass's stored outline by construction (ADR-47), so a click on a visible
+channel touches the river **and** the continent — and because path objects are erased whole,
+that single click deleted the continent. **Found by WP-41's driver**, which asserted the eraser
+"removes a water object whole" and got a map with no land on it.
+
+The fix is not an exception to this ADR so much as a reading of what "what you touched" means
+when two things are stacked: the same precedence a *click* resolves (`16` §5 — water first,
+landmass as fallback) decides it, because what is drawn at that point is what the user aimed at.
+**The sweep is untouched wherever nothing is stacked**, which is every other case: a forest
+still goes in one drag, and a landmass with no water on it still erases whole. Only a disc
+covering both substances at once now has to choose, and it chooses the one you can see.
+
 **Consequences:** `isUnderBrush` grows a path branch for each type, reusing `landmassAt` for
 inside-the-coast and `distanceToSegment` (exported from `river.ts`) for near-the-coast, with
 `isOnRiver` already taking the slack argument it needs. `eraseAt` walks every live layer rather

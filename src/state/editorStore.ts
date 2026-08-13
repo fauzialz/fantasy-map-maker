@@ -73,6 +73,19 @@ interface EditorState {
    * IS the sea brush — one water tool, no mode confusion (ADR-11).
    */
   terrainTool: "brush" | "sea";
+  /**
+   * The water brush's two modes (`16` D4). **Carve** is the sea brush — it removes land, and
+   * what is left behind is ordinary sea, so it bands. **Lay** adds a water object, which cuts a
+   * channel that does not band (D5).
+   *
+   * That difference is the reason two modes are one tool rather than two: D6 makes them produce
+   * visibly different things, so the mode is legible in the *result* and not only in the rail —
+   * which is the standing answer to "a mode is invisible state".
+   *
+   * Its own field rather than a third value on `terrainTool`, because the two brushes belong to
+   * different layers and a layer switch must not silently rearm the other one.
+   */
+  waterTool: "carve" | "lay";
   /** Placement mode on object layers; "erase" is the contextual object eraser (ADR-18). */
   objectTool: ObjectTool;
   /** which icon the palette will place next */
@@ -160,6 +173,7 @@ interface EditorState {
   setActiveLayer: (id: LayerId) => void;
   setBrushSize: (size: number) => void;
   setTerrainTool: (tool: "brush" | "sea") => void;
+  setWaterTool: (tool: "carve" | "lay") => void;
   setObjectTool: (tool: ObjectTool) => void;
   setIconKind: (kind: string) => void;
   setTerrainBiome: (biome: Biome) => void;
@@ -182,6 +196,7 @@ interface EditorState {
    */
   setLayerFlags: (layerId: LayerId, patch: { visible?: boolean; locked?: boolean }) => void;
   setLandmasses: (landmasses: Landmass[]) => void;
+  setWaters: (waters: Water[]) => void;
   /**
    * Close one undo step: everything that changed between `before` and the scene as it
    * stands now. Gestures capture `before` at pointerdown and commit at pointerup, which is
@@ -263,6 +278,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activeLayerId: "terrain",
   brushSize: 260,
   terrainTool: "brush",
+  waterTool: "lay",
   objectTool: "scatter",
   iconKind: ICON_KINDS[0],
   terrainBiome: "grassland",
@@ -301,6 +317,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
   setBrushSize: (brushSize) => set({ brushSize }),
   setTerrainTool: (terrainTool) => set({ terrainTool }),
+  setWaterTool: (waterTool) => set({ waterTool }),
   setObjectTool: (objectTool) => set({ objectTool }),
   setIconKind: (iconKind) => set({ iconKind }),
   setTerrainBiome: (terrainBiome) => set({ terrainBiome }),
@@ -387,6 +404,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ...state.scene,
         layers: state.scene.layers.map((layer) =>
           layer.id === TERRAIN ? { ...layer, objects: landmasses } : layer,
+        ),
+      },
+    })),
+
+  setWaters: (waters) =>
+    set((state) => ({
+      scene: {
+        ...state.scene,
+        layers: state.scene.layers.map((layer) =>
+          layer.id === WATER ? { ...layer, objects: waters } : layer,
         ),
       },
     })),

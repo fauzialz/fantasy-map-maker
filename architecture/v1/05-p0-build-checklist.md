@@ -1033,10 +1033,37 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       and Pipeline C is fed the cut boundary. The gap is **accepted** (`16` §7): precision is lost,
       WP-41 and WP-42 give back freehand reshaping by brush, and both substances then edit the
       same way. Node editing stays unscheduled by choice, not by dependency.
-- [ ] **WP-41 · The water brush, and water joins the selection** — one brush, two modes (carve
+- [x] **WP-41 · The water brush, and water joins the selection** — one brush, two modes (carve
       land / lay water), the mode legible in the hover ring **before** the press. Commit path is
       the landmass brush's; strokes merge on overlap. Selection ships here, not later: a tool
       that makes objects the user cannot select or delete is not a shippable package.
+      **`useTerrainBrush` became `useSubstanceBrush`**: two substances, three modes, one gesture,
+      with the stamping, preview, undo step and worker round-trip identical and only the op at
+      the end differing. Carve runs literally the terrain pipeline's erase branch, which is how
+      "today's sea brush, unchanged" is kept as a promise rather than a resemblance.
+      **Selection was nearly free, as designed**: `landmassAt` turned generic over the substance
+      rather than growing a `waterAt` twin — a second identically-bodied function is the special
+      case this batch exists to avoid — and `claimComponents` was extracted from
+      `splitByComponents` so ADR-10's larger-piece rule has one implementation for both.
+      **One thing beyond the design, and it is C1 rather than scope creep**: a *drag* that drops
+      water onto water has to merge too, since C1 holds at rest and a drop is as much a commit as
+      a stroke. It runs inline (`mergeWater`) rather than through `resolveDrop`, because D10
+      makes the whole answer a union and a re-split — no overlap policy, no slide-back, no
+      shared-delta problem — and it lands *before* the commit so the merge is inside the drag's
+      own undo step.
+      **The driver found a real defect and it is fixed here (ADR-37 amended).** The global eraser
+      took everything its disc touched, which was safe while everything was disjoint — but water
+      lives *inside* a landmass's stored outline, so one click on a visible channel deleted the
+      continent as well. Water now outranks land when the disc covers both, by the same
+      precedence a click resolves; the sweep is unchanged wherever nothing is stacked.
+      **18 driven checks**, including the ring tone read off the canvas by sweeping (C6), one
+      derivation per stroke counted through `Worker.prototype.postMessage`, and hidden *and*
+      locked water contributing nothing to a click. Mutating the click precedence to land-first
+      fails exactly the one check that names it; the eraser fix was itself observed failing
+      before it was made.
+      A `data-selection-types` attribute on the rail joins `data-land-count` as a surface a
+      driver can be exact against — "1 selected" cannot tell a channel from the continent it is
+      cut through, and that distinction is the whole question here.
 - [ ] **WP-42 · Land carves water** — the terrain brush subtracts from water **destructively**
       and severs a river in two. The asymmetry is required (`16` C8), not an oversight. Its own
       package because two destructive edits meet, and both must land in **one** undo step.

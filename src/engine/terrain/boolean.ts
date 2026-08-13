@@ -1,7 +1,7 @@
 import polygonClipping from "polygon-clipping";
 import type { Biome, Landmass } from "../../scene/types";
 import { fromIntMulti, toIntMulti } from "../geometry/coords";
-import { polygonArea, type MultiPolygon } from "../geometry/types";
+import { polygonArea, type MultiPolygon, type Polygon } from "../geometry/types";
 import { assembleLandmass, landmassToPolygon } from "./assemble";
 
 /**
@@ -34,6 +34,46 @@ const overlapArea = (a: MultiPolygon, b: MultiPolygon): number => {
 };
 
 /**
+ * Which source object owns each resulting component — **ADR-10's identity rule, on its own**.
+ *
+ * Split out by WP-41 so water can carry identity through a boolean op the same way land does.
+ * The rule is "the larger piece keeps the id", applied in both directions:
+ * - **split** — each source claims the resulting piece it overlaps most;
+ * - **merge** — when several sources land on one piece, the largest source's identity wins.
+ *
+ * Generic over the source type because the rule is about *area*, and neither `biome` nor any
+ * other field takes part in deciding it. That is `16`'s "no special cases" at the level where
+ * it costs nothing: one implementation, so a water merge cannot drift from a land merge.
+ */
+export function claimComponents<T extends { id: string }>(
+  polys: MultiPolygon,
+  sources: T[],
+  toPolygon: (source: T) => Polygon,
+): Map<number, T> {
+  const claims = new Map<number, T>();
+
+  for (const source of sources) {
+    const sourcePolygon = [toPolygon(source)];
+    let bestIndex = -1;
+    let bestOverlap = 0;
+    polys.forEach((polygon, index) => {
+      const overlap = overlapArea([polygon], sourcePolygon);
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        bestIndex = index;
+      }
+    });
+    if (bestIndex < 0) continue;
+
+    const incumbent = claims.get(bestIndex);
+    if (!incumbent || polygonArea(sourcePolygon[0]) > polygonArea(toPolygon(incumbent)))
+      claims.set(bestIndex, source);
+  }
+
+  return claims;
+}
+
+/**
  * S9 — one landmass object per disjoint polygon-with-holes, carrying identity across the
  * boolean op.
  *
@@ -51,29 +91,7 @@ export function splitByComponents(
   sources: Landmass[] = [],
   biome: Biome = "grassland",
 ): Landmass[] {
-  const claims = new Map<number, Landmass>(); // result index → source that owns it
-
-  for (const source of sources) {
-    const sourcePolygon = [landmassToPolygon(source)];
-    let bestIndex = -1;
-    let bestOverlap = 0;
-    polys.forEach((polygon, index) => {
-      const overlap = overlapArea([polygon], sourcePolygon);
-      if (overlap > bestOverlap) {
-        bestOverlap = overlap;
-        bestIndex = index;
-      }
-    });
-    if (bestIndex < 0) continue;
-
-    // Merge: the bigger source keeps its identity.
-    const incumbent = claims.get(bestIndex);
-    if (
-      !incumbent ||
-      polygonArea(landmassToPolygon(source)) > polygonArea(landmassToPolygon(incumbent))
-    )
-      claims.set(bestIndex, source);
-  }
+  const claims = claimComponents(polys, sources, landmassToPolygon);
 
   return polys
     .map((polygon, index) => {

@@ -38,6 +38,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const brushSize = useEditorStore((s) => s.brushSize);
   const setBrushSize = useEditorStore((s) => s.setBrushSize);
   const terrainTool = useEditorStore((s) => s.terrainTool);
+  const waterTool = useEditorStore((s) => s.waterTool);
+  const setWaterTool = useEditorStore((s) => s.setWaterTool);
   const objectTool = useEditorStore((s) => s.objectTool);
   const scatterRotation = useEditorStore((s) => s.scatterRotation);
   const setScatterRotation = useEditorStore((s) => s.setScatterRotation);
@@ -62,6 +64,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const setOverlapPolicy = useEditorStore((s) => s.setOverlapPolicy);
 
   const onTerrain = activeLayerId === "terrain";
+  const onWater = activeLayerId === "water";
   const tools = LAYER_TOOLS[activeLayerId];
   const isObjectLayer = LAYER_OBJECT[activeLayerId] !== undefined;
   /** Which sprite the active layer makes, so the size knob edits that kind's setting. */
@@ -85,6 +88,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   /** Both terrain brushes answer to the terrain layer's own flags, hidden as well as locked. */
   const terrainLayer = scene.layers.find((layer) => layer.id === "terrain");
   const terrainEditable = !!terrainLayer?.visible && !terrainLayer.locked;
+  const waterLayer = scene.layers.find((layer) => layer.id === "water");
+  const waterEditable = !!waterLayer?.visible && !waterLayer.locked;
 
   /**
    * A selection can now span layers (ADR-28), so what the rail offers follows the selected
@@ -127,7 +132,18 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
     onlyType === "label" && selected.length === 1 ? (selected[0] as Label) : undefined;
 
   return (
-    <aside className={panel({ side: "left" })} aria-label="Tool options">
+    <aside
+      className={panel({ side: "left" })}
+      aria-label="Tool options"
+      /**
+       * **What is selected, by type** — the same trick `data-land-count` plays two blocks down,
+       * and for the reason `07` §1 gives: "N selected" cannot tell a channel from the continent
+       * it is cut through, so an assertion about *which* one a click picked could be satisfied
+       * by the wrong answer. WP-41 needs exactly that distinction, since water lies inside the
+       * land's outline and the whole question is which of the two wins the press.
+       */
+      data-selection-types={[...new Set(selected.map((object) => object.type))].sort().join(",")}
+    >
       <p className={panelTitle()}>Tool options · {activeLayerId}</p>
 
       {/*
@@ -155,7 +171,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
       {/* The eraser is global since WP-26, so its size has to be reachable from any layer —
           including water, which is not an object layer and would otherwise hide the slider
           for the one tool that now works there. */}
-      {(erasing || (!selecting && (onTerrain || (isObjectLayer && objectTool === "scatter")))) && (
+      {(erasing ||
+        (!selecting && (onTerrain || onWater || (isObjectLayer && objectTool === "scatter")))) && (
         <Slider
           label="Brush size"
           value={brushSize}
@@ -425,15 +442,55 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
       )}
 
       {/*
-        WP-40 ships the water *substance* and no tool to make it (`16` §5), so the layer says
-        so rather than showing an empty rail. Saying nothing would read as a rail that failed
-        to load, which is the same class of lie as a control that does nothing.
+        WP-41 — one brush, two modes (`16` D4), and the chips are where the mode is chosen.
+
+        They are a real segmented control rather than two toolbar buttons because the two are
+        **mutually exclusive readings of the same gesture**: both drag a disc across the map and
+        both leave water behind. What separates them is what happens to the land — carve removes
+        it, lay does not — and D6 makes that visible in the result, since only carved sea bands.
+        So the rail says which mode, the ring says it again before the press (C6), and the map
+        says it a third time afterwards.
       */}
-      {activeLayerId === "water" && !globalMode && (
-        <p className={hint()}>
-          Water cuts channels and lakes out of the land. The brush that draws it arrives in the
-          next package — until then this layer can be hidden, which closes every channel.
-        </p>
+      {onWater && !globalMode && (
+        <>
+          <div className={segment()}>
+            {(["lay", "carve"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                data-mode={mode}
+                className={toolButton({ active: waterTool === mode })}
+                onClick={() => setWaterTool(mode)}
+              >
+                {mode === "lay" ? "Lay water" : "Carve land"}
+              </button>
+            ))}
+          </div>
+          <Slider
+            label="Coast detail"
+            value={scene.settings.coastDetail}
+            min={0}
+            max={1}
+            step={0.05}
+            display={scene.settings.coastDetail.toFixed(2)}
+            hint="Smooth and stylised ↔ rough and natural. Banks are coastline, so this shapes them too."
+            onChange={(coastDetail) =>
+              record("coast detail", () => setSettings({ coastDetail }), true)
+            }
+          />
+          {/* Hidden and locked both refuse the brush, so the rail says which — otherwise the
+              stroke simply does nothing and there is nothing on screen explaining why. Carve
+              needs *terrain* editable as well, because it is the land it removes. */}
+          <p className={hint()}>
+            {!waterEditable
+              ? `The water layer is ${waterLayer?.visible ? "locked" : "hidden"} — nothing will draw until you ${waterLayer?.visible ? "unlock" : "show"} it.`
+              : waterTool === "carve" && !terrainEditable
+                ? `Carving removes land, and the terrain layer is ${terrainLayer?.visible ? "locked" : "hidden"} — nothing will carve until you ${terrainLayer?.visible ? "unlock" : "show"} it.`
+                : waterTool === "carve"
+                  ? "Carve removes land, and the sea that fills the gap takes coastal bands."
+                  : "Drag to lay a river or lake. It cuts a channel through the land, and channels take no bands. Overlapping strokes merge into one."}
+          </p>
+        </>
       )}
 
       {selecting && (
