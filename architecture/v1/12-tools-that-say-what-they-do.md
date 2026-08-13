@@ -1,4 +1,8 @@
-# Tools that say what they do> **Two later amendments to this batch, both in ADR-43 (WP-36, WP-37).** The **sea brush is no
+# Tools that say what they do> **A third amendment, ADR-50:** the sea brush's button is gone entirely — it is the water
+> layer's **Sea** tab now, beside the two ways of making a river. `terrainTool` went with it, so
+> the terrain brush paints land and nothing else.
+>
+> **Two later amendments to this batch, both in ADR-43 (WP-36, WP-37).** The **sea brush is no
 > longer terrain-only** — it sits in the mode group on every layer and switches to terrain when
 > pressed, because a tool you can only reach from the layer it edits costs two clicks, the first
 > of which is the land brush that resets it. And **D3's rule reached the terrain brushes**: hidden
@@ -43,7 +47,9 @@ Draw a ring at the hover point whenever a **brush-shaped** tool is in hand:
 | Tool | Ring | Why |
 |---|---|---|
 | terrain brush | yes | paints a disc of `brushSize` |
-| sea brush | yes, reading as water | subtracts a disc of `brushSize` |
+| `Water › Sea` (was the sea brush) | yes, reading as deep water | subtracts a disc of `brushSize` |
+| `Water › River › Brush` | yes, reading as water | lays a disc of `brushSize` |
+| `Water › River › Draw with Spline` | **no** | it places points; there is no radius to show |
 | scatter | yes | jitters within `brushSize / 2` ([useObjectBrush.ts:72](../../src/canvas/useObjectBrush.ts#L72)) |
 | erase | yes, reading as removal | tests a disc of `brushSize / 2` |
 | place | **no** | one object at a click; there is no radius to show |
@@ -167,7 +173,10 @@ ADR-28; the eraser stayed scoped, and its scope silently excludes the two path t
 
 ### The change: two tools, not one tool with two costumes
 
-**Sea brush** — unchanged. Terrain-only, subtracts geometry, can cut a landmass in two. It
+**Sea brush** — unchanged *then*; **moved by ADR-50**, which deleted its button and made it the
+water layer's **Sea** tab. The operation is untouched — same op, same pipeline, still able to cut
+a landmass in two. Read the rest of this section as the record of WP-26, not as where the tool
+lives. It
 stays where it is and keeps its name.
 
 **Erase** — a global object eraser, a peer of Select. A drag removes **every object the brush

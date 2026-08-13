@@ -112,15 +112,21 @@ doesn't change as you zoom.
 **Integrate into the scene (boolean ops via `polygon-clipping`):**
 - Paint **touching existing land** → **union** (single continuous coastline).
 - Paint a **detached blob** → a **new, separate landmass** object.
-- **Erase / sea brush** → **difference**; can **split** a landmass or **punch a lake**.
+- **`Water › Sea`** → **difference**; can **split** a landmass or **punch a lake**. (Reached from
+  the terrain layer as the "sea brush" until ADR-50 moved it to the substance it makes.)
 - After every op, run **connected-components**: bridged land auto-merges; cut land
   auto-splits into separate objects.
 - **Merge/split identity rule: the larger piece keeps the id/name; the smaller gets
   a fresh id and empty name.** (Undo-able toast so nothing feels lost.)
 
-**Water model:** water = **absence of land**. Lakes are holes; an island-in-a-lake is
-a land polygon sitting inside another landmass's hole (even-odd fill). The **eraser
-IS the sea brush** — one water tool, no mode confusion.
+**Water model:** the **sea** is the absence of land — lakes are holes, and an island-in-a-lake is
+a land polygon sitting inside another landmass's hole (even-odd fill). **Rivers are not**: since
+ADR-47 water is a substance with geometry of its own, and land is drawn as
+`union(land) − union(water)`. See §7 and `16-water-as-objects.md`.
+
+> Until ADR-37 this read *"the eraser IS the sea brush — one water tool, no mode confusion"*, and
+> until ADR-50 the sea brush was a toolbar button of its own. It is the water layer's **Sea** tab
+> now: one substance, three ways to author it.
 
 **Coastal rings — one elegant operation:** buffer the **union of all land** outward
 in `ringCount` steps (`ringGap` px each). Each step simultaneously expands the coast
@@ -168,10 +174,9 @@ but are clipped to the **pre-cut** sea, so a channel never fills with rings (`16
   Scattered objects are **independent** (no formal grouping in v1).
 - **Selection = multi-select** (marquee drag + shift-click), backed by an **rbush**
   spatial index so it stays fast with 1–2k objects.
-- **Contextual eraser:** "erase" removes whatever the active tool creates. On Terrain
-  it edits land geometry (sea brush); on Mountains/Forests/Icons it's an
-  **object-eraser brush** (drag to remove objects under it). Plus click-select →
-  Delete. (Satisfies "direct delete" two ways.)
+- **Global eraser** (ADR-37, was contextual): one disc that removes whole objects from every
+  visible, unlocked layer. Removing *land* is not erasing — it is `Water › Sea`, which subtracts
+  geometry rather than deleting an object. Plus click-select → Delete.
 
 ## 9. Rendering & performance architecture
 

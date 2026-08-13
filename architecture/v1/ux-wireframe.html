@@ -245,7 +245,7 @@
           <div class="field">
             <label>Mode</label>
             <div class="toggle"><span>Paint land</span><span class="sw on"></span></div>
-            <div class="hint">Erase on this tool removes <em>land</em> (sea brush) — it splits a landmass in two.</div>
+            <div class="hint">Removing land is <em>Water &rsaquo; Sea</em> since ADR-50 — it splits a landmass in two. This brush only paints.</div>
           </div>
         </aside>
 
@@ -362,7 +362,7 @@
     <p class="sectlead">Each pin marks where a locked interaction decision shows up in the UI.</p>
     <ul class="notes">
       <li><span class="cx">1</span><div class="body"><h3>Fixed semantic layers</h3><p>Six known layers in a fixed render order — no freeform Photoshop layers. Each toggles visibility &amp; lock; you reorder objects <em>within</em> a layer.</p><span class="adr">ADR-15</span></div></li>
-      <li><span class="cx">2</span><div class="body"><h3>Contextual eraser</h3><p>“Erase” removes whatever the active tool makes — land geometry on Terrain (sea brush), discrete objects on Mountains/Forests/Icons.</p><span class="adr">ADR-18</span></div></li>
+      <li><span class="cx">2</span><div class="body"><h3>Global eraser</h3><p>One disc removes whole objects from every visible, unlocked layer. Removing <em>land</em> is not erasing &mdash; it is <em>Water &rsaquo; Sea</em>, which subtracts geometry rather than deleting an object.</p><span class="adr">ADR-37, ADR-50</span></div></li>
       <li><span class="cx">3</span><div class="body"><h3>Rings are derived + toggleable</h3><p>Coastal rings are never stored — recomputed from the union of all land, clipped to water. Toggling is instant; count/gap are settings.</p><span class="adr">ADR-13</span></div></li>
       <li><span class="cx">4</span><div class="body"><h3>Marquee multi-select</h3><p>Drag or shift-click to grab a whole range at once; transform or delete as one. Backed by a spatial index to stay fast at 1–2k objects.</p><span class="adr">ADR-16</span></div></li>
       <li><span class="cx">5</span><div class="body"><h3>Generate replaces the canvas</h3><p>Noise generator fills terrain + mountains + forests. When the canvas isn’t empty it asks first, and the whole replace is one undo step.</p><span class="adr">ADR-21 · 22</span></div></li>

@@ -202,7 +202,6 @@ export function MapStage({ editing }: { editing?: Label }) {
   }, [editing, openLabelDraft]);
 
   const brushSize = useEditorStore((s) => s.brushSize);
-  const terrainTool = useEditorStore((s) => s.terrainTool);
   /**
    * Ring derivation costs 119–488 ms against a 16 ms frame (C2), so it cannot track a
    * drag. Declared before the hooks that need it and filled in by the selection below —
@@ -257,10 +256,10 @@ export function MapStage({ editing }: { editing?: Label }) {
         waterTool === "lay" && waterEditable
         ? "lay"
         : null
-    : activeLayerId === "terrain" && terrainEditable
-      ? terrainTool === "sea"
-        ? "carve"
-        : "paint"
+    : // The terrain brush paints land and nothing else. Removing land is the water layer's
+      // **Sea** tab, which is the same op reached from the substance it makes.
+      activeLayerId === "terrain" && terrainEditable
+      ? "paint"
       : null;
   const brush = useSubstanceBrush({
     enabled: brushMode !== null && !selecting && !erasing && ready,
@@ -507,7 +506,13 @@ export function MapStage({ editing }: { editing?: Label }) {
           points={brush.previewPoints}
           // Carving previews as deep water, so removal reads as removal; laying previews as
           // the sea tint it will actually cut, and painting land as bare paper.
-          stroke={brushMode === "carve" ? PALETTE.seaDeep : brushMode === "lay" ? PALETTE.sea : PALETTE.paper}
+          stroke={
+            brushMode === "carve"
+              ? PALETTE.seaDeep
+              : brushMode === "lay"
+                ? PALETTE.sea
+                : PALETTE.paper
+          }
           strokeWidth={brushSize}
           lineCap="round"
           lineJoin="round"

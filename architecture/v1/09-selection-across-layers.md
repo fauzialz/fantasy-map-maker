@@ -90,7 +90,13 @@ land before, after, or between its packages.
    S2 that draw time is roughly conserved because the budget is on total objects.
 6. **Erase keeps its behaviour and gains an honest label** (D-a). It reads **"Sea brush"** on
    Terrain and **"Erase"** elsewhere, so it announces that it is contextual instead of looking
-   like a fixed peer of a now-global Select. ADR-18 is unchanged: erasing really is two
+   like a fixed peer of a now-global Select.
+
+   > **Both halves of this expired.** ADR-37 split the two apart — the eraser went global and
+   > stopped being contextual at all — and **ADR-50** deleted the sea brush's button, moving it to
+   > the water layer's **Sea** tab. The reasoning below is why the relabel was the right call
+   > *while one button was doing two jobs*; the split removed the premise.
+ ADR-18 is unchanged: erasing really is two
    different operations — subtracting land geometry, and removing objects — and one button
    that renames itself is cheaper than an ADR amendment and clearer than either alternative.
 

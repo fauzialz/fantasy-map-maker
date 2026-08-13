@@ -1125,6 +1125,17 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
 > layers stack. The *layer stack* is untouched — that is render order (ADR-15) and answers a
 > different question.
 >
+> **The Sea brush button is deleted (ADR-50).** Once the water layer had a Sea tab running the
+> identical op through the identical pipeline, the toolbar button was a second visible route to
+> one tool — the defect `12-tools-that-say-what-they-do.md` exists to remove, and the tab is the
+> better home, since it puts "make sea" beside "make rivers" rather than beside "select" and
+> "erase". **`terrainTool` went with it**: it existed only to carry the distinction the button
+> set, so with the button gone it had one reachable value. The terrain brush paints land and
+> nothing else. The *operation* is untouched — same erase branch of Pipeline A, still destructive,
+> still able to cut a landmass in two, still answering to the terrain layer's own flags.
+> Documentation followed to nine places, including the ASCII wireframe in `11` and the published
+> mockup in `ux-wireframe.html`, both of which drew a toolbar that no longer exists.
+>
 > And **`coastDetail` is labelled "Bank roughness" on the water layer** while staying "Coast
 > detail" on terrain. One value, two honest names: a bank *is* coastline, so the setting that
 > decides whether one comes out smooth or ragged should be named for the thing you are looking at.

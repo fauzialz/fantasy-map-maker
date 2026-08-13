@@ -69,11 +69,6 @@ interface EditorState {
   /** brush diameter in map units */
   brushSize: number;
   /**
-   * ADR-18: the eraser is contextual to the active tool. On the terrain layer, erasing
-   * IS the sea brush — one water tool, no mode confusion (ADR-11).
-   */
-  terrainTool: "brush" | "sea";
-  /**
    * The water brush's two modes (`16` D4). **Carve** is the sea brush — it removes land, and
    * what is left behind is ordinary sea, so it bands. **Lay** adds a water object, which cuts a
    * channel that does not band (D5).
@@ -82,8 +77,9 @@ interface EditorState {
    * visibly different things, so the mode is legible in the *result* and not only in the rail —
    * which is the standing answer to "a mode is invisible state".
    *
-   * Its own field rather than a third value on `terrainTool`, because the two brushes belong to
-   * different layers and a layer switch must not silently rearm the other one.
+   * **The whole of the water tool's mode state**, since Batch 14's follow-up dropped the Sea
+   * brush from the toolbar: the terrain brush paints land and does nothing else, so there is no
+   * `terrainTool` left for this to be confused with.
    */
   waterTool: "carve" | "lay" | "spline";
   /** Placement mode on object layers; "erase" is the contextual object eraser (ADR-18). */
@@ -188,7 +184,6 @@ interface EditorState {
   future: Step[];
   setActiveLayer: (id: LayerId) => void;
   setBrushSize: (size: number) => void;
-  setTerrainTool: (tool: "brush" | "sea") => void;
   setWaterTool: (tool: "carve" | "lay" | "spline") => void;
   setSpline: (patch: { min?: number; max?: number; roughness?: number }) => void;
   setObjectTool: (tool: ObjectTool) => void;
@@ -294,7 +289,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   scene: createEmptyScene("landscape"),
   activeLayerId: "terrain",
   brushSize: 260,
-  terrainTool: "brush",
   waterTool: "lay",
   objectTool: "scatter",
   iconKind: ICON_KINDS[0],
@@ -336,7 +330,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { activeLayerId, objectTool: keep ? state.objectTool : tools[0] };
     }),
   setBrushSize: (brushSize) => set({ brushSize }),
-  setTerrainTool: (terrainTool) => set({ terrainTool }),
   setWaterTool: (waterTool) => set({ waterTool }),
   /**
    * The two bounds push rather than block each other: dragging the minimum past the maximum

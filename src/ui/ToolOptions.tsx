@@ -37,7 +37,6 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const brushSize = useEditorStore((s) => s.brushSize);
   const setBrushSize = useEditorStore((s) => s.setBrushSize);
-  const terrainTool = useEditorStore((s) => s.terrainTool);
   const waterTool = useEditorStore((s) => s.waterTool);
   /** Carving makes sea; laying and the spline make rivers. The tab is that distinction. */
   const waterTab = waterTool === "carve" ? "sea" : "river";
@@ -90,7 +89,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
    */
   const globalMode = selecting || erasing;
   /** The land brush, as opposed to the sea brush — they take different options. */
-  const paintingLand = onTerrain && terrainTool !== "sea";
+  /** The terrain brush only paints land now — removing it is the water layer's Sea tab. */
+  const paintingLand = onTerrain;
   /** Both terrain brushes answer to the terrain layer's own flags, hidden as well as locked. */
   const terrainLayer = scene.layers.find((layer) => layer.id === "terrain");
   const terrainEditable = !!terrainLayer?.visible && !terrainLayer.locked;
@@ -273,9 +273,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           <p className={hint()}>
             {!terrainEditable
               ? `The terrain layer is ${terrainLayer?.visible ? "locked" : "hidden"} — nothing will paint until you ${terrainLayer?.visible ? "unlock" : "show"} it.`
-              : terrainTool === "sea"
-                ? "The sea brush removes land — cut a landmass through and it becomes two."
-                : "Drag to paint land. Overlapping strokes merge into one coastline."}
+              : "Drag to paint land. Overlapping strokes merge into one coastline. To take land away, use Water › Sea."}
           </p>
         </>
       )}
