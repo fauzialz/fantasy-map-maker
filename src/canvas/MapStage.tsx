@@ -5,19 +5,16 @@ import { useThemeStore } from "../state/themeStore";
 import { LAYER_ORDER, type Label, type LayerId, type Point } from "../scene/types";
 import { LabelEditor } from "../ui/LabelEditor";
 import { statusBar } from "../ui/variants";
-import { landMask } from "../engine/river";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { BrushRing, type BrushTone } from "./BrushRing";
 import { RingsLayer } from "./RingsLayer";
-import { RiverOverlay } from "./RiverOverlay";
 import { VignetteLayer } from "./VignetteLayer";
 import { SemanticLayer } from "./SemanticLayer";
-import { useCoastalRings } from "./useCoastalRings";
+import { useDerivedTerrain } from "./useDerivedTerrain";
 import { PALETTE } from "./palette";
 import { SelectionOverlay } from "./SelectionOverlay";
 import { TerrainSelectionOverlay } from "./TerrainSelectionOverlay";
 import { createLabel, useObjectBrush } from "./useObjectBrush";
-import { useRiverTool } from "./useRiverTool";
 import { useSelection } from "./useSelection";
 import { useTerrainBrush } from "./useTerrainBrush";
 import {
@@ -211,7 +208,7 @@ export function MapStage({ editing }: { editing?: Label }) {
    * worker for its whole length.
    */
   const [movingLand, setMovingLand] = useState(false);
-  const rings = useCoastalRings(map, movingLand);
+  const derived = useDerivedTerrain(map, movingLand);
   /** A locked layer accepts no *creation* tool — that is what the lock means for making. */
   const unlocked = !scene.layers.find((l) => l.id === activeLayerId)?.locked;
   const ready = !spaceHeld && !draft;
@@ -259,14 +256,6 @@ export function MapStage({ editing }: { editing?: Label }) {
   });
   useEffect(() => setMovingLand(selection.movingLand), [selection.movingLand]);
 
-  // Rivers are path-based, so they sit outside the anchor-based selection stack and drive
-  // their own tool (ADR-14) — drawn point by point, reshaped by their control points.
-  const river = useRiverTool({
-    enabled: activeLayerId === "rivers" && live,
-    scale: vp?.scale ?? 1,
-    toMapPoint,
-  });
-
   // Pan: middle-drag, or space + left-drag. Plain left-drag paints.
   const dragRef = useRef<{ x: number; y: number; vp: Viewport } | null>(null);
   const onMouseDown = (e: React.MouseEvent) => {
@@ -281,7 +270,6 @@ export function MapStage({ editing }: { editing?: Label }) {
     if (
       brush.begin(e.clientX, e.clientY) ||
       objects.begin(e.clientX, e.clientY) ||
-      river.begin(e.clientX, e.clientY) ||
       selection.begin(e.clientX, e.clientY, e.shiftKey)
     )
       e.preventDefault();
@@ -376,10 +364,7 @@ export function MapStage({ editing }: { editing?: Label }) {
   const [ringBytes, setRingBytes] = useState(0);
   const onRingBytes = useCallback((value: number) => setRingBytes(value), []);
 
-  const landmasses = useEditorStore(selectLandmasses);
-  const landCount = landmasses.length;
-  /** WP-34 — what the rivers layer clips its mouths against. */
-  const landPolygons = useMemo(() => landMask(landmasses), [landmasses]);
+  const landCount = useEditorStore(selectLandmasses).length;
   const undoDepth = useEditorStore((s) => s.past.length);
   const objectCount = scene.layers.reduce(
     (total, layer) => total + (layer.id === "terrain" ? 0 : layer.objects.length),
@@ -434,9 +419,8 @@ export function MapStage({ editing }: { editing?: Label }) {
       : !unlocked && !selecting && !erasing
         ? "not-allowed"
         : (selection.cursor ??
-          river.cursor ??
           // The eraser is global, so it promises a crosshair on every layer — including
-          // rivers, which creates nothing through the object brush (I4).
+          // water, which creates nothing through the object brush (I4).
           (erasing || (!selecting && (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId]))
             ? "crosshair"
             : "default"));
@@ -482,7 +466,6 @@ export function MapStage({ editing }: { editing?: Label }) {
       onMouseDown={onMouseDown}
       onMouseMove={(e) => {
         selection.hover(e.clientX, e.clientY);
-        river.hover(e.clientX, e.clientY);
         pointerRef.current = { x: e.clientX, y: e.clientY };
         setCursor(toMapPoint(e.clientX, e.clientY));
         setZooming(false);
@@ -492,10 +475,6 @@ export function MapStage({ editing }: { editing?: Label }) {
         setCursor(null);
       }}
       onDoubleClick={(e) => {
-        // Only a river being *drawn* claims the gesture. Keying this on the layer instead
-        // swallowed every double-click on the rivers layer, Select on or not — WP-20 left
-        // that tool drawing-only, so the layer stopped being the right question.
-        if (river.active) return river.finish();
         // A double-click's first press has already selected the label under the pointer.
         const selected = useEditorStore.getState().selection;
         const label = scene.layers
@@ -519,8 +498,8 @@ export function MapStage({ editing }: { editing?: Label }) {
         >
           <BackgroundLayer map={map} parchment={scene.settings.parchment} />
           <RingsLayer
-            bands={rings.bands}
-            stale={rings.stale}
+            bands={derived.bands}
+            stale={derived.stale}
             cacheRect={cache.rect}
             cacheScale={cache.scale}
             onCacheBytes={onRingBytes}
@@ -534,7 +513,12 @@ export function MapStage({ editing }: { editing?: Label }) {
               cacheScale={cache.scale}
               onCacheBytes={onCacheBytes}
               overlay={overlayFor(layer.id)}
-              mask={layer.id === "rivers" ? landPolygons : undefined}
+              /*
+                Terrain alone takes the derived land (WP-40). Every other layer draws its own
+                objects, and the water layer draws nothing at all — the cut *is* its output.
+              */
+              land={layer.id === "terrain" ? derived.land : undefined}
+              stale={layer.id === "terrain" && derived.landStale}
             />
           ))}
           {scene.settings.parchment && <VignetteLayer map={map} />}
@@ -547,10 +531,10 @@ export function MapStage({ editing }: { editing?: Label }) {
             (WP-18) the frame could be drawn into `terrain` — the bottom of the stack — and
             buried under 890 trees. A frame you cannot see is the same defect as no frame.
 
-            Both can be live at once and should be: a selected river draws the ordinary
-            frame *and* its own control points (WP-20), because the frame moves and turns
-            the whole river while the points reshape it. The points are drawn last so they
-            sit above the handles they outrank.
+            WP-40 removed the second overlay that lived here: a selected river drew its
+            control points on top of the frame. Rivers have no control points now — a water
+            body is an outline like a landmass — and node editing is deliberately unscheduled
+            (`16` D3, §7), so the frame is once again the only chrome a path object draws.
           */}
           <Layer listening={false}>
             {selecting && (
@@ -561,11 +545,7 @@ export function MapStage({ editing }: { editing?: Label }) {
                   marquee={selection.marquee}
                   scale={vp.scale}
                 />
-                <RiverOverlay preview={null} points={selection.riverPoints} scale={vp.scale} />
               </>
-            )}
-            {river.active && (
-              <RiverOverlay preview={river.preview} points={river.points} scale={vp.scale} />
             )}
             {brushTone && cursor && (
               // Radius, not diameter: the terrain preview strokes `brushSize` wide, and both
@@ -599,16 +579,20 @@ export function MapStage({ editing }: { editing?: Label }) {
         <span>
           {landCount} landmass{landCount === 1 ? "" : "es"}
         </span>
-        {rings.bands.length > 0 && <span>{rings.bands.length} rings</span>}
+        {derived.bands.length > 0 && <span>{derived.bands.length} rings</span>}
         {objectCount > 0 && <span>{objectCount} objects</span>}
         {selection.count > 0 && <span>{selection.count} selected</span>}
         {undoDepth > 0 && <span>{undoDepth} undo</span>}
         {!unlocked && <span className="mbf:text-note">{activeLayerId} locked</span>}
         {brush.committing && <span>vectorising…</span>}
-        {rings.stale && <span className="mbf:text-note">rings frozen — they follow on drop</span>}
-        {rings.deriving && <span>deriving rings…</span>}
+        {derived.stale && (
+          <span className="mbf:text-note">terrain frozen — it follows on drop</span>
+        )}
+        {derived.deriving && <span>deriving terrain…</span>}
         {brush.error && <span className="mbf:text-danger">{brush.error}</span>}
-        {rings.error && <span className="mbf:text-danger">rings failed: {rings.error}</span>}
+        {derived.error && (
+          <span className="mbf:text-danger">derivation failed: {derived.error}</span>
+        )}
       </p>
     </div>
   );

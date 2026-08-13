@@ -352,6 +352,23 @@ undo paths for one gesture, plus control points that worked only while the river
 active — the layer-scoped selection ADR-28 exists to remove. Picking, reshaping and deleting
 a river are `useSelection`'s now; drawing one is still the tool's, and rivers still never
 touch the boolean engine.
+**Amended by WP-40 (ADR-48), and the amendment removes two of the sentences above.**
+
+- ~~"Scaling a river multiplies its `width` as well as its points."~~ There is no `width`.
+  Water is an outline, so scaling the outline scales the width by construction, and
+  `remapPath` serves both path types through one branch rather than two.
+- ~~"A river's control points outrank the frame's handles."~~ There are no control points, so
+  the gesture ladder **loses** the rung this ADR added rather than keeping it. `resolveGesture`
+  no longer takes `overControlPoint`, and I5 records the ladder as handles → frame interior →
+  object → empty space. The collision was real and returns with node editing, which `16` D3
+  leaves unscheduled deliberately.
+
+**What survives is the load-bearing half**, and it survives intact: path objects get frames,
+transforms bake into their points, the frame is feedback only and never picks, and a path-only
+selection has an inert interior. Those held for a ribbon and hold for an outline. What expired
+is only the *reason rivers were chosen to prove it first* — losslessness that came from `width`
+sitting outside the geometry. See `16-water-as-objects.md` §7.
+
 **Rejected:** picking a river by its bounding box (C4's mistake, on an object whose AABB is
 almost all water); **letting the frame interior claim presses for a path-only selection** —
 drafted first as ordinary vector-editor behaviour with shift as the escape, and rejected on

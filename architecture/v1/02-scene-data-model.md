@@ -5,11 +5,15 @@ the export source, and the React-library input all at once. Treat this as a hard
 contract: never change the shape without bumping `schemaVersion` and updating
 `migrate()`._
 
+_**At `schemaVersion` 2 since WP-40.** `river` is gone and `water` replaces it, the `rivers`
+layer is now `water`, and the migration **deletes** every existing river rather than
+converting one (`16` D14, §8). See `16-water-as-objects.md`, ADR-47 and ADR-48._
+
 ## 1. Top-level shape
 
 ```jsonc
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
 
   "meta": {
     "id": "client-uuid",             // generated at creation, client-side (idempotent claim)
@@ -81,14 +85,21 @@ freeform user layers in v1.
   { "id": "terrain",   "kind": "terrain",  "visible": true, "locked": false, "objects": [ /* landmass */ ] },
   { "id": "forests",   "kind": "forest",   "visible": true, "locked": false, "objects": [ /* tree    */ ] },
   { "id": "mountains", "kind": "mountain", "visible": true, "locked": false, "objects": [ /* mountain */ ] },
-  { "id": "rivers",    "kind": "river",    "visible": true, "locked": false, "objects": [ /* river    */ ] },
+  { "id": "water",     "kind": "water",    "visible": true, "locked": false, "objects": [ /* water    */ ] },
   { "id": "icons",     "kind": "icon",     "visible": true, "locked": false, "objects": [ /* landmark */ ] },
   { "id": "labels",    "kind": "label",    "visible": true, "locked": false, "objects": [ /* label    */ ] }
 ]
 ```
 
 Render order (bottom → top): parchment (setting) → sea fill → **derived rings** →
-terrain → forests → mountains → rivers → icons → labels.
+terrain → forests → mountains → water → icons → labels.
+
+**`water` is a *geometry* layer, not a paint layer** — the only one, and the reason its
+position in that order says less than the others'. It draws nothing of its own: the terrain
+layer is drawn as `union(landmass) − union(water)`, so water's entire visual contribution is
+the shape it removes from a layer *below* it. Hiding it therefore closes every channel rather
+than revealing what was underneath (`16` D9), and water lying over open sea is invisible
+rather than wrong (D16).
 
 ## 4. Object types (discriminated union)
 
@@ -125,11 +136,29 @@ terrain → forests → mountains → rivers → icons → labels.
 { "id": "m1", "type": "mountain", "x": 1200, "y": 800, "rotation": 0, "scale": 1, "z": 5, "variant": 3 }
 ```
 
-### `river` (rivers layer) — path-based, omits x/y
+### `water` (water layer) — path-based, omits x/y
 ```jsonc
-{ "id": "r1", "type": "river", "points": [[x,y], ...], "width": 12, "taper": true, "z": 0 }
+{
+  "id": "w1", "type": "water",
+  "path": [[x,y], ...],           // closed outer boundary, CCW
+  "holes": [ [[x,y], ...], ...]   // inner boundaries = islands within the water (CW)
+}
 ```
-- Rendered as a tapering polyline (wider toward the sea). **No coastal rings.**
+- **Identical in shape to a `landmass`, deliberately** (ADR-48): one object kind however it
+  was authored, so a brushed channel and a spline-generated river are indistinguishable once
+  committed, and `08`'s constraints apply to both without a second set of rules.
+- It carries **no** `width`, `taper`, `points`, `seed` or `roughness`. Those are tool settings
+  that shape the geometry at creation and are then gone, the way brush size is gone — and no
+  `z`, because a layer that draws nothing has nothing to stack.
+- The land is drawn as `union(landmass) − union(water)`, **derived at draw time and never
+  stored** (ADR-47). The landmass objects are untouched on disk: this is a stencil, not a cut,
+  so deleting a water object restores the land whole with no repair.
+- Coastal rings come from that same cut boundary but are clipped to the **pre-cut** sea, so a
+  channel never fills with bands (`16` D5).
+
+> **Replaced `river` at `schemaVersion` 2.** A river was a centreline plus a `width`, drawn as
+> a tapering polyline that took no coastal rings. The two are not the same information, so the
+> migration deletes rather than converts — see §6 and `16` §8.
 
 ### `landmark` (icons layer)
 ```jsonc
@@ -167,9 +196,18 @@ Rule of thumb: `effectiveOrder = (z, y, scale)` compared in that priority.
 - Unknown future fields must be preserved where possible (forward-compat), or the
   migration must explicitly drop and document them.
 
+### Steps
+
+| | Change | What it does |
+|---|---|---|
+| **1 → 2** | water as objects (WP-40) | Renames the `rivers` layer to `water`/`water` and **empties it**. Every `river` object is deleted, not converted: a river was a centreline and a width, a water object is an outline, and inventing the ribbon to convert one would mean keeping a legacy render path alive to check the result against. **This was free only because the owner was the only person holding drafts** (`16` §8) — a later migration that destroys data does not get to reason this way. |
+
 ## 7. What is NOT in the scene
 
 - **Coastal rings** — derived from the land union at render time.
+- **The drawn coastline itself, since v2** — `union(landmass) − union(water)` is computed at
+  render time and never stored (ADR-47). The stored landmass is the whole continent; what you
+  see is the continent minus the rivers crossing it.
 - **Sprite bitmaps** — the scene stores `variant`/`kind` keys; sprites come from the
   app's asset registry.
 - **View state** (zoom, pan, active tool, selection) — session-only, never serialized

@@ -1,9 +1,9 @@
 import { drawBackground, drawLayer, drawRings, drawVignette } from "../canvas/draw";
-import { landMask } from "../engine/river";
 import { PALETTE } from "../canvas/palette";
 import type { Size } from "../canvas/viewport";
-import type { MultiPolygon } from "../engine/geometry/types";
-import type { Landmass, Scene } from "../scene/types";
+import type { DerivedTerrain } from "../engine/water/derive";
+import { callGeometry } from "../engine/worker/client";
+import type { Landmass, Scene, Water } from "../scene/types";
 
 /**
  * WP-11 — the scene rendered to an image file, at a user-chosen scale.
@@ -68,7 +68,7 @@ export function planExport(map: Size, scale: number): ExportPlan {
  */
 export function renderScene(
   scene: Scene,
-  bands: MultiPolygon[],
+  derived: DerivedTerrain,
   plan: ExportPlan,
 ): HTMLCanvasElement {
   const map = { w: scene.meta.canvas.w, h: scene.meta.canvas.h };
@@ -86,13 +86,12 @@ export function renderScene(
 
   ctx.scale(plan.scale, plan.scale);
   drawBackground(ctx, map, scene.settings.parchment);
-  if (scene.settings.coastalRings) drawRings(ctx, bands);
-  // The export draws through the same masked path, so a mouth cannot differ from the screen.
-  const mask = landMask(
-    scene.layers.flatMap((l) => l.objects).filter((o): o is Landmass => o.type === "landmass"),
-  );
+  if (scene.settings.coastalRings) drawRings(ctx, derived.bands);
+  // The export draws through the same derivation as the screen, so a channel cannot differ
+  // between the two — one renderer, two consumers.
   for (const layer of scene.layers)
-    if (layer.visible) drawLayer(ctx, layer.objects, undefined, mask);
+    if (layer.visible)
+      drawLayer(ctx, layer.objects, undefined, layer.id === "terrain" ? derived.land : undefined);
   if (scene.settings.parchment) drawVignette(ctx, map);
 
   return canvas;
@@ -126,3 +125,39 @@ export const exportFilename = (scene: Scene, format: Format): string =>
   `${(scene.meta.title || "map").replace(/[^\w-]+/g, "-").replace(/^-|-$/g, "") || "map"}.${
     FORMATS[format].extension
   }`;
+
+/**
+ * The derivation a static render needs, fetched fresh from the worker.
+ *
+ * Derived rather than borrowed from the stage because none of it is stored (ADR-13, ADR-47),
+ * and one worker round-trip is cheaper than plumbing the stage's copy out to a dialog and a
+ * thumbnail job that both run outside it. Lives here because both callers already render
+ * through this module, and two copies of the payload is two places for the export to drift
+ * from the screen.
+ *
+ * **Layer visibility is honoured on the way in**: a hidden water layer subtracts nothing, so
+ * an export matches what the toggle shows (D9).
+ */
+export async function deriveForRender(scene: Scene): Promise<DerivedTerrain> {
+  const landmasses = layerObjects<Landmass>(scene, "terrain");
+  // Water alone answers to its layer's visibility here, because hiding it changes the
+  // *geometry* rather than what is painted (D9). Terrain's own toggle is honoured by the
+  // draw loop above, as every other layer's is.
+  const waters = layerObjects<Water>(scene, "water", true);
+  if (landmasses.length === 0) return { land: null, bands: [] };
+  const { canvas } = scene.meta;
+  return callGeometry("deriveTerrain", {
+    landmasses,
+    waters,
+    canvas: { x: 0, y: 0, w: canvas.w, h: canvas.h },
+    ringCount: scene.settings.ringCount,
+    ringGap: scene.settings.ringGap,
+    rings: scene.settings.coastalRings,
+  });
+}
+
+const layerObjects = <T,>(scene: Scene, id: "terrain" | "water", hideable = false): T[] => {
+  const layer = scene.layers.find((l) => l.id === id);
+  if (!layer || (hideable && !layer.visible)) return [];
+  return layer.objects as T[];
+};

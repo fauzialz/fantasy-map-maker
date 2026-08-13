@@ -81,42 +81,15 @@ describe("resolveGesture", () => {
 });
 
 /**
- * WP-20 — a control point outranks everything, because on a river the two genuinely
- * collide: an endpoint is usually *at* a frame corner, since it is the point that defines
- * that corner. `frame` here is the one at the top of the file, whose "nw" handle sits at
- * (100, 100).
+ * **WP-40 deleted the rung that used to sit above all of these.** A river's control point
+ * outranked the handles because an endpoint was usually *at* a frame corner. Water has no
+ * control points — it is an outline like a landmass (ADR-48) — so the ladder is handles,
+ * frame, object, empty space, and `07` I5 records it that way.
+ *
+ * The tests that stood here are deleted rather than skipped: they asserted the behaviour of
+ * an input that no longer exists, so a skipped copy would be a description of a tool nobody
+ * can reach.
  */
-describe("control points, the top rung", () => {
-  it("beats a frame handle sitting on the same pixel", () => {
-    expect(resolveGesture({ ...base, point: [100, 100] }).kind).toBe("scale");
-    expect(resolveGesture({ ...base, point: [100, 100], overControlPoint: true })).toEqual({
-      kind: "reshape",
-    });
-  });
-
-  it("beats the frame interior and the object under it", () => {
-    expect(
-      resolveGesture({ ...base, point: [200, 200], overObject: true, overControlPoint: true }).kind,
-    ).toBe("reshape");
-  });
-
-  /**
-   * I5's escape applies to every shortcut, not just the ones that existed when it was
-   * written: shift means "change the selection", so it must still reach the river under
-   * the point rather than starting a reshape it can never get out of.
-   */
-  it("still lets shift through to change the selection", () => {
-    expect(
-      resolveGesture({
-        ...base,
-        point: [200, 200],
-        overObject: true,
-        overControlPoint: true,
-        shift: true,
-      }),
-    ).toEqual({ kind: "pick", additive: true });
-  });
-});
 
 /**
  * `09` S8 / E14 — the frame draws the selection but must never *pick* it, and that

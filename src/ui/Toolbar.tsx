@@ -44,7 +44,7 @@ const LAYER_TOOLBAR: Tool[] = [
     hint: "Scatter peaks",
   },
   { id: "forests", label: "Forests", icon: Trees, layer: "forests", hint: "Scatter woodland" },
-  { id: "rivers", label: "Rivers", icon: Waves, layer: "rivers", hint: "Draw a river" },
+  { id: "water", label: "Water", icon: Waves, layer: "water", hint: "Rivers, lakes and sea" },
   { id: "icons", label: "Icons", icon: Castle, layer: "icons", hint: "Place a landmark" },
   { id: "labels", label: "Labels", icon: Type, layer: "labels", hint: "Name a place" },
 ];

@@ -122,21 +122,11 @@ export function clipRings(bands: MultiPolygon[], water: MultiPolygon): MultiPoly
   );
 }
 
-export interface DeriveRings {
-  landmasses: Landmass[];
-  canvas: Rect;
-  ringCount: number;
-  ringGap: number;
-}
-
-/** Pipeline C — S10 → S11 → S13 → S14. */
-export function deriveRings({
-  landmasses,
-  canvas,
-  ringCount,
-  ringGap,
-}: DeriveRings): MultiPolygon[] {
-  const land = landUnion(landmasses);
-  if (land.length === 0) return [];
-  return clipRings(ringBands(land, ringCount, ringGap), waterRegion(canvas, land));
-}
+/**
+ * Pipeline C — S10 → S11 → S13 → S14 — is assembled in `engine/water/derive.ts` since WP-40.
+ *
+ * The stages above are unchanged; what moved is *what they are fed*. Bands now grow from the
+ * **cut** boundary (`union(land) − union(water)`) while S11's water region is still built from
+ * the **pre-cut** land, and holding those two apart is the whole of D5. Since both halves also
+ * need `union(water)`, the pipeline lives beside the cut rather than here.
+ */

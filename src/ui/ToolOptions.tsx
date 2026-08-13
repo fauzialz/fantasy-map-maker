@@ -5,7 +5,7 @@ import { BIOME_FILL } from "../canvas/palette";
 import type { Biome, Label, Landmass } from "../scene/types";
 import { ICON_KINDS } from "../sprites/registry";
 import { LAYER_OBJECT, LAYER_TOOLS, useEditorStore, type ObjectTool } from "../state/editorStore";
-import { Slider, Toggle } from "./controls";
+import { Slider } from "./controls";
 import {
   button,
   field,
@@ -24,9 +24,9 @@ const TOOL_LABEL: Record<ObjectTool, string> = {
   place: "Place one",
   erase: "Erase",
 };
-// `select: "Edit"` left with WP-25. It was a third name for the global mode, and reshaping a
-// river is Select's job now — dragging a control point outranks the frame's handles (WP-20).
-const RIVER_TOOL_LABEL: Partial<Record<ObjectTool, string>> = { place: "Draw" };
+// `select: "Edit"` left with WP-25 — a third name for the global mode. `RIVER_TOOL_LABEL`
+// ("Draw", for the river tool's one placement mode) left with WP-40, which deleted that tool;
+// the water layer offers nothing to create until WP-41's brush arrives.
 
 /**
  * The contextual left rail — options for whatever tool is in hand, and nothing else. It is
@@ -50,10 +50,6 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const setIconKind = useEditorStore((s) => s.setIconKind);
   const labelSize = useEditorStore((s) => s.labelSize);
   const setLabelSize = useEditorStore((s) => s.setLabelSize);
-  const riverWidth = useEditorStore((s) => s.riverWidth);
-  const setRiverWidth = useEditorStore((s) => s.setRiverWidth);
-  const riverTaper = useEditorStore((s) => s.riverTaper);
-  const setRiverTaper = useEditorStore((s) => s.setRiverTaper);
   const selection = useEditorStore((s) => s.selection);
   const setSettings = useEditorStore((s) => s.setSettings);
   const patchObject = useEditorStore((s) => s.patchObject);
@@ -73,16 +69,15 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const selecting = objectTool === "select";
   /**
    * Erase is a global mode (ADR-37), so the rail must not go on offering the *active layer's*
-   * controls underneath it: a river width slider above an eraser describes a tool that is not
-   * in your hand. The disc is the whole tool, so its size is the whole option.
+   * controls underneath it: a biome palette above an eraser describes a tool that is not in
+   * your hand. The disc is the whole tool, so its size is the whole option.
    */
   const erasing = objectTool === "erase";
   /**
    * Select and Erase act on what is already on the map, so neither inherits the active
    * layer's *create* options — the rail follows the tool in your hand, not the layer you
    * happen to be standing on. Erase got this guard when it went global (ADR-37) and Select
-   * never did, which left a river width slider and a biome palette sitting under a tool that
-   * creates nothing.
+   * never did, which left a biome palette sitting under a tool that creates nothing.
    */
   const globalMode = selecting || erasing;
   /** The land brush, as opposed to the sea brush — they take different options. */
@@ -137,9 +132,9 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
 
       {/*
         A single-tool layer gets no chips: a segmented control with one segment is a label
-        pretending to be a control, and clicking it cannot change anything. Rivers, icons and
-        labels each offer exactly one way to create, and the toolbar already says which layer
-        you are on.
+        pretending to be a control, and clicking it cannot change anything. Icons and labels
+        each offer exactly one way to create, and the toolbar already says which layer you are
+        on.
       */}
       {tools && tools.length > 1 && !globalMode && (
         <div className={segment()}>
@@ -151,14 +146,14 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
               className={toolButton({ active: objectTool === tool })}
               onClick={() => setObjectTool(tool)}
             >
-              {(activeLayerId === "rivers" && RIVER_TOOL_LABEL[tool]) || TOOL_LABEL[tool]}
+              {TOOL_LABEL[tool]}
             </button>
           ))}
         </div>
       )}
 
       {/* The eraser is global since WP-26, so its size has to be reachable from any layer —
-          including rivers, which is not an object layer and would otherwise hide the slider
+          including water, which is not an object layer and would otherwise hide the slider
           for the one tool that now works there. */}
       {(erasing || (!selecting && (onTerrain || (isObjectLayer && objectTool === "scatter")))) && (
         <Slider
@@ -429,21 +424,16 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </>
       )}
 
-      {activeLayerId === "rivers" && objectTool === "place" && (
-        <>
-          <Slider
-            label="River width"
-            value={riverWidth}
-            min={6}
-            max={90}
-            step={2}
-            onChange={setRiverWidth}
-          />
-          <Toggle label="Widen toward the mouth" checked={riverTaper} onChange={setRiverTaper} />
-          <p className={hint()}>
-            Click from source to sea. Double-click or Enter finishes, Escape cancels.
-          </p>
-        </>
+      {/*
+        WP-40 ships the water *substance* and no tool to make it (`16` §5), so the layer says
+        so rather than showing an empty rail. Saying nothing would read as a rail that failed
+        to load, which is the same class of lie as a control that does nothing.
+      */}
+      {activeLayerId === "water" && !globalMode && (
+        <p className={hint()}>
+          Water cuts channels and lakes out of the land. The brush that draws it arrives in the
+          next package — until then this layer can be hidden, which closes every channel.
+        </p>
       )}
 
       {selecting && (
@@ -460,7 +450,6 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
               ? "Click, shift-click or drag a marquee to select — any layer, not just this one."
               : `${selected.length} selected${onlyType ? "" : " across types"}` +
                 " · drag to move · corners scale · the stalk rotates." +
-                (onlyType === "river" ? " Drag a control point to reshape it." : "") +
                 (selectedLand.length > 0
                   ? " Double-click land to take what stands on it too."
                   : "")}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { MapStage } from "../canvas/MapStage";
 import { callGeometry } from "../engine/worker/client";
 import {
+  deriveForRender,
   download,
   exportFilename,
   planExport,
@@ -13,7 +14,7 @@ import { loadScene } from "../persistence/drafts";
 import { useAutosave } from "../persistence/useAutosave";
 import { navigate, usePage } from "../routes";
 import type { CanvasPreset, Label } from "../scene/types";
-import { selectLandmasses, useEditorStore } from "../state/editorStore";
+import { useEditorStore } from "../state/editorStore";
 import { useToastStore } from "../state/toastStore";
 import { TooltipProvider } from "./controls";
 import { ConfirmDialog, ExportDialog, GenerateDialog, ShortcutsDialog } from "./dialogs";
@@ -154,9 +155,10 @@ function Editor() {
   }, []); // once, on arrival
 
   /**
-   * WP-11 — render the scene to its own canvas and hand it over as a file. Rings are
-   * derived fresh rather than borrowed from the stage: they are never stored (ADR-13), and
-   * one worker round-trip is cheaper than plumbing the stage's copy out to the dialog.
+   * WP-11 — render the scene to its own canvas and hand it over as a file. The land and its
+   * rings are derived fresh rather than borrowed from the stage: neither is ever stored
+   * (ADR-13, ADR-47), and one worker round-trip is cheaper than plumbing the stage's copy out
+   * to the dialog.
    */
   const exportImage = async (format: Format, requestedScale: number) => {
     setExporting(true);
@@ -164,21 +166,10 @@ function Editor() {
       const state = useEditorStore.getState();
       const { canvas } = state.scene.meta;
       const plan = planExport(canvas, requestedScale);
-      const landmasses = selectLandmasses(state);
-      const bands =
-        state.scene.settings.coastalRings && landmasses.length > 0
-          ? (
-              await callGeometry("deriveRings", {
-                landmasses,
-                canvas: { x: 0, y: 0, w: canvas.w, h: canvas.h },
-                ringCount: state.scene.settings.ringCount,
-                ringGap: state.scene.settings.ringGap,
-              })
-            ).bands
-          : [];
+      const derived = await deriveForRender(state.scene);
 
       const filename = exportFilename(state.scene, format);
-      const blob = await toBlob(renderScene(state.scene, bands, plan), format);
+      const blob = await toBlob(renderScene(state.scene, derived, plan), format);
       download(blob, filename);
       setExportOpen(false);
       useToastStore

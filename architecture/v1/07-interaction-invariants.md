@@ -128,8 +128,28 @@ Two things make this work well here:
   `Worker.prototype.postMessage` from the driver logs the `op` of every geometry request
   instead — and because the method is on the prototype, it catches the worker the app created
   long before the driver arrived. The exact answer for a whole drag and drop is two ops:
-  `resolveDrop, deriveRings`. This is not the store-reading trap above; `postMessage` is a
+  `resolveDrop, deriveTerrain` (the second was named `deriveRings` until WP-40 folded the land
+  cut into it — same one round-trip, more in the result). This is not the store-reading trap above; `postMessage` is a
   platform method, and there is only ever one of those.
+- **A *pixel* probe outside the stage returns transparent black, which is a colour.** WP-40's
+  driver asserts "no coast stroke anywhere across the estuary" by compositing the stage's
+  canvases and sampling 81 points along a line through the mouth. Every one of those points was
+  off the right edge, where `getImageData` hands back `0,0,0` — some 90 away from the stroke
+  colour, so the check passed, and would have passed just as confidently on code that painted a
+  bar straight across. It was caught only because its **paired control** — the same line, the
+  same threshold, after hiding the water layer, which *must* find the stroke — kept failing.
+  **Sample points must be asserted inside the element before their colours mean anything**, and
+  a check for the *absence* of something needs a mirror check for its presence, or it is
+  indistinguishable from a check that never looked. Same family as the cursor probe below, and
+  worse: a stale cursor at least came from somewhere real.
+- **A 3-unit stroke is invisible at fit zoom, and blends rather than disappearing.** The coast
+  stroke is 3 *map* units, so on a 4000×3000 canvas at its 23% fit zoom it covers 0.7 of a
+  screen pixel and antialiases into a colour that is neither the stroke nor the land. Colour
+  assertions about it fail on correct code until the driver zooms in — WP-40's does, sized from
+  the stage's own box so the sample set still fits. And note that **zooming does not centre
+  anything**: `zoomAt` pins the map point under the pointer, so a driver that zooms toward a
+  region keeps it exactly as far off-axis as it was, only further out. Zoom at the stage centre,
+  then middle-drag the region into it.
 - **A cursor probe outside the stage returns the previous answer, not no answer.** WP-20's
   driver reads `.mbf-stage` `style.cursor` at predicted map points. The stage is 1088 px wide
   and the map does not fit inside it, so points past its right edge never receive the
@@ -220,16 +240,28 @@ promise exactly what a press will do; the two drifting apart is precisely how bu
 stayed invisible (hover said one thing, the press did another).
 
 ### I5 — Gesture precedence, and shift escapes it
-**Control point → handles → frame interior → object → empty space.** **Shift skips every
-one of those shortcuts**, because shift means "change the selection". Without that escape, a
-shift-click on an already-selected object lands inside the frame and starts a drag, so it
-can never be deselected.
+**Handles → frame interior → object → empty space.** **Shift skips every one of those
+shortcuts**, because shift means "change the selection". Without that escape, a shift-click on
+an already-selected object lands inside the frame and starts a drag, so it can never be
+deselected.
 
-> **The top rung arrived with WP-20**, and it is not a courtesy: a river's control point is
-> always offset from the frame corner by exactly half its width, which at any ordinary river
-> width is *inside* the 9 px handle reach. Without the rung, grabbing the end of a river
-> scales the whole thing. Deleting it in the driver produced precisely that — the press
-> became a corner scale, and the mouth moved along with the source.
+> **WP-40 removed the rung that stood above all of these**, and the ladder is one shorter than
+> it was between WP-20 and Batch 14.
+>
+> That rung was a river's **control point**. It was not a courtesy: a control point sat offset
+> from the frame corner by exactly half the river's width, which at any ordinary width is
+> *inside* the 9 px handle reach — so without the rung, grabbing the end of a river scaled the
+> whole thing. Deleting it in WP-20's driver produced precisely that.
+>
+> **Water has no control points.** It is an outline like a landmass (ADR-48), and node editing
+> over outline vertices — on both substances — is deliberately unscheduled until Batch 14 is
+> evaluated (`16` D3, §7). So nothing claims the top rung today, and `resolveGesture` no longer
+> takes an `overControlPoint` input at all: an unused parameter would be a rung that exists in
+> the code and not in the app, which is worse than a missing one.
+>
+> **When node editing is designed, this is the invariant it re-opens.** The collision it
+> solved has not gone anywhere — a vertex on a coastline will sit on a frame corner just as an
+> endpoint did.
 
 ### I6 — A drag transforms the snapshot, not the previous frame
 Every transform runs against the objects as they were when the drag began, applying an
@@ -247,10 +279,12 @@ group turns (for a group wider than tall, the union gets **narrower** at 40°, n
 Handles are 9 screen px. [SelectionOverlay.tsx](../../src/canvas/SelectionOverlay.tsx)
 and [handles.ts](../../src/canvas/handles.ts) each divide by the current scale, and must
 keep using the same constants, or what you see stops matching what you can grab.
-[RiverOverlay.tsx](../../src/canvas/RiverOverlay.tsx) draws a river's control points at
-`HANDLE_PX` and [useSelection.ts](../../src/canvas/useSelection.ts) grabs them at the same
-radius, for the same reason — **it also decides picking**, since `riverAt` passes that radius
-to `isOnRiver` as slack so a thin river stays clickable when zoomed out.
+**WP-40 deleted this invariant's second example**, which was `RiverOverlay.tsx` drawing a
+river's control points at `HANDLE_PX` while `useSelection.ts` grabbed them at the same radius
+— and passed that radius to `isOnRiver` as slack, so it decided *picking* too. Both the
+overlay and the slack are gone with the ribbon. The rule is unchanged and still binding on the
+handles; it simply has one worked example instead of two, and node editing will bring the
+second back.
 
 ### I9 — One predicate decides what is interactive: `hasFootprint`
 _Added by WP-8._ Selection, the rbush index, the selection frame, the eraser and the
@@ -294,9 +328,9 @@ this predicate it falls on.
 > became `pathBounds` over `worldCorners`, and the containment branch stopped naming a type);
 > **the box takes no press, including I5's frame-interior rung, with the cursor resolving the
 > identical precedence** (WP-15 for land, WP-20 for rivers, reusing the same `frameInterior`
-> flag rather than inventing a second one); **a river's control points outrank the frame's
-> handles** (WP-20, now I5's top rung); and **a drag applies one resolved delta to the whole
-> selection** — written in WP-15, because the moment land could be dragged
+> flag rather than inventing a second one); ~~**a river's control points outrank the frame's
+> handles**~~ (WP-20 — **retired by WP-40**, which removed control points along with the
+> ribbon; see I5); and **a drag applies one resolved delta to the whole selection** — written in WP-15, because the moment land could be dragged
 > `resolveTerrainDrop` had to decide what the rest of the drag did, and proved in WP-19, where
 > a mountain riding the *requested* delta while its continent slides back is the defect the
 > rule exists to prevent.

@@ -1,9 +1,8 @@
 import { pointInPolygon } from "../engine/geometry/nesting";
-import { distanceToSegment, isOnRiver } from "../engine/river";
-import { landmassToPolygon } from "../engine/terrain/assemble";
+import { distanceToSegment } from "../engine/geometry/segment";
 import { footprint, hasFootprint } from "../scene/bounds";
 import { SPRITE_HEIGHT, type SpriteKind } from "../sprites/registry";
-import type { Landmass, Point, Ring, SceneObject } from "../scene/types";
+import type { Landmass, Point, Ring, SceneObject, Water } from "../scene/types";
 
 /** Nearest approach from a point to a closed ring — the coastline, walked as segments. */
 function distanceToRing(ring: Ring, point: Point): number {
@@ -23,10 +22,10 @@ function distanceToRing(ring: Ring, point: Point): number {
  * against the 1–2k object budget the sibling scan already accepts. `pathBounds` is the
  * upgrade if a map ever carries enough coastline to feel it.
  */
-const touchesLandmass = (landmass: Landmass, point: Point, radius: number): boolean =>
-  pointInPolygon(landmassToPolygon(landmass), point) ||
-  distanceToRing(landmass.path, point) <= radius ||
-  landmass.holes.some((hole) => distanceToRing(hole, point) <= radius);
+const touchesOutline = (object: Landmass | Water, point: Point, radius: number): boolean =>
+  pointInPolygon([object.path, ...object.holes], point) ||
+  distanceToRing(object.path, point) <= radius ||
+  object.holes.some((hole) => distanceToRing(hole, point) <= radius);
 
 /**
  * Is this object under the eraser brush?
@@ -35,15 +34,21 @@ const touchesLandmass = (landmass: Landmass, point: Point, radius: number): bool
  * cursor survives because its feet are not, so the footprint counts too — scaled, since
  * a jittered scatter varies object size.
  *
- * **Path objects answer the same question whole (WP-26, ADR-37).** Until this package
+ * **Path objects answer the same question whole (WP-26, ADR-37).** Until that package
  * `hasFootprint` returned false for landmasses and rivers, so those two were not erasable
  * by any tool at any time — the scoped eraser's real defect, not its scope. They are asked
  * "does the disc touch you", never "how much of you", because partial removal of a path
- * object is a *reshape*: that is the sea brush's job on land and Select's on a river.
+ * object is a *reshape*: that is the sea brush's job on land, and WP-42's terrain brush on
+ * water (`16` D18).
+ *
+ * **Both substances answer through the same call since WP-40**, because they are the same
+ * shape — an outline plus holes. The river branch that used to sit beside this one measured
+ * distance to a centreline, which was the last place the two kinds of object were asked
+ * different questions.
  */
 export function isUnderBrush(object: SceneObject, point: Point, brushRadius: number): boolean {
-  if (object.type === "landmass") return touchesLandmass(object, point, brushRadius);
-  if (object.type === "river") return isOnRiver(object, point, brushRadius);
+  if (object.type === "landmass" || object.type === "water")
+    return touchesOutline(object, point, brushRadius);
   if (!hasFootprint(object)) return false;
   const { left, right } = footprint(object);
   return Math.hypot(object.x - point[0], object.y - point[1]) <= brushRadius + (right - left) * 0.3;

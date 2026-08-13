@@ -1,8 +1,8 @@
 import type { MultiPolygon } from "../engine/geometry/types";
-import { riverOutline } from "../engine/river";
+import type { CutLandmass } from "../engine/water/cut";
 import { isSprite, spriteRef } from "../scene/bounds";
 import { inDrawOrder } from "../scene/order";
-import type { Landmass, Ring, River, SceneObject } from "../scene/types";
+import type { Biome, Landmass, Ring, SceneObject } from "../scene/types";
 import { drawSprite } from "../sprites/raster";
 import { drawLabel } from "../sprites/text";
 import { BIOME_FILL, LAND_OPACITY, PALETTE, SEA_OPACITY } from "./palette";
@@ -74,16 +74,21 @@ export function drawRings(ctx: DrawContext, bands: MultiPolygon[]): void {
 }
 
 /**
- * A landmass is an outer coastline plus holes (lakes). Holes are wound opposite to the
- * outer ring (S6), so the default non-zero fill rule cuts them out — nothing else needed.
+ * Fill and coast-stroke one biome's worth of land.
+ *
+ * The rings are traced into a single path before filling, so the non-zero fill rule cuts
+ * holes out (S6, which winds them opposite to their outer) — and, since WP-40, so that a
+ * landmass severed by a river fills and strokes as **one** operation. Two fills would
+ * double the alpha where nothing overlaps; two strokes would be indistinguishable, but the
+ * fill would show the seam.
  */
-export function drawLandmass(ctx: DrawContext, landmass: Landmass): void {
+function paintLand(ctx: DrawContext, shape: MultiPolygon, biome: Biome): void {
+  if (shape.length === 0) return;
   ctx.save();
   ctx.beginPath();
-  trace(ctx, landmass.path);
-  for (const hole of landmass.holes) trace(ctx, hole);
+  for (const polygon of shape) for (const ring of polygon) trace(ctx, ring);
   ctx.globalAlpha = LAND_OPACITY;
-  ctx.fillStyle = BIOME_FILL[landmass.biome];
+  ctx.fillStyle = BIOME_FILL[biome];
   ctx.fill();
   ctx.strokeStyle = PALETTE.coast;
   ctx.lineWidth = 3;
@@ -93,20 +98,24 @@ export function drawLandmass(ctx: DrawContext, landmass: Landmass): void {
 }
 
 /**
- * A river is a filled ribbon rather than a stroked line, because the taper is geometry —
- * see `engine/river.ts`. Flat, opaque and unstroked, so two overlapping ribbons paint the
- * same colour twice and a confluence is seamless (`PALETTE.river`).
+ * A landmass exactly as stored: an outer coastline plus holes (lakes).
+ *
+ * This is the water-free path, and it stays because it is the common one — a map with no
+ * water is drawn straight from the scene with no derivation to wait for (`DerivedTerrain`).
  */
-export function drawRiver(ctx: DrawContext, river: River, mask: MultiPolygon = []): void {
-  // WP-34 — masked by the land, so the mouth takes the coastline's own shape.
-  const rings = riverOutline(river, mask);
-  if (rings.length === 0) return;
-  ctx.save();
-  ctx.beginPath();
-  for (const ring of rings) trace(ctx, ring);
-  ctx.fillStyle = PALETTE.river;
-  ctx.fill();
-  ctx.restore();
+export function drawLandmass(ctx: DrawContext, landmass: Landmass): void {
+  paintLand(ctx, [[landmass.path, ...landmass.holes]], landmass.biome);
+}
+
+/**
+ * WP-40 — the land as `union(land) − union(water)`, derived and passed in (ADR-47).
+ *
+ * **The coast stroke follows the cut**, which is the entire visual argument for the design:
+ * a river's banks are stroked because they *are* coastline, and its estuary carries no bar
+ * across it because there is no mouth there to cross — only shore.
+ */
+export function drawCutLand(ctx: DrawContext, land: CutLandmass[]): void {
+  for (const piece of land) paintLand(ctx, piece.shape, piece.biome);
 }
 
 /**
@@ -124,12 +133,19 @@ export function drawLayer(
   ctx: DrawContext,
   objects: SceneObject[],
   sorted: SceneObject[] = inDrawOrder(objects),
-  mask: MultiPolygon = [],
+  land?: CutLandmass[] | null,
 ): void {
-  for (const object of objects) {
-    if (object.type === "landmass") drawLandmass(ctx, object);
-    else if (object.type === "river") drawRiver(ctx, object, mask);
-  }
+  /**
+   * The terrain layer draws the **derived** land when there is any water to cut it with, and
+   * the stored landmasses otherwise.
+   *
+   * The water layer draws nothing at all, and there is no branch here for it: water is a
+   * *geometry* layer rather than a paint layer — the first in this app — and its only visual
+   * contribution is the shape it removes from terrain (`16` §3). Water over open sea is
+   * therefore invisible, which is D16 and is exactly right at an estuary.
+   */
+  if (land) drawCutLand(ctx, land);
+  else for (const object of objects) if (object.type === "landmass") drawLandmass(ctx, object);
   for (const object of sorted) {
     if (object.type === "label") {
       drawLabel(ctx, object);

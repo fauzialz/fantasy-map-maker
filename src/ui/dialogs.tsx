@@ -82,15 +82,14 @@ export function ConfirmDialog({
  *
  * **Every row here is read off a real handler**, not written from memory: undo and redo from
  * the editor's own key handler, Delete/Backspace and Escape from `useSelection`, Enter and
- * Escape while drawing from `useRiverTool`, the space-drag from `MapStage`. A shortcuts sheet
+ * Escape from `useSelection`, the space-drag from `MapStage`. A shortcuts sheet
  * that lists something the app does not do is worse than no sheet.
  */
 const SHORTCUTS: [string, string][] = [
   ["Ctrl / ⌘ + Z", "Undo"],
   ["Ctrl / ⌘ + Shift + Z", "Redo"],
   ["Delete · Backspace", "Delete the selection"],
-  ["Escape", "Drop the selection, or abandon the river being drawn"],
-  ["Enter", "Finish the river being drawn"],
+  ["Escape", "Drop the selection"],
   ["Shift + click", "Add to or remove from the selection"],
   ["Double-click land", "Select it and everything standing on it"],
   ["Space + drag", "Pan, whatever tool is in hand"],

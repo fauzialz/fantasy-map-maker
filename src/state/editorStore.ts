@@ -13,6 +13,7 @@ import type {
   Scene,
   SceneObject,
   SceneSettings,
+  Water,
 } from "../scene/types";
 import { applyStep, coalesce, diffScene, pushStep, type Step } from "./history";
 
@@ -29,7 +30,11 @@ export const LAYER_OBJECT: Partial<Record<LayerId, "mountain" | "tree" | "landma
 /**
  * Which tools each layer offers. Scattering suits the types that come in ranges and
  * forests — nobody wants a hundred jittered castles, and a scattered label is nonsense.
- * Rivers are absent because they are drawn point-by-point by their own tool, not brushed.
+ *
+ * **Water has no entry since WP-40**, and the empty layer is the point: the river tool was
+ * deleted with the ribbon it drew, and its replacement — one brush, two modes — arrives in
+ * WP-41. Until then the layer holds objects that only a fixture can make, which is what a
+ * package with no tools in it means (`16` §5).
  *
  * **`select` is not in here (WP-25).** ADR-28 made Select a global mode in the toolbar,
  * acting on every visible, unlocked layer; the per-layer copies survived that change and
@@ -44,7 +49,6 @@ export const LAYER_TOOLS: Partial<Record<LayerId, ObjectTool[]>> = {
   forests: ["scatter", "place"],
   icons: ["place"],
   labels: ["place"],
-  rivers: ["place"],
 };
 
 /**
@@ -123,10 +127,6 @@ interface EditorState {
   spriteSpacing: Record<SpriteKind, number>;
   /** font size for the next label, in map units */
   labelSize: number;
-  /** width of the next river at its mouth, in map units */
-  riverWidth: number;
-  /** whether the next river narrows toward its source */
-  riverTaper: boolean;
   /** ids of the current multi-selection, within the active layer */
   selection: string[];
   /**
@@ -168,13 +168,11 @@ interface EditorState {
   setSpriteScale: (kind: SpriteKind, scale: number) => void;
   setSpriteSpacing: (kind: SpriteKind, spacing: number) => void;
   setLabelSize: (size: number) => void;
-  setRiverWidth: (width: number) => void;
-  setRiverTaper: (taper: boolean) => void;
   setSelection: (ids: string[]) => void;
   setLayerObjects: (layerId: LayerId, objects: SceneObject[]) => void;
   addObjects: (layerId: LayerId, objects: SceneObject[]) => void;
   removeObjects: (layerId: LayerId, ids: string[]) => void;
-  /** Replace one object in place — a dragged river point, an edited label. */
+  /** Replace one object in place — an edited label, a recoloured landmass. */
   patchObject: <T extends SceneObject>(layerId: LayerId, id: string, patch: Partial<T>) => void;
   setSettings: (patch: Partial<SceneSettings>) => void;
   /**
@@ -239,6 +237,13 @@ interface EditorState {
 }
 
 const TERRAIN = "terrain";
+const WATER = "water";
+
+/**
+ * Stable empty result for `selectWaters`, so a hidden or absent water layer does not hand
+ * zustand a fresh array on every read and re-render the stage forever.
+ */
+const NO_WATER: Water[] = [];
 
 /**
  * The layers holding any of these ids — every write that touches a cross-layer selection walks
@@ -269,8 +274,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Landmarks are placed one at a time and never scattered, so theirs is inert.
   spriteSpacing: { mountain: 0.58, tree: 0.4, landmark: 0.5 },
   labelSize: 96,
-  riverWidth: 26,
-  riverTaper: true,
   selection: [],
   seaLevel: null,
   generatorRotation: 5,
@@ -308,8 +311,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSpriteSpacing: (kind, spacing) =>
     set((state) => ({ spriteSpacing: { ...state.spriteSpacing, [kind]: spacing } })),
   setLabelSize: (labelSize) => set({ labelSize }),
-  setRiverWidth: (riverWidth) => set({ riverWidth }),
-  setRiverTaper: (riverTaper) => set({ riverTaper }),
   setSelection: (selection) => set({ selection }),
 
   setLayerObjects: (layerId, objects) =>
@@ -549,3 +550,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
 export const selectLandmasses = (state: EditorState): Landmass[] =>
   (state.scene.layers.find((layer) => layer.id === TERRAIN)?.objects ?? []) as Landmass[];
+
+/**
+ * The water that is currently cutting the land — **empty when the layer is hidden**.
+ *
+ * That is D9 implemented rather than special-cased: hiding the water layer closes every
+ * channel, because the derivation simply stops being given anything to subtract. Every other
+ * layer's visibility is a Konva flag on a bitmap; water's has to reach the geometry, since
+ * the cut is the layer's only contribution and there is nothing else to hide.
+ */
+export const selectWaters = (state: EditorState): Water[] => {
+  const layer = state.scene.layers.find((l) => l.id === WATER);
+  return layer?.visible ? (layer.objects as Water[]) : NO_WATER;
+};

@@ -94,11 +94,7 @@ export function cursorForHover({
   overObject,
   scale,
   frameInterior = true,
-  overControlPoint = false,
 }: HoverInput): string | undefined {
-  // The same top rung, and deliberately its own cursor: "grab" says *this point* moves,
-  // where "move" over the river's body says the whole river does.
-  if (overControlPoint) return "grab";
   if (frame) {
     const handle = handleAt(frame, point, scale);
     if (handle) return cursorForHandle(handle, frame.rotation);

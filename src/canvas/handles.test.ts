@@ -67,22 +67,25 @@ describe("cursors", () => {
   });
 
   /**
-   * I4, on the rung WP-20 added. The pointer has to resolve the *same* ladder the press
-   * does — a corner that shows "nwse-resize" while the press reshapes a river is bug #2
-   * with the parts swapped, and that is the whole reason bug #2 stayed invisible.
+   * I4, on the ladder as **WP-40 left it**. The pointer has to resolve the same rungs the
+   * press does; a corner that shows one thing while the press does another is bug #2 with the
+   * parts swapped, and that is the whole reason bug #2 stayed invisible.
+   *
+   * The two assertions that stood at the top of this block are gone with the rung they
+   * described — a river's control point, which showed "grab" and outranked both the handle it
+   * sat on and the frame interior. Water has no control points (ADR-48) and node editing is
+   * unscheduled (`16` D3), so the top of the ladder is once again the handles.
    */
-  describe("over a control point", () => {
+  describe("the ladder without a reshape rung", () => {
     const hover = (point: [number, number], extra = {}) =>
       cursorForHover({ point, frame, overObject: false, scale: 1, ...extra });
 
-    it("shows its own cursor, not the handle's, where the two collide", () => {
+    it("gives a frame corner its handle cursor, with nothing outranking it", () => {
       expect(hover([100, 100])).toBe("nwse-resize");
-      expect(hover([100, 100], { overControlPoint: true })).toBe("grab");
     });
 
-    it("outranks the frame interior, exactly as the press does", () => {
+    it("gives the frame interior a move, with nothing outranking it", () => {
       expect(hover([200, 200])).toBe("move");
-      expect(hover([200, 200], { overControlPoint: true })).toBe("grab");
     });
 
     it("says nothing about the empty interior of a path-only selection", () => {

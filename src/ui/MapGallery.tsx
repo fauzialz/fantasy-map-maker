@@ -7,11 +7,10 @@ import {
   renameDraft,
   type DraftSummary,
 } from "../persistence/drafts";
-import { callGeometry } from "../engine/worker/client";
-import { planExport, renderScene, toBlob } from "../export/image";
+import { deriveForRender, planExport, renderScene, toBlob } from "../export/image";
 import { savedScroll } from "../routes";
 import type { Scene } from "../scene/types";
-import { selectLandmasses, useEditorStore } from "../state/editorStore";
+import { useEditorStore } from "../state/editorStore";
 import { useToastStore } from "../state/toastStore";
 import { ConfirmDialog } from "./dialogs";
 import { Link } from "./Link";
@@ -126,20 +125,9 @@ export function MapGallery({ onEmpty }: { onEmpty: () => void }) {
     void (async () => {
       try {
         const { canvas } = current.meta;
-        const landmasses = selectLandmasses(useEditorStore.getState());
-        const bands =
-          current.settings.coastalRings && landmasses.length > 0
-            ? (
-                await callGeometry("deriveRings", {
-                  landmasses,
-                  canvas: { x: 0, y: 0, w: canvas.w, h: canvas.h },
-                  ringCount: current.settings.ringCount,
-                  ringGap: current.settings.ringGap,
-                })
-              ).bands
-            : [];
+        const derived = await deriveForRender(current);
         const plan = planExport(canvas, THUMB_WIDTH / canvas.w);
-        const blob = await toBlob(renderScene(current, bands, plan), "webp");
+        const blob = await toBlob(renderScene(current, derived, plan), "webp");
         await putThumb(current.meta.id, blob);
         await refresh();
       } catch {

@@ -1,7 +1,6 @@
 import type { Landmass } from "../../scene/types";
 import type { GenerateRequest, GenerateResult } from "../generator/generate";
-import type { MultiPolygon } from "../geometry/types";
-import type { DeriveRings } from "../rings/rings";
+import type { DeriveTerrain, DerivedTerrain } from "../water/derive";
 import type { ResolveDrop, DropResult } from "../terrain/overlap";
 import type { TerrainCommit } from "../terrain/pipeline";
 
@@ -15,8 +14,12 @@ export interface GeometryOps {
   ping: { payload: { echo: string }; result: { echo: string } };
   /** Pipeline A: one committed brush stroke → the new set of landmasses */
   terrainCommit: { payload: TerrainCommit; result: { landmasses: Landmass[] } };
-  /** Pipeline C: land union -> water -> bands -> clip. One MultiPolygon per ring. */
-  deriveRings: { payload: DeriveRings; result: { bands: MultiPolygon[] } };
+  /**
+   * WP-40: the two-collection derivation — the drawn land (`union(land) − union(water)`)
+   * and Pipeline C's bands, which grow from that same cut boundary. One op because both
+   * halves need the water union and the cut, and coarse ops are the rule here.
+   */
+  deriveTerrain: { payload: DeriveTerrain; result: DerivedTerrain };
   /** Pipeline B: noise fields → mask → terrain → biomes → scatter, all in one round-trip. */
   generate: { payload: GenerateRequest; result: GenerateResult };
   /** WP-15: what a dragged landmass does when it lands on another (C1 must hold at rest). */

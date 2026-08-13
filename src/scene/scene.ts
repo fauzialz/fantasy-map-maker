@@ -46,11 +46,42 @@ export function createEmptyScene(
 
 /**
  * One step from schemaVersion N to N+1. Every schema change ships its migration step in
- * the same commit (ADR-23). Empty at v1 — the loop below is the contract, not dead code.
+ * the same commit (ADR-23, `02` §6).
  */
 type MigrationStep = (scene: Scene) => Scene;
 const MIGRATIONS: Partial<Record<number, MigrationStep>> = {
-  // 1: (scene) => ({ ...scene, schemaVersion: 2, /* … */ }),
+  /**
+   * v1 → v2 — water as objects (WP-40, `16` D14).
+   *
+   * **Every existing river is deleted, not converted.** A river was a centreline plus a
+   * width; a water object is an outline, and the two are not the same information — a
+   * conversion would have to invent the ribbon, re-derive its outline, and keep a legacy
+   * render path alive to check the result against. Deletion is the cheapest correct answer
+   * **and it is free only while the owner is the only person holding drafts** (`16` §8).
+   * Staging is live, so if that ever stops being true this decision reopens rather than
+   * quietly destroying someone's map.
+   *
+   * The layer is renamed in the same step: `rivers`/`river` becomes `water`/`water`, because
+   * carve makes lakes and lay makes rivers and both are one substance (`12`'s thesis applied
+   * to a layer name). Renaming here rather than in a later step keeps a v1 draft one hop from
+   * loadable.
+   */
+  1: (scene) => ({
+    ...scene,
+    schemaVersion: 2,
+    layers: scene.layers.map((layer) =>
+      layer.id === ("rivers" as string)
+        ? { ...layer, id: "water" as const, kind: "water" as const, objects: [] }
+        : // Defensive, and cheap: a river could only ever live in the rivers layer, but a
+          // stray one anywhere else would type-check as a SceneObject and then draw nothing.
+          {
+            ...layer,
+            objects: layer.objects.filter(
+              (object) => (object.type as string) !== "river",
+            ),
+          },
+    ),
+  }),
 };
 
 /**

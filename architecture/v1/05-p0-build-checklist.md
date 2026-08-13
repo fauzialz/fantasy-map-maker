@@ -1000,22 +1000,39 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
 > rather than converting it, which is free only while the owner is the only person holding
 > drafts. Staging is live — see WP-39 — so that is nearer than "the deploy has not happened."
 
-- [ ] **WP-40 · Water is a substance** — the `water` type, the `schemaVersion` bump and its
-      `migrate()`, **the matching edit to `02-scene-data-model.md`** (§4's `river` entry, §3's
+- [x] **WP-40 · Water is a substance** — the `water` type, the `schemaVersion` bump to **2** and
+      its `migrate()`, **the matching edit to `02-scene-data-model.md`** (§4's `river` entry, §3's
       layer table, §6's contract — it is *law*, and a bump that lands without it leaves the
       contract describing a shape nothing writes), the two-collection derivation, the band rule,
       the layer rename, the visibility toggle. **No tools**: fixtures and rendering only, and it
-      carries every geometric risk in the batch. Bands offset from the cut boundary then intersect `canvas − union(land)` — **no
-      provenance tracking**, which no boolean library can give. Ends in a **measurement against
-      the 119–488 ms baseline**; if that number is bad, the rest does not start.
-      **It also deletes river point-dragging and `width`, so four documents go stale in the same
-      commit and must be corrected in it**: `07` I5's top rung; `09`'s WP-20 section (*"scale
-      multiplies `width`"*, the acceptance built on it, and row E10); **ADR-29**, which carries the
-      same sentence in the decision log; and `01` §7, which still describes a river as a tapering
-      polyline. The gap is **accepted**
-      (`16` §7): precision is lost, WP-41 and WP-42 give back freehand reshaping by brush, and
-      both substances then edit the same way. Node editing stays unscheduled by choice, not by
-      dependency.
+      carried every geometric risk in the batch. Bands offset from the cut boundary then intersect
+      `canvas − union(land)` — **no provenance tracking**, which no boolean library can give.
+      **The measurement cleared its gate**: water costs **0–10%** on top of the ring derivation,
+      inside the run-to-run spread on the worst case. Reproduced baseline 231 ms (single, 721
+      coastline points) / 380 ms (multiple, 1 171) / 1 544 ms (archipelago, 2 931) at 4000×3000,
+      ringCount 4, ringGap 14, median of 5 in Node on the dev VPS — *not* the machine the
+      119–488 ms figure was taken on, so **the ratio is the transferable number**. Structural
+      rather than lucky: four Clipper offsets dominate, and one union plus one difference is small
+      beside them, so `ringCount` is still the ceiling. Recorded with its conditions in
+      `engine/water/derive.ts`.
+      **Two decisions taken while building, both inside the design's grain:**
+      **the cut is per landmass, not over the union** — `16` §3 states it as
+      `union(land) − union(water)` and per-landmass is the same picture, since C1 forbids land
+      overlapping land at rest, but it keeps each piece's `biome` to fill with and `id` to be
+      selected by, neither of which survives a union of the terrain layer; and **`land` is null
+      when there is no water**, a fast path that means a water-free map — every map alive when
+      this shipped — pays not one boolean op more than before, instead of waiting on an async
+      derivation to draw a coastline it already knows.
+      **It also deleted river point-dragging and `width`, and the stale documents were corrected
+      in the same commit**: `07` I5's top rung (the ladder is one rung shorter, and I8 lost its
+      second worked example); `09`'s WP-20 section (points 2, 3 and 5 struck through as void, plus
+      rows E9 and E10); **ADR-29**, amended rather than superseded — its load-bearing half holds
+      for an outline, only the reason rivers were the *pilot* expired; and `01` §7, which
+      described a river as a tapering polyline. **`04-geometry-pipeline.md` was corrected too**,
+      which the entry above did not anticipate: the op is `deriveTerrain` now, not `deriveRings`,
+      and Pipeline C is fed the cut boundary. The gap is **accepted** (`16` §7): precision is lost,
+      WP-41 and WP-42 give back freehand reshaping by brush, and both substances then edit the
+      same way. Node editing stays unscheduled by choice, not by dependency.
 - [ ] **WP-41 · The water brush, and water joins the selection** — one brush, two modes (carve
       land / lay water), the mode legible in the hover ring **before** the press. Commit path is
       the landmass brush's; strokes merge on overlap. Selection ships here, not later: a tool

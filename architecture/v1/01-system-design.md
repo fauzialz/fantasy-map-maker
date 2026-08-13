@@ -131,8 +131,16 @@ Because it's computed from the **union**, rings between two close islands **merg
 one shared band instead of colliding** — this is the fix for the strait/pinch
 artifact. Recomputed on commit only, in the Worker, cached as a bitmap.
 
-**Rivers:** a **separate spline tool** — tapering polyline (wider toward the sea),
-**no rings**, rendered above land. Fully decoupled from the boolean engine.
+**Water (since WP-40, ADR-47):** a **substance**, not a tool's output. Land is drawn as
+`union(landmass) − union(water)` — derived at draw time, never stored — so a river's banks are
+ordinary coastline and its estuary is ordinary shore. Bands come from that same cut boundary
+but are clipped to the **pre-cut** sea, so a channel never fills with rings (`16` D5).
+
+> Until WP-40 this read: *"Rivers: a separate spline tool — tapering polyline (wider toward the
+> sea), no rings, rendered above land. Fully decoupled from the boolean engine."* Every clause
+> of that is now false. Water is **inside** the boolean engine, it is not rendered above land
+> but subtracted from it, and it has no taper — width is an artistic choice (`16` D7), which
+> closes `15` H2 permanently.
 
 ## 8. Scene graph, layers, selection, editing
 
@@ -144,7 +152,7 @@ artifact. Recomputed on commit only, in the Worker, cached as a bitmap.
 4. Terrain / landmass fills
 5. Forests
 6. Mountains
-7. Rivers
+7. Water                       (GEOMETRY, draws nothing — see §7)
 8. Icons / landmarks
 9. Labels                      (always on top)
 ```

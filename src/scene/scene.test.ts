@@ -4,7 +4,7 @@ import { CURRENT_SCHEMA_VERSION, type Scene } from "./types";
 
 /** A hand-written scene with one object per type — the shape from 02-scene-data-model.md. */
 const handWritten: Scene = {
-  schemaVersion: 1,
+  schemaVersion: CURRENT_SCHEMA_VERSION,
   meta: {
     id: "client-uuid",
     title: "The Sundered Coast",
@@ -62,21 +62,21 @@ const handWritten: Scene = {
       ],
     },
     {
-      id: "rivers",
-      kind: "river",
+      id: "water",
+      kind: "water",
       visible: true,
       locked: false,
       objects: [
         {
-          id: "r1",
-          type: "river",
-          points: [
+          id: "w1",
+          type: "water",
+          path: [
             [10, 10],
+            [50, 10],
             [50, 90],
+            [10, 90],
           ],
-          width: 12,
-          taper: true,
-          z: 0,
+          holes: [],
         },
       ],
     },
@@ -141,9 +141,85 @@ describe("scene round-trip", () => {
   });
 });
 
+/**
+ * The same map as it was written at schemaVersion 1: a `rivers` layer holding three rivers,
+ * each a centreline plus a width. **v2 has no type for this shape** (ADR-48), which is why it
+ * is spelled out rather than derived from `handWritten` — a fixture for a migration has to be
+ * the old thing, not the new thing wearing an old version number.
+ */
+const v1WithRivers = {
+  ...handWritten,
+  schemaVersion: 1,
+  layers: handWritten.layers.map((layer) =>
+    layer.id === "water"
+      ? {
+          id: "rivers",
+          kind: "river",
+          visible: true,
+          locked: false,
+          objects: [1, 2, 3].map((n) => ({
+            id: `r${n}`,
+            type: "river",
+            points: [
+              [10 * n, 10],
+              [50 * n, 90],
+            ],
+            width: 12,
+            taper: true,
+            z: 0,
+          })),
+        }
+      : layer,
+  ),
+} as unknown as Scene;
+
 describe("migrate", () => {
   it("is a no-op at the current version", () => {
     expect(migrate(handWritten)).toEqual(handWritten);
+  });
+
+  /**
+   * WP-40 (`16` D14) — **deletion, not conversion.** A river was a centreline and a width; a
+   * water object is an outline, and inventing the ribbon to convert one would mean keeping a
+   * legacy render path alive to check the result against. Free only while the owner is the
+   * only person holding drafts (`16` §8).
+   */
+  it("deletes every river and renames the layer", () => {
+    const migrated = migrate(v1WithRivers);
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+
+    const water = migrated.layers.find((layer) => layer.id === "water");
+    expect(water).toBeDefined();
+    expect(water!.kind).toBe("water");
+    expect(water!.objects).toEqual([]);
+    expect(migrated.layers.find((layer) => (layer.id as string) === "rivers")).toBeUndefined();
+    expect(migrated.layers.flatMap((l) => l.objects).some((o) => (o.type as string) === "river"))
+      .toBe(false);
+  });
+
+  it("leaves every other object intact, and the layer order with it", () => {
+    const migrated = migrate(v1WithRivers);
+    expect(migrated.layers.map((layer) => layer.id)).toEqual([
+      "terrain",
+      "forests",
+      "mountains",
+      "water",
+      "icons",
+      "labels",
+    ]);
+    for (const layer of migrated.layers) {
+      if (layer.id === "water") continue;
+      const before = v1WithRivers.layers.find((l) => l.id === layer.id);
+      expect(layer.objects).toEqual(before!.objects);
+    }
+    expect(migrated.meta).toEqual(v1WithRivers.meta);
+    expect(migrated.settings).toEqual(v1WithRivers.settings);
+    expect(migrated.generator).toEqual(v1WithRivers.generator);
+  });
+
+  it("loads a v1 draft through deserialize with no river left in it", () => {
+    const loaded = deserialize(JSON.stringify(v1WithRivers));
+    expect(loaded.layers.find((layer) => layer.id === "water")!.objects).toEqual([]);
   });
 
   it("rejects a scene newer than we support", () => {

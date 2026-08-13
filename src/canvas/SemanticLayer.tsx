@@ -1,12 +1,22 @@
 import type Konva from "konva";
 import { memo, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { Layer, Shape } from "react-konva";
-import type { MultiPolygon } from "../engine/geometry/types";
+import type { CutLandmass } from "../engine/water/cut";
 import { inDrawOrder } from "../scene/order";
 import type { Layer as SceneLayer, LayerId } from "../scene/types";
 import { drawLayer, type DrawContext } from "./draw";
 import { useLayerCache } from "./useLayerCache";
 import type { Rect } from "./viewport";
+
+/**
+ * How far a layer fades while its derivation is behind the scene.
+ *
+ * **Milder than `RingsLayer`'s 0.25**, and deliberately: bands are chrome and can drop most
+ * of the way out without the map ceasing to be a map, but the terrain *is* the map. A
+ * quarter-opacity continent reads as a bug rather than as a pause, so this says "settling"
+ * rather than "gone".
+ */
+const STALE_OPACITY = 0.55;
 
 interface Props {
   layer: SceneLayer;
@@ -19,11 +29,20 @@ interface Props {
   /** in-progress stroke preview, drawn live on the active layer */
   overlay?: ReactNode;
   /**
-   * The land, for the rivers layer to mask its mouths against (WP-34). Passed in rather
-   * than read here because it is **also a cache key**: a river's outline depends on terrain,
-   * so a coastline that moves has to invalidate this layer's bitmap or the mouth goes stale.
+   * The **derived** land for the terrain layer (WP-40) — `union(land) − union(water)`, or
+   * null/undefined when there is no water and the stored landmasses are the truth.
+   *
+   * Passed in rather than read here because it is **also a cache key**: the drawn coastline
+   * now depends on the water layer, so water that moves has to invalidate terrain's bitmap
+   * or the channel goes stale.
    */
-  mask?: MultiPolygon;
+  land?: CutLandmass[] | null;
+  /**
+   * Fades the layer while its derivation is behind the scene (C2, D9) — the same signal
+   * `RingsLayer` gives, so the pause after a water edit reads as deliberate rather than as
+   * the coastline having broken.
+   */
+  stale?: boolean;
 }
 
 /**
@@ -41,7 +60,8 @@ export const SemanticLayer = memo(function SemanticLayer({
   cacheScale,
   onCacheBytes,
   overlay,
-  mask,
+  land,
+  stale = false,
 }: Props) {
   const ref = useRef<Konva.Layer>(null);
   const report = useCallback(
@@ -50,8 +70,8 @@ export const SemanticLayer = memo(function SemanticLayer({
   );
   const sorted = useMemo(() => inDrawOrder(layer.objects), [layer.objects]);
 
-  // Identity changes when the objects change *or* the land under them does.
-  const content = useMemo(() => [layer.objects, mask] as const, [layer.objects, mask]);
+  // Identity changes when the objects change *or* the derived land does.
+  const content = useMemo(() => [layer.objects, land] as const, [layer.objects, land]);
 
   useLayerCache(ref, {
     /**
@@ -59,8 +79,12 @@ export const SemanticLayer = memo(function SemanticLayer({
      * to be cached like any other, which allocated a viewport-sized canvas per empty layer on
      * every re-cache — and a fresh map has four of them. A live layer with no objects draws
      * nothing and costs nothing.
+     *
+     * **`land` is what makes an empty terrain layer non-empty**: a landmass wholly consumed by
+     * water leaves objects behind but draws nothing, and one that is merely severed draws two
+     * pieces from one object — so the object count alone stopped being the question.
      */
-    active: active || layer.objects.length === 0,
+    active: active || (layer.objects.length === 0 && !land),
     cacheRect,
     cacheScale,
     content,
@@ -68,11 +92,11 @@ export const SemanticLayer = memo(function SemanticLayer({
   });
 
   return (
-    <Layer ref={ref} visible={layer.visible} listening={false}>
+    <Layer ref={ref} visible={layer.visible} listening={false} opacity={stale ? STALE_OPACITY : 1}>
       <Shape
         listening={false}
         sceneFunc={(context) =>
-          drawLayer(context as unknown as DrawContext, layer.objects, sorted, mask)
+          drawLayer(context as unknown as DrawContext, layer.objects, sorted, land)
         }
       />
       {overlay}
