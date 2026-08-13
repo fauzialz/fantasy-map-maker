@@ -212,7 +212,8 @@ export const landmassAt = <T extends Landmass | Water>(
   landmasses: T[],
   x: number,
   y: number,
-): T | undefined => landmasses.find((object) => pointInPolygon([object.path, ...object.holes], [x, y]));
+): T | undefined =>
+  landmasses.find((object) => pointInPolygon([object.path, ...object.holes], [x, y]));
 
 /**
  * What stands on a landmass — the double-click gesture of WP-19 (`09` §4, item 8).

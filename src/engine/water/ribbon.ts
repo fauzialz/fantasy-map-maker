@@ -211,7 +211,10 @@ export function commitRibbon(
   const ceiling = Math.max(minWidth, maxWidth) / 2;
   const bank = (row: number) =>
     walk.map((half, i) =>
-      Math.min(Math.max(half + bankNoise(noise, distances[i], half * 2, roughness, row), 0.5), ceiling),
+      Math.min(
+        Math.max(half + bankNoise(noise, distances[i], half * 2, roughness, row), 0.5),
+        ceiling,
+      ),
     );
 
   return ribbonOutline(line, bank(0), bank(37));

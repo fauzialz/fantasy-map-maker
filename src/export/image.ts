@@ -156,7 +156,7 @@ export async function deriveForRender(scene: Scene): Promise<DerivedTerrain> {
   });
 }
 
-const layerObjects = <T,>(scene: Scene, id: "terrain" | "water", hideable = false): T[] => {
+const layerObjects = <T>(scene: Scene, id: "terrain" | "water", hideable = false): T[] => {
   const layer = scene.layers.find((l) => l.id === id);
   if (!layer || (hideable && !layer.visible)) return [];
   return layer.objects as T[];

@@ -39,8 +39,7 @@ const selectablePool = (layers: SceneLayer[]): SceneObject[] =>
     .filter((layer) => layer.visible && !layer.locked)
     .flatMap((layer) =>
       layer.objects.filter(
-        (object) =>
-          hasFootprint(object) || object.type === "landmass" || object.type === "water",
+        (object) => hasFootprint(object) || object.type === "landmass" || object.type === "water",
       ),
     );
 

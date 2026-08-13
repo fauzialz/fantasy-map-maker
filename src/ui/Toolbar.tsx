@@ -142,7 +142,6 @@ export function Toolbar() {
             <Eraser size={14} /> Erase
           </button>
         </Hint>
-
       </div>
 
       <span className={divider()} />

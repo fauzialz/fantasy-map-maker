@@ -193,8 +193,9 @@ describe("migrate", () => {
     expect(water!.kind).toBe("water");
     expect(water!.objects).toEqual([]);
     expect(migrated.layers.find((layer) => (layer.id as string) === "rivers")).toBeUndefined();
-    expect(migrated.layers.flatMap((l) => l.objects).some((o) => (o.type as string) === "river"))
-      .toBe(false);
+    expect(
+      migrated.layers.flatMap((l) => l.objects).some((o) => (o.type as string) === "river"),
+    ).toBe(false);
   });
 
   it("leaves every other object intact, and the layer order with it", () => {

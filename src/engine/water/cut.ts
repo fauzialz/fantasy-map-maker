@@ -71,9 +71,8 @@ export function cutLand(landmasses: Landmass[], water: MultiPolygon): CutLandmas
     return {
       id: landmass.id,
       biome: landmass.biome,
-      shape: clip === null
-        ? base
-        : fromIntMulti(polygonClipping.difference(toIntMulti(base), clip)),
+      shape:
+        clip === null ? base : fromIntMulti(polygonClipping.difference(toIntMulti(base), clip)),
     };
   });
 }

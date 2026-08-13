@@ -76,9 +76,7 @@ const MIGRATIONS: Partial<Record<number, MigrationStep>> = {
           // stray one anywhere else would type-check as a SceneObject and then draw nothing.
           {
             ...layer,
-            objects: layer.objects.filter(
-              (object) => (object.type as string) !== "river",
-            ),
+            objects: layer.objects.filter((object) => (object.type as string) !== "river"),
           },
     ),
   }),

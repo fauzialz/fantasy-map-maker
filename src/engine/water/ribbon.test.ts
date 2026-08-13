@@ -111,8 +111,9 @@ describe("the committed river", () => {
   });
 
   it("uses the range rather than sitting at one end of it", () => {
-    const widths = Array.from({ length: 6 }, () =>
-      widthRange(commitRibbon(PATH, 20, 90, 0.6), SAMPLES).widths,
+    const widths = Array.from(
+      { length: 6 },
+      () => widthRange(commitRibbon(PATH, 20, 90, 0.6), SAMPLES).widths,
     ).flat();
     expect(Math.max(...widths) - Math.min(...widths)).toBeGreaterThan(15);
   });

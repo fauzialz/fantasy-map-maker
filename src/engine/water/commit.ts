@@ -38,7 +38,10 @@ const wind = (ring: Ring, positive: boolean): Ring =>
  * applies, because the derivation differences the two against each other and a ring wound the
  * wrong way would subtract the wrong side.
  */
-const assembleWater = (polygon: MultiPolygon[number], id: string = crypto.randomUUID()): Water | null => {
+const assembleWater = (
+  polygon: MultiPolygon[number],
+  id: string = crypto.randomUUID(),
+): Water | null => {
   const rings = polygon.map((ring) => cleanRing(ring)).filter((ring) => ring.length >= 3);
   if (rings.length === 0 || ringArea(rings[0]) === 0) return null;
   return {
