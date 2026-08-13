@@ -1,7 +1,7 @@
 import polygonClipping from "polygon-clipping";
 import type { Biome, Landmass, Water } from "../../scene/types";
 import { fromIntMulti, toIntMulti } from "../geometry/coords";
-import type { MultiPolygon, Polygon } from "../geometry/types";
+import type { MultiPolygon, Polygon, Ring } from "../geometry/types";
 import { landmassToPolygon } from "../terrain/assemble";
 
 /**
@@ -76,6 +76,27 @@ export function cutLand(landmasses: Landmass[], water: MultiPolygon): CutLandmas
         : fromIntMulti(polygonClipping.difference(toIntMulti(base), clip)),
     };
   });
+}
+
+/**
+ * WP-43 — does this ribbon overlap any land at all?
+ *
+ * The question D16 turns into a refusal: a river drawn entirely over open sea would remove land
+ * that was never there, so it is invisible — correct at an estuary, and a silent failure
+ * anywhere else. The spline tool asks this before committing and **declines to make the object**
+ * rather than leaving an invisible one on the map.
+ *
+ * A real intersection rather than sampling the centreline, because a wide river running just
+ * off a coast overlaps land without any of its centre points being on it.
+ */
+export function touchesLand(ribbon: Ring, landmasses: Landmass[]): boolean {
+  if (landmasses.length === 0 || ribbon.length < 3) return false;
+  return (
+    polygonClipping.intersection(
+      toIntMulti([[ribbon]]),
+      toIntMulti(landmasses.map(landmassToPolygon)),
+    ).length > 0
+  );
 }
 
 /**

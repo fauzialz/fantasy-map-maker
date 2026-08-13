@@ -40,6 +40,9 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const terrainTool = useEditorStore((s) => s.terrainTool);
   const waterTool = useEditorStore((s) => s.waterTool);
   const setWaterTool = useEditorStore((s) => s.setWaterTool);
+  const splineWidth = useEditorStore((s) => s.splineWidth);
+  const splineRoughness = useEditorStore((s) => s.splineRoughness);
+  const setSpline = useEditorStore((s) => s.setSpline);
   const objectTool = useEditorStore((s) => s.objectTool);
   const scatterRotation = useEditorStore((s) => s.scatterRotation);
   const setScatterRotation = useEditorStore((s) => s.setScatterRotation);
@@ -171,8 +174,13 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
       {/* The eraser is global since WP-26, so its size has to be reachable from any layer —
           including water, which is not an object layer and would otherwise hide the slider
           for the one tool that now works there. */}
+      {/* The spline has its own width, so the brush disc's size would be a control that
+          cannot act on the tool in hand — the thing I4 exists to prevent. */}
       {(erasing ||
-        (!selecting && (onTerrain || onWater || (isObjectLayer && objectTool === "scatter")))) && (
+        (!selecting &&
+          (onTerrain ||
+            (onWater && waterTool !== "spline") ||
+            (isObjectLayer && objectTool === "scatter")))) && (
         <Slider
           label="Brush size"
           value={brushSize}
@@ -454,7 +462,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
       {onWater && !globalMode && (
         <>
           <div className={segment()}>
-            {(["lay", "carve"] as const).map((mode) => (
+            {(["lay", "spline", "carve"] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -462,22 +470,55 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
                 className={toolButton({ active: waterTool === mode })}
                 onClick={() => setWaterTool(mode)}
               >
-                {mode === "lay" ? "Lay water" : "Carve land"}
+                {mode === "lay" ? "Brush" : mode === "spline" ? "Draw a river" : "Carve land"}
               </button>
             ))}
           </div>
-          <Slider
-            label="Coast detail"
-            value={scene.settings.coastDetail}
-            min={0}
-            max={1}
-            step={0.05}
-            display={scene.settings.coastDetail.toFixed(2)}
-            hint="Smooth and stylised ↔ rough and natural. Banks are coastline, so this shapes them too."
-            onChange={(coastDetail) =>
-              record("coast detail", () => setSettings({ coastDetail }), true)
-            }
-          />
+          {/*
+            WP-43's two tool settings, and they are **tool settings** in the strictest sense
+            (D8): they shape the geometry at creation and are then gone, exactly as brush size
+            is gone. Nothing about them is written to the object, which is what keeps a
+            spline-drawn river indistinguishable from a brushed one afterwards (C9) — and is
+            why there is no Reroll to put beside them (D17). The way back from a river you
+            dislike is undo and draw again.
+          */}
+          {waterTool === "spline" && (
+            <>
+              <Slider
+                label="River width"
+                value={splineWidth}
+                min={6}
+                max={140}
+                step={2}
+                display={`${splineWidth} px`}
+                onChange={(width) => setSpline({ width })}
+              />
+              <Slider
+                label="Bank roughness"
+                value={splineRoughness}
+                min={0}
+                max={1}
+                step={0.05}
+                display={splineRoughness.toFixed(2)}
+                hint="How much the width wanders along the river. Never a taper — a river may be widest in the middle."
+                onChange={(roughness) => setSpline({ roughness })}
+              />
+            </>
+          )}
+          {waterTool !== "spline" && (
+            <Slider
+              label="Coast detail"
+              value={scene.settings.coastDetail}
+              min={0}
+              max={1}
+              step={0.05}
+              display={scene.settings.coastDetail.toFixed(2)}
+              hint="Smooth and stylised ↔ rough and natural. Banks are coastline, so this shapes them too."
+              onChange={(coastDetail) =>
+                record("coast detail", () => setSettings({ coastDetail }), true)
+              }
+            />
+          )}
           {/* Hidden and locked both refuse the brush, so the rail says which — otherwise the
               stroke simply does nothing and there is nothing on screen explaining why. Carve
               needs *terrain* editable as well, because it is the land it removes. */}
@@ -488,7 +529,9 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
                 ? `Carving removes land, and the terrain layer is ${terrainLayer?.visible ? "locked" : "hidden"} — nothing will carve until you ${terrainLayer?.visible ? "unlock" : "show"} it.`
                 : waterTool === "carve"
                   ? "Carve removes land, and the sea that fills the gap takes coastal bands."
-                  : "Drag to lay a river or lake. It cuts a channel through the land, and channels take no bands. Overlapping strokes merge into one."}
+                  : waterTool === "spline"
+                    ? "Drag a path and let go. The preview is the river you will get; only its banks are decided on release, so drawing the same path twice gives two different rivers."
+                    : "Drag to lay a river or lake. It cuts a channel through the land, and channels take no bands. Overlapping strokes merge into one."}
           </p>
         </>
       )}

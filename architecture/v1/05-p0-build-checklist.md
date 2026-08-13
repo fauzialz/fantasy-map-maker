@@ -984,7 +984,8 @@ deadline argument wrong.
       undoing it, which is fewer moving parts than a second vhost to test an unflipped release.
       **This half-closes WP-13's deploy**; production and a public domain remain.
 
-**Batch 14 — water as objects — EXPERIMENTAL, not started (WP-40 … WP-43).** Rivers stop being
+**Batch 14 — water as objects — EXPERIMENTAL, all four packages built; the evaluation is what
+remains (WP-40 … WP-43).** Rivers stop being
 independent ribbons (ADR-14) and water becomes a substance: land is drawn as
 `union(land) − union(water)`, derived at draw time and never stored. Both defects
 `15-river-engine.md` recorded stop being representable rather than patched, at the cost of the
@@ -995,6 +996,12 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
 > **This batch ends in an evaluation session, not a tick** (`16` §10). Three of its decisions can
 > only be judged by drawing maps. Until the owner records accept-or-revamp in `16` §10, **nothing
 > may be built on top of it** and node editing (`16` D3) stays unscheduled.
+>
+> **Four ticks are not that session.** Every box below is ticked and the batch is still not
+> accepted: `16` D12 (a heavy outline on a narrow river), D7 and D15 (artistic random width) and
+> C2 (whether the derivation is fast enough in use) were never things a fixture could answer.
+> C2 now has a number — water costs 0–10% on top of the ring derivation, WP-40 — but the other
+> three are still owed a session of drawing maps.
 >
 > **It also has a deadline** (`16` §8): WP-40's `migrate()` **deletes** every existing river
 > rather than converting it, which is free only while the owner is the only person holding
@@ -1085,10 +1092,32 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       while merged land is merely worth mentioning. 13 driven checks. Writing the water half
       *after* the commit instead of before — the one-line mutation of this package's whole reason
       to exist — fails five of them.
-- [ ] **WP-43 · The spline generator** — a path that emits a water polygon with randomised width
+- [x] **WP-43 · The spline generator** — a path that emits a water polygon with randomised width
       and roughness. **The preview shows the water, not a line.** Width is an artistic random
       walk, variation proportional to base width, no floor, **no Reroll**. The committed object
-      carries no `width`, `seed` or `points` — assert on the scene, not the render.
+      carries no `width`, `seed` or `points` — asserted against the **saved scene**, not the
+      render, and the field list is exactly `holes,id,path,type`.
+      **A drag, not a click-by-click polyline.** The tool this replaces was modal — click to add
+      a point, double-click or Enter to finish, Escape to abandon — and that state is what made a
+      double-click on the layer ambiguous (WP-20's bug, `07`). One gesture with a beginning and an
+      end needs none of it and gives one undo step for free.
+      **The preview is clipped to the land with `ctx.clip()`, not a boolean op**, which is what
+      makes D16's honesty affordable per frame: `polygon-clipping` against a 2 800-point coastline
+      on every mousemove is the cost C2 spends its whole budget avoiding. And **D16 became a
+      refusal rather than a warning** — a river entirely over open sea commits *nothing* and says
+      why, since an object nobody can see is worse than a tool that declines.
+      **Two defects found while building, both by the fixtures.** `ribbonOutline` built its
+      opening cap from `right[0]` *after* spreading `...right.reverse()` — `reverse()` mutates, so
+      the cap was struck from the far end and the outline crossed itself. A single ribbon still
+      unioned to one polygon, which is why it looked right; **two disjoint rivers came back as
+      three objects**, and that is what caught it. And the preview rendered into terrain's
+      *cached* bitmap — it is hosted by the terrain layer so it sits under the forests, but that
+      layer's cache key is its objects and its derived land, neither of which moves during a drag,
+      so the preview was drawn once and never seen again. Terrain now goes live while previewing,
+      a third reason on top of the two ADR-19 already gives.
+      11 driven checks. Removing the width effect fails only the "changes while the pointer is
+      still" check; removing the clip fails only the "previews nothing over sea" check — so
+      neither is passing vacuously.
 
 ## Later phases (see the phase prompts)
 

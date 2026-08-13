@@ -85,7 +85,7 @@ interface EditorState {
    * Its own field rather than a third value on `terrainTool`, because the two brushes belong to
    * different layers and a layer switch must not silently rearm the other one.
    */
-  waterTool: "carve" | "lay";
+  waterTool: "carve" | "lay" | "spline";
   /** Placement mode on object layers; "erase" is the contextual object eraser (ADR-18). */
   objectTool: ObjectTool;
   /** which icon the palette will place next */
@@ -140,6 +140,17 @@ interface EditorState {
   spriteSpacing: Record<SpriteKind, number>;
   /** font size for the next label, in map units */
   labelSize: number;
+  /**
+   * WP-43's spline tool settings — the nominal width of the river it draws, in map units, and
+   * how much its banks wander.
+   *
+   * **Tool settings, never written to the object** (D8). They shape the geometry at creation
+   * and are then gone, exactly as brush size is gone: a committed river carries no `width`,
+   * `seed` or `points`, which is what keeps a spline-made one indistinguishable from a brushed
+   * one (C9) and is why there is no Reroll to offer (D17).
+   */
+  splineWidth: number;
+  splineRoughness: number;
   /** ids of the current multi-selection, within the active layer */
   selection: string[];
   /**
@@ -173,7 +184,8 @@ interface EditorState {
   setActiveLayer: (id: LayerId) => void;
   setBrushSize: (size: number) => void;
   setTerrainTool: (tool: "brush" | "sea") => void;
-  setWaterTool: (tool: "carve" | "lay") => void;
+  setWaterTool: (tool: "carve" | "lay" | "spline") => void;
+  setSpline: (patch: { width?: number; roughness?: number }) => void;
   setObjectTool: (tool: ObjectTool) => void;
   setIconKind: (kind: string) => void;
   setTerrainBiome: (biome: Biome) => void;
@@ -290,6 +302,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Landmarks are placed one at a time and never scattered, so theirs is inert.
   spriteSpacing: { mountain: 0.58, tree: 0.4, landmark: 0.5 },
   labelSize: 96,
+  splineWidth: 40,
+  splineRoughness: 0.5,
   selection: [],
   seaLevel: null,
   generatorRotation: 5,
@@ -318,6 +332,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setBrushSize: (brushSize) => set({ brushSize }),
   setTerrainTool: (terrainTool) => set({ terrainTool }),
   setWaterTool: (waterTool) => set({ waterTool }),
+  setSpline: (patch) =>
+    set((state) => ({
+      splineWidth: patch.width ?? state.splineWidth,
+      splineRoughness: patch.roughness ?? state.splineRoughness,
+    })),
   setObjectTool: (objectTool) => set({ objectTool }),
   setIconKind: (iconKind) => set({ iconKind }),
   setTerrainBiome: (terrainBiome) => set({ terrainBiome }),

@@ -225,11 +225,14 @@ P0 alone is a complete portfolio piece.
   plus the gesture-performance work — ADR-42, ADR-44) and **Batch 13** (WP-37 the rail follows the
   tool in your hand and WP-38 one click between menus — ADR-43). **Every scheduled 0.5 package is
   built.** None of it needed a host.
-- **Batch 14 is designed and not started** — `16-water-as-objects.md`, WP-40 … WP-43, **experimental
-  by decision** (ADR-47 … ADR-49). It brings **first-class water bodies** forward from the deferred
-  list below, because rivers-as-ribbons is where that deferral was actually costing something. It
-  ends in an evaluation the owner runs by hand, and may be accepted with tweaks or revamped
-  completely — so **nothing may be built on top of it** until `16` §10 says which.
+- **Batch 14 is built, and not yet accepted** — `16-water-as-objects.md`, WP-40 … WP-43,
+  **experimental by decision** (ADR-47 … ADR-49). It brings **first-class water bodies** forward
+  from the deferred list below, because rivers-as-ribbons is where that deferral was actually
+  costing something. All four packages pass their acceptance, and **that is not the same as
+  approval**: it ends in an evaluation the owner runs by hand, and may be accepted with tweaks or
+  revamped completely — so **nothing may be built on top of it** until `16` §10 says which. C2's
+  measurement is in (water costs 0–10% on top of the ring derivation); D12, D7 and D15 are still
+  owed a session of drawing maps, because no fixture can answer them.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
   ~~first-class water bodies/canals~~ — **brought forward as Batch 14** (`16`); a canal is water a
   user painted straight, so it needs nothing further — auto-generated rivers, rich blended biome

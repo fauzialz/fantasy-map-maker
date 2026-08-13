@@ -119,6 +119,35 @@ export function drawCutLand(ctx: DrawContext, land: CutLandmass[]): void {
 }
 
 /**
+ * WP-43 — the spline tool's live preview: **the water you will get, clipped to the land**.
+ *
+ * Two things make this honest rather than decorative. It is the *ribbon* at its nominal width
+ * rather than a bare line, so the tool shows its object before you commit to it (`12` §1). And
+ * it is **clipped to the land as currently drawn**, so a river dragged out over open sea simply
+ * stops being visible — which is D16 told truthfully, because that is precisely what committing
+ * it would produce: a cut through land that is not there.
+ *
+ * The clip is a canvas region rather than a boolean op, and that is what makes it affordable per
+ * frame: `polygon-clipping` against a 2 800-point coastline on every mousemove is the cost C2
+ * spends its whole budget avoiding, while `ctx.clip()` is the rasteriser doing what it already
+ * does.
+ */
+export function drawSplinePreview(ctx: DrawContext, ribbon: Ring, clip: MultiPolygon): void {
+  if (ribbon.length < 3 || clip.length === 0) return;
+  ctx.save();
+  ctx.beginPath();
+  for (const polygon of clip) for (const ring of polygon) trace(ctx, ring);
+  ctx.clip();
+
+  ctx.beginPath();
+  trace(ctx, ribbon);
+  ctx.globalAlpha = 0.75;
+  ctx.fillStyle = PALETTE.sea;
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
  * One layer's contents, in the order the layer stacks them: path objects in array order,
  * then everything with an anchor by draw order (data model §5).
  *

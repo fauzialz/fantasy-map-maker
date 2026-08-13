@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Layer, Line, Stage } from "react-konva";
+import { Layer, Line, Shape, Stage } from "react-konva";
 import { LAYER_OBJECT, selectLandmasses, useEditorStore } from "../state/editorStore";
 import { useThemeStore } from "../state/themeStore";
 import { LAYER_ORDER, type Label, type LayerId, type Point } from "../scene/types";
 import { LabelEditor } from "../ui/LabelEditor";
 import { statusBar } from "../ui/variants";
+import { drawSplinePreview, type DrawContext } from "./draw";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { BrushRing, type BrushTone } from "./BrushRing";
 import { RingsLayer } from "./RingsLayer";
@@ -16,6 +17,7 @@ import { SelectionOverlay } from "./SelectionOverlay";
 import { TerrainSelectionOverlay } from "./TerrainSelectionOverlay";
 import { createLabel, useObjectBrush } from "./useObjectBrush";
 import { useSelection } from "./useSelection";
+import { useSplineTool } from "./useSplineTool";
 import { useSubstanceBrush, type BrushMode } from "./useSubstanceBrush";
 import {
   clampPan,
@@ -250,7 +252,9 @@ export function MapStage({ editing }: { editing?: Label }) {
       ? terrainEditable && waterEditable
         ? "carve"
         : null
-      : waterEditable
+      : // `=== "lay"`, not "anything but carve": WP-43 added a third mode that is not a brush
+        // at all, and a fall-through would have armed the disc under the spline tool.
+        waterTool === "lay" && waterEditable
         ? "lay"
         : null
     : activeLayerId === "terrain" && terrainEditable
@@ -262,6 +266,11 @@ export function MapStage({ editing }: { editing?: Label }) {
     enabled: brushMode !== null && !selecting && !erasing && ready,
     mode: brushMode ?? "paint",
     map,
+    toMapPoint,
+  });
+  /** WP-43 — the third way to make water: drag a path, get a river. */
+  const spline = useSplineTool({
+    enabled: onWater && waterTool === "spline" && waterEditable && !selecting && !erasing && ready,
     toMapPoint,
   });
   const objects = useObjectBrush({
@@ -292,6 +301,7 @@ export function MapStage({ editing }: { editing?: Label }) {
     if (e.button !== 0) return;
     if (
       brush.begin(e.clientX, e.clientY) ||
+      spline.begin(e.clientX, e.clientY) ||
       objects.begin(e.clientX, e.clientY) ||
       selection.begin(e.clientX, e.clientY, e.shiftKey)
     )
@@ -387,7 +397,8 @@ export function MapStage({ editing }: { editing?: Label }) {
   const [ringBytes, setRingBytes] = useState(0);
   const onRingBytes = useCallback((value: number) => setRingBytes(value), []);
 
-  const landCount = useEditorStore(selectLandmasses).length;
+  const landmasses = useEditorStore(selectLandmasses);
+  const landCount = landmasses.length;
   const undoDepth = useEditorStore((s) => s.past.length);
   const objectCount = scene.layers.reduce(
     (total, layer) => total + (layer.id === "terrain" ? 0 : layer.objects.length),
@@ -446,7 +457,9 @@ export function MapStage({ editing }: { editing?: Label }) {
         ? "not-allowed"
         : (selection.cursor ??
           // The eraser is global, so it promises a crosshair on every layer (I4).
-          (erasing || (!selecting && (brushMode !== null || LAYER_OBJECT[activeLayerId]))
+          (erasing ||
+          (!selecting && (brushMode !== null || spline.drawing || LAYER_OBJECT[activeLayerId])) ||
+          (onWater && waterTool === "spline" && waterEditable && !selecting)
             ? "crosshair"
             : "default"));
 
@@ -457,6 +470,28 @@ export function MapStage({ editing }: { editing?: Label }) {
    * Selection and river chrome go above everything instead — see the overlay layer below.
    */
   const overlayFor = (id: LayerId) => {
+    /**
+     * **The spline preview is hosted by the terrain layer even when water is the active one**,
+     * for exactly the reason the terrain brush's preview is hosted there: it is pretending to be
+     * a cut through the land, so it has to sit under the forests and mountains standing on that
+     * land. Drawn in the chrome layer it would float above a forest the finished channel runs
+     * beneath — a preview that promises the wrong picture.
+     */
+    if (id === "terrain" && spline.preview)
+      return (
+        <Shape
+          listening={false}
+          sceneFunc={(context) =>
+            drawSplinePreview(
+              context as unknown as DrawContext,
+              spline.preview!,
+              derived.land
+                ? derived.land.flatMap((piece) => piece.shape)
+                : landmasses.map((l) => [l.path, ...l.holes]),
+            )
+          }
+        />
+      );
     if (id !== activeLayerId) return undefined;
     if (id === activeLayerId && brush.previewPoints)
       return (
@@ -534,7 +569,19 @@ export function MapStage({ editing }: { editing?: Label }) {
             <SemanticLayer
               key={layer.id}
               layer={layer}
-              active={layer.id === activeLayerId || liveLayers.has(layer.id)}
+              /**
+               * **Terrain goes live while the spline is previewing**, on top of the two reasons
+               * ADR-19 already gives. Its preview is hosted by the terrain layer so it sits under
+               * the forests — but a hosted overlay renders into that layer's *bitmap*, and the
+               * cache key is the layer's objects and its derived land, neither of which moves
+               * while a river is being dragged. So the preview was drawn once into a cached
+               * frame and never seen again.
+               */
+              active={
+                layer.id === activeLayerId ||
+                liveLayers.has(layer.id) ||
+                (layer.id === "terrain" && spline.preview !== null)
+              }
               cacheRect={cache.rect}
               cacheScale={cache.scale}
               onCacheBytes={onCacheBytes}

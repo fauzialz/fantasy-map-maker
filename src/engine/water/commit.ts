@@ -87,6 +87,25 @@ export function splitWaterComponents(polys: MultiPolygon, sources: Water[] = [])
 }
 
 /**
+ * WP-43 — a spline-generated ribbon joins the collection, merging like any other water (D10).
+ *
+ * **Not simplified at `coastDetail`**, unlike a brushed stroke, and that is deliberate: the
+ * ribbon's banks are already the shape the tool meant to draw, and running Douglas–Peucker over
+ * them would strip out exactly the wander the roughness setting exists to create. A brush stroke
+ * needs simplifying because it arrives as a traced raster mask; this arrives as geometry.
+ *
+ * From here it is indistinguishable from a painted channel (C9) — same fields, same selection,
+ * same carving, same merge.
+ */
+export function layRibbon(existingWater: Water[], ribbon: Ring): Water[] {
+  if (ribbon.length < 3) return existingWater;
+  return splitWaterComponents(
+    unionLand([[ribbon]], existingWater.map(waterToPolygon)),
+    existingWater,
+  );
+}
+
+/**
  * Union a water collection with itself and re-split it — C1 restored after a drag (D10).
  *
  * `waterUnion` rather than `unionLand`, and the difference matters: `unionLand` short-circuits
