@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { layRibbon } from "../engine/water/commit";
 import { touchesLand } from "../engine/water/cut";
-import { commitRibbon, previewRibbon } from "../engine/water/ribbon";
+import { centreline, commitRibbon, previewRibbon } from "../engine/water/ribbon";
 import type { Ring } from "../engine/geometry/types";
 import type { Point } from "../scene/types";
 import { selectLandmasses, selectWaters, useEditorStore } from "../state/editorStore";
@@ -39,13 +39,18 @@ export function useSplineTool({ enabled, toMapPoint }: Options) {
   const [active, setActive] = useState(false);
   const points = useRef<Point[]>([]);
   const cursor = useRef<Point | null>(null);
+  const [course, setCourse] = useState<{ line: Point[]; points: Point[] }>({
+    line: [],
+    points: [],
+  });
   /** Redraws the preview when a tool setting moves while the pointer is still. */
-  const width = useEditorStore((s) => s.splineWidth);
+  const maxWidth = useEditorStore((s) => s.splineMaxWidth);
 
   const redraw = useCallback(() => {
     const path = cursor.current ? [...points.current, cursor.current] : points.current;
+    setCourse({ line: path.length >= 2 ? centreline(path) : path, points: [...points.current] });
     setPreview(
-      path.length >= 2 ? previewRibbon(path, useEditorStore.getState().splineWidth) : null,
+      path.length >= 2 ? previewRibbon(path, useEditorStore.getState().splineMaxWidth) : null,
     );
   }, []);
 
@@ -82,6 +87,7 @@ export function useSplineTool({ enabled, toMapPoint }: Options) {
     cursor.current = null;
     setActive(false);
     setPreview(null);
+    setCourse({ line: [], points: [] });
   }, []);
 
   /**
@@ -100,7 +106,12 @@ export function useSplineTool({ enabled, toMapPoint }: Options) {
     }
 
     const state = useEditorStore.getState();
-    const ribbon = commitRibbon(path, state.splineWidth, state.splineRoughness);
+    const ribbon = commitRibbon(
+      path,
+      state.splineMinWidth,
+      state.splineMaxWidth,
+      state.splineRoughness,
+    );
     reset();
     if (ribbon.length < 3) return false;
 
@@ -127,7 +138,7 @@ export function useSplineTool({ enabled, toMapPoint }: Options) {
   // still** (`16` §5), so the ribbon is rebuilt from the points rather than only on a move.
   useEffect(() => {
     if (active) redraw();
-  }, [active, redraw, width]);
+  }, [active, redraw, maxWidth]);
 
   // Enter finishes, Escape abandons — the two keys the shortcuts sheet promises.
   useEffect(() => {
@@ -153,5 +164,5 @@ export function useSplineTool({ enabled, toMapPoint }: Options) {
     if (!enabled) reset();
   }, [enabled, reset]);
 
-  return { begin, hover, finish, preview, active, count: points.current.length };
+  return { begin, hover, finish, preview, course, active, count: points.current.length };
 }

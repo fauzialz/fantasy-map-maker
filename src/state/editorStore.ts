@@ -141,15 +141,20 @@ interface EditorState {
   /** font size for the next label, in map units */
   labelSize: number;
   /**
-   * WP-43's spline tool settings — the nominal width of the river it draws, in map units, and
-   * how much its banks wander.
+   * WP-43's spline tool settings — the **bounds** its river's width wanders between, in map
+   * units, and how much its banks wander.
+   *
+   * A min and a max rather than one nominal width: the width is randomised, so a single number
+   * was a value the river mostly was not, and the range it could actually reach was implicit.
+   * Two numbers say what they mean, and the preview promises the **max** as the envelope.
    *
    * **Tool settings, never written to the object** (D8). They shape the geometry at creation
    * and are then gone, exactly as brush size is gone: a committed river carries no `width`,
    * `seed` or `points`, which is what keeps a spline-made one indistinguishable from a brushed
    * one (C9) and is why there is no Reroll to offer (D17).
    */
-  splineWidth: number;
+  splineMinWidth: number;
+  splineMaxWidth: number;
   splineRoughness: number;
   /** ids of the current multi-selection, within the active layer */
   selection: string[];
@@ -185,7 +190,7 @@ interface EditorState {
   setBrushSize: (size: number) => void;
   setTerrainTool: (tool: "brush" | "sea") => void;
   setWaterTool: (tool: "carve" | "lay" | "spline") => void;
-  setSpline: (patch: { width?: number; roughness?: number }) => void;
+  setSpline: (patch: { min?: number; max?: number; roughness?: number }) => void;
   setObjectTool: (tool: ObjectTool) => void;
   setIconKind: (kind: string) => void;
   setTerrainBiome: (biome: Biome) => void;
@@ -302,7 +307,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Landmarks are placed one at a time and never scattered, so theirs is inert.
   spriteSpacing: { mountain: 0.58, tree: 0.4, landmark: 0.5 },
   labelSize: 96,
-  splineWidth: 40,
+  splineMinWidth: 24,
+  splineMaxWidth: 56,
   splineRoughness: 0.5,
   selection: [],
   seaLevel: null,
@@ -332,11 +338,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setBrushSize: (brushSize) => set({ brushSize }),
   setTerrainTool: (terrainTool) => set({ terrainTool }),
   setWaterTool: (waterTool) => set({ waterTool }),
+  /**
+   * The two bounds push rather than block each other: dragging the minimum past the maximum
+   * carries the maximum with it, and vice versa. A slider that silently refuses to move is the
+   * control equivalent of a dead button, and clamping to "no wider than the other one" is a
+   * rule the user cannot see while dragging.
+   */
   setSpline: (patch) =>
-    set((state) => ({
-      splineWidth: patch.width ?? state.splineWidth,
-      splineRoughness: patch.roughness ?? state.splineRoughness,
-    })),
+    set((state) => {
+      const min = patch.min ?? state.splineMinWidth;
+      const max = patch.max ?? state.splineMaxWidth;
+      return {
+        splineMinWidth: patch.max !== undefined ? Math.min(min, max) : min,
+        splineMaxWidth: patch.min !== undefined ? Math.max(min, max) : max,
+        splineRoughness: patch.roughness ?? state.splineRoughness,
+      };
+    }),
   setObjectTool: (objectTool) => set({ objectTool }),
   setIconKind: (iconKind) => set({ iconKind }),
   setTerrainBiome: (terrainBiome) => set({ terrainBiome }),

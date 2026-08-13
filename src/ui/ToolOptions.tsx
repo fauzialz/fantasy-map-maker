@@ -40,7 +40,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const terrainTool = useEditorStore((s) => s.terrainTool);
   const waterTool = useEditorStore((s) => s.waterTool);
   const setWaterTool = useEditorStore((s) => s.setWaterTool);
-  const splineWidth = useEditorStore((s) => s.splineWidth);
+  const splineMinWidth = useEditorStore((s) => s.splineMinWidth);
+  const splineMaxWidth = useEditorStore((s) => s.splineMaxWidth);
   const splineRoughness = useEditorStore((s) => s.splineRoughness);
   const setSpline = useEditorStore((s) => s.setSpline);
   const objectTool = useEditorStore((s) => s.objectTool);
@@ -111,6 +112,13 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   /** Whether anything in the selection answers to the frame's handles (I9's footprint side). */
   const transformable = selected.some(hasFootprint);
   const selectedLand = selected.filter((o): o is Landmass => o.type === "landmass");
+  /**
+   * Both substances, for the overlap policy. A dropped water body lands on other water exactly
+   * as a landmass lands on land, so the control that governs that is not a terrain control —
+   * it is a **path-object** control, and it was only ever gated on land because water could
+   * not be selected before WP-41.
+   */
+  const selectedPaths = selected.filter((o) => o.type === "landmass" || o.type === "water");
 
   /**
    * The palette does double duty (D6): with land selected it recolours it in one undo step,
@@ -169,27 +177,6 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
             </button>
           ))}
         </div>
-      )}
-
-      {/* The eraser is global since WP-26, so its size has to be reachable from any layer —
-          including water, which is not an object layer and would otherwise hide the slider
-          for the one tool that now works there. */}
-      {/* The spline has its own width, so the brush disc's size would be a control that
-          cannot act on the tool in hand — the thing I4 exists to prevent. */}
-      {(erasing ||
-        (!selecting &&
-          (onTerrain ||
-            (onWater && waterTool !== "spline") ||
-            (isObjectLayer && objectTool === "scatter")))) && (
-        <Slider
-          label="Brush size"
-          value={brushSize}
-          min={40}
-          max={800}
-          step={10}
-          display={`${brushSize} px`}
-          onChange={setBrushSize}
-        />
       )}
 
       {/*
@@ -297,7 +284,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         so it has none either — a control that cannot act on the tool in your hand is exactly
         what I4 exists to prevent.
       */}
-      {((paintingLand && !globalMode) || (selectedLand.length > 0 && !erasing)) && (
+      {((paintingLand && !globalMode) || (selecting && selectedLand.length > 0)) && (
         <>
           <p className={panelTitle()} data-land-count={selectedLand.length}>
             {selectedLand.length > 0
@@ -360,16 +347,23 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
       )}
 
       {/*
-        Only with land selected, because that is the only way to cause it: the policy is read
-        at **drop** time, when a dragged landmass lands on another (ADR-25). A brush stroke
-        cannot trigger it — overlapping strokes union — so it spent this whole time sitting
-        under a tool that could never consult it.
+        With **either substance** selected since WP-41's follow-up: the policy is read at
+        **drop** time, when a dragged path object lands on another (ADR-25), and water drops on
+        water in exactly the way land drops on land. A brush stroke cannot trigger it —
+        overlapping strokes union — so it only ever belongs beside a selection.
+
+        `carve` is offered only for land. A landmass biting a channel through another is a
+        picture; water carving water is not a thing that can happen, since two overlapping
+        water bodies are one body (D10). A control that cannot act is what I9 exists to prevent.
       */}
-      {selectedLand.length > 0 && !erasing && (
+      {selecting && selectedPaths.length > 0 && (
         <>
           <p className={panelTitle()}>On overlap</p>
           <div className={segment()}>
-            {(["apart", "merge", "carve"] as const).map((policy) => (
+            {(selectedLand.length > 0
+              ? (["apart", "merge", "carve"] as const)
+              : (["apart", "merge"] as const)
+            ).map((policy) => (
               <button
                 key={policy}
                 type="button"
@@ -390,9 +384,11 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           */}
           <p className={hint()}>
             {overlapPolicy === "apart"
-              ? "A drop that lands on other land slides back along the drag to where it last fit."
+              ? selectedLand.length > 0
+                ? "A drop that lands on other land slides back along the drag to where it last fit."
+                : "A drop that lands on other water slides back to where the drag began."
               : overlapPolicy === "merge"
-                ? "A drop that lands on other land fuses with it — the larger piece keeps its name."
+                ? "A drop that lands on its own kind fuses with it — the larger piece keeps its id."
                 : "A drop that lands on other land bites a channel through itself. If that would leave almost nothing, it slides back instead."}
           </p>
         </>
@@ -484,14 +480,30 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           */}
           {waterTool === "spline" && (
             <>
+              {/*
+                Two bounds rather than one width, because the width is **randomised**: a single
+                number was a value the river mostly was not, and the range it could actually
+                reach was implicit. These say what they mean, and the preview promises the
+                **maximum** as the envelope the river will fit inside.
+              */}
               <Slider
-                label="River width"
-                value={splineWidth}
-                min={6}
+                label="Narrowest"
+                value={splineMinWidth}
+                min={4}
                 max={140}
                 step={2}
-                display={`${splineWidth} px`}
-                onChange={(width) => setSpline({ width })}
+                display={`${splineMinWidth} px`}
+                onChange={(min) => setSpline({ min })}
+              />
+              <Slider
+                label="Widest"
+                value={splineMaxWidth}
+                min={4}
+                max={140}
+                step={2}
+                display={`${splineMaxWidth} px`}
+                hint="The preview draws this width, so the river can only ever come out narrower than what you saw."
+                onChange={(max) => setSpline({ max })}
               />
               <Slider
                 label="Bank roughness"
@@ -500,7 +512,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
                 max={1}
                 step={0.05}
                 display={splineRoughness.toFixed(2)}
-                hint="How much the width wanders along the river. Never a taper — a river may be widest in the middle."
+                hint="Wobbles each bank on its own, so the two are not mirror images. Never a taper — a river may be widest in the middle."
                 onChange={(roughness) => setSpline({ roughness })}
               />
             </>
@@ -534,6 +546,33 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
                     : "Drag to lay a river or lake. It cuts a channel through the land, and channels take no bands. Overlapping strokes merge into one."}
           </p>
         </>
+      )}
+
+      {/*
+        **Last in the group, not first.** Brush size is the least specific thing about the tool
+        in hand — every brush has one — so it reads as a footnote to the mode and the biome
+        rather than as the headline, and putting it on top pushed the controls that actually
+        distinguish one brush from another below the fold.
+
+        The eraser is global since WP-26, so its size has to be reachable from any layer,
+        including water, which is not an object layer and would otherwise hide the slider for
+        the one tool that works there. The spline has its own widths, so the disc's size would
+        be a control that cannot act on the tool in hand — what I4 exists to prevent.
+      */}
+      {(erasing ||
+        (!selecting &&
+          (onTerrain ||
+            (onWater && waterTool !== "spline") ||
+            (isObjectLayer && objectTool === "scatter")))) && (
+        <Slider
+          label="Brush size"
+          value={brushSize}
+          min={40}
+          max={800}
+          step={10}
+          display={`${brushSize} px`}
+          onChange={setBrushSize}
+        />
       )}
 
       {selecting && (

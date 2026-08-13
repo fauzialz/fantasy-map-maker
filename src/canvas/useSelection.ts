@@ -471,19 +471,36 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       const movedLand = transform?.gesture ? landmassesIn(transform.snapshot) : [];
 
       /**
-       * **C1 for water, restored on drop.** Water never overlaps water at rest, and a drop is as
-       * much a commit as a stroke — but the answer is far smaller than land's: D10 says water
-       * simply merges, so there is no overlap policy, no slide-back and no shared-delta problem.
-       * A union and a re-split is the whole of it, which is why this runs inline rather than
-       * through `resolveDrop`.
+       * **C1 for water, restored on drop — and it honours the overlap policy** (WP-41's
+       * follow-up). Water never overlaps water at rest, and a drop is as much a commit as a
+       * stroke; what happens then is the user's choice, exactly as it is for land (ADR-25).
        *
-       * Before the commit, deliberately: the merge has to be inside the same undo step as the
-       * drag that caused it, or undo leaves two objects where there was one.
+       * D10 said water simply merges, and that was written when water could not be *dragged*.
+       * A brush stroke has no other sensible outcome — you drew over it — but a drop is a
+       * gesture you can mean to undo, and "keep apart" is what protects a river system you did
+       * not intend to fuse. The policy is read here rather than asked, for ADR-25's reason: a
+       * dialog appears after the press, so the pointer could not have promised the outcome.
+       *
+       * ponytail: **"apart" reverts the whole drag rather than sliding back along it**, where
+       * land finds the fraction that last fit (`resolveDrop`). That machinery is landmass-typed
+       * and lives in the worker; borrowing it means generalising the overlap resolver, which is
+       * a package rather than a line. Retire this when someone drags water often enough to be
+       * annoyed by the difference — the toast says which happened, so it is at least honest.
        */
       if (transform?.gesture && watersIn(transform.snapshot).length > 0) {
         const store = useEditorStore.getState();
-        const merged = mergeWater(watersIn(store.scene.layers.flatMap((l) => l.objects)));
-        store.setWaters(merged);
+        const all = watersIn(store.scene.layers.flatMap((l) => l.objects));
+        const merged = mergeWater(all);
+        if (merged.length < all.length && store.overlapPolicy === "apart") {
+          // Put the dragged water back where it started; everything else in the drag stays.
+          const restored = new Map(watersIn(transform.snapshot).map((w) => [w.id, w]));
+          store.setWaters(all.map((water) => restored.get(water.id) ?? water));
+          useToastStore.getState().show("Slid back — water bodies kept apart");
+        } else {
+          store.setWaters(merged);
+          if (merged.length < all.length)
+            useToastStore.getState().show("Water merged — the larger body kept its id");
+        }
       }
 
       if (before && transform?.gesture && movedLand.length > 0) {

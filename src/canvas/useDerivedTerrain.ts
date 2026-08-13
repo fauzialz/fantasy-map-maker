@@ -7,8 +7,16 @@ import { selectLandmasses, selectWaters, useEditorStore } from "../state/editorS
 import { useToastStore } from "../state/toastStore";
 import type { Size } from "./viewport";
 
-/** Derivation is recomputed on commit only, so a burst of edits collapses into one pass. */
-const DEBOUNCE_MS = 150;
+/**
+ * Derivation is recomputed on commit only, so a burst of edits collapses into one pass.
+ *
+ * **40 ms, down from 150.** The debounce exists to collapse a *burst* — a slider dragged across
+ * its range, a generate re-rolled repeatedly — and a committed stroke is not a burst: it is one
+ * edit, already at the end of a gesture, and the 150 ms was pure latency added to every river
+ * drawn and every stroke laid. A drag, the case that really can flood the worker, is held off
+ * by `suspended` rather than by this number, so shortening it costs nothing it was protecting.
+ */
+const DEBOUNCE_MS = 40;
 
 /**
  * The **derived** half of the map: the land as it is actually drawn, and the coastal bands.
@@ -109,11 +117,17 @@ export function useDerivedTerrain(map: Size, suspended = false) {
   }, [landmasses, waters, rings, ringCount, ringGap, map.w, map.h, deriving, suspended]);
 
   /**
-   * True when the drawn land is behind the scene — mid-drag, or between a water edit and the
-   * derivation that answers it. **Not the same as `land === null`**, which is the water-free
-   * fast path and perfectly current.
+   * True when the drawn land is behind the scene **and will stay that way long enough to be
+   * worth saying so** — which means a suspended drag, and nothing else.
+   *
+   * It used to include `deriving`, and that was wrong in a way only using it reveals: every
+   * commit derives, so every river drawn, every stroke laid and every undo faded the whole
+   * continent to 55% and back. A drag is a held gesture where the freeze is real and lasts;
+   * a commit is a blink. **Fading for a blink reads as the map flickering**, which is worse
+   * than the staleness it was announcing — the previous frame is a perfectly good picture of
+   * a map that is about to change slightly.
    */
-  const landStale = waters.length > 0 && (suspended || deriving || land === null);
+  const landStale = waters.length > 0 && suspended;
 
   return { bands, land, deriving, error, stale: suspended, landStale };
 }

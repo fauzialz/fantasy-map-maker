@@ -205,17 +205,28 @@ small water body deletes it, and says so.
   shape does not.
 - **Width is an artistic random walk** along the path, not a taper (D7). A river may be wide in the
   middle. Nothing accumulates downstream, ever.
-- **Variation is proportional to the base width**, not absolute (D15). A 40-unit river wanders
-  28–52; a 6-unit river wanders 4–8. There is **no floor**, by decision — but proportional
-  variation means a river can never silently wander to nothing, which is the failure a floor was
-  protecting against.
+- ~~**Variation is proportional to the base width**, not absolute (D15).~~ **Replaced at build
+  time by an explicit minimum and maximum.** Proportional variation off a nominal width was doing
+  two jobs and was legible as neither: the number in the rail was a width the river mostly was
+  not, and the range it could reach was implicit. Two bounds say what they mean. D15's *reason*
+  survives — a river can never wander to nothing — but the floor is now a value the user chose
+  rather than an emergent property of the walk, and **the preview draws the maximum**, so the
+  commit can only ever come out narrower than the ground it cleared.
+- **Roughness is noise on each bank, sampled independently** (D13's "roughness noise"). Varying
+  only the width moves both banks in lockstep about the centreline, so the river pinches and
+  swells in perfect symmetry — the defect `engine/terrain/roughen.ts` exists to prevent, one level
+  along: *nothing on a hand-drawn map runs parallel to anything.* No width walk can fix it,
+  because the mirroring is in the construction rather than in the numbers.
 - Width and roughness are **tool settings in the rail**, beside brush size. They are not written to
   the object. **There is no Reroll** (D17): undo and draw again.
 - On commit the polygon enters the water collection and merges like any other (D10). From that
   moment it is indistinguishable from a painted one (C9) — same fields, same selection, same
   editing.
-- The preview must be honest about D16: over open sea the tool produces nothing, so the preview
-  must show nothing there, or the user commits to an invisible object.
+- The preview must be honest about D16: over open sea the tool produces nothing. **Shown as a
+  pale ghost rather than as nothing at all**, corrected at build time — a preview that vanishes
+  while you are still clicking out a course is untrackable, and D16's requirement is that the
+  preview not *lie*. A ghost says "this part does nothing", which is true; blankness said "there
+  is no tool in your hand", which is not. The **commit** still refuses outright.
 
 **Acceptance.** The preview during the drag is the ribbon, not a line, and its width matches the
 setting · the committed object has **no** `width`, `seed` or `points` field — read the scene, not

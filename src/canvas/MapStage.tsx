@@ -432,7 +432,12 @@ export function MapStage({ editing }: { editing?: Label }) {
             : brushMode === "lay"
               ? "water"
               : "paint"
-          : !unlocked
+          : // **The fallback has to check the layer, not just the tool.** `objectTool` is session
+            // state that survives a layer switch (ADR-28), and water is not an object layer — so
+            // arriving from Mountains with `scatter` still armed drew a scatter ring over the
+            // spline tool, which places points and has no radius at all. A ring is a promise
+            // that a press will paint a disc that size (I4); over a click tool it is a lie.
+            !unlocked || !onObjectLayer
             ? null
             : objectTool === "scatter"
               ? "paint"
@@ -477,17 +482,20 @@ export function MapStage({ editing }: { editing?: Label }) {
      * land. Drawn in the chrome layer it would float above a forest the finished channel runs
      * beneath — a preview that promises the wrong picture.
      */
-    if (id === "terrain" && spline.preview)
+    if (id === "terrain" && spline.active)
       return (
         <Shape
           listening={false}
           sceneFunc={(context) =>
             drawSplinePreview(
               context as unknown as DrawContext,
-              spline.preview!,
+              spline.preview ?? [],
               derived.land
                 ? derived.land.flatMap((piece) => piece.shape)
                 : landmasses.map((l) => [l.path, ...l.holes]),
+              spline.course.line,
+              spline.course.points,
+              vp?.scale ?? 1,
             )
           }
         />
@@ -574,17 +582,26 @@ export function MapStage({ editing }: { editing?: Label }) {
               key={layer.id}
               layer={layer}
               /**
-               * **Terrain goes live while the spline is previewing**, on top of the two reasons
-               * ADR-19 already gives. Its preview is hosted by the terrain layer so it sits under
-               * the forests — but a hosted overlay renders into that layer's *bitmap*, and the
-               * cache key is the layer's objects and its derived land, neither of which moves
-               * while a river is being dragged. So the preview was drawn once into a cached
-               * frame and never seen again.
+               * **Terrain is live whenever the water layer is active**, a third reason on top of
+               * the two ADR-19 gives — and the one that makes water usable.
+               *
+               * Water draws nothing of its own: its entire visual output is the shape it removes
+               * from *terrain* (`16` §3). So while you are making water, terrain is the layer
+               * being edited, and caching it means every stroke, every carve and every river
+               * re-renders the whole continent into a viewport-sized bitmap **on top of** the
+               * derivation the edit already costs. That is the pause: the sea brush on the
+               * terrain layer never paid it, because terrain was active there, which is why
+               * carving from the water layer felt slower than the identical sea-brush stroke.
+               *
+               * It also fixes the spline preview, which is hosted by this layer so it sits under
+               * the forests: a hosted overlay renders into the layer's bitmap, and the cache key
+               * is the layer's objects and its derived land — neither of which moves while a
+               * course is being clicked out.
                */
               active={
                 layer.id === activeLayerId ||
                 liveLayers.has(layer.id) ||
-                (layer.id === "terrain" && spline.active)
+                (layer.id === "terrain" && onWater)
               }
               cacheRect={cache.rect}
               cacheScale={cache.scale}

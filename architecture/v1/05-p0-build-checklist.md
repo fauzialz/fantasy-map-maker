@@ -1092,6 +1092,26 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       while merged land is merely worth mentioning. 13 driven checks. Writing the water half
       *after* the commit instead of before — the one-line mutation of this package's whole reason
       to exist — fails five of them.
+> **Eleven corrections from the first session of actually using the water tools**, folded into
+> the packages above rather than filed as a batch of their own — they are what `16` §10's
+> evaluation is *for*, and none of them changes the model. Three were plain bugs: a scatter ring
+> drawn over the spline tool (`objectTool` survives a layer switch, and water is not an object
+> layer, so the fallback had to check the layer and not just the tool); the whole continent
+> fading to 55% and back on **every** water commit, because `landStale` included `deriving` and
+> a commit is a blink rather than a held gesture; and the terrain layer's biome palette and
+> overlap control still showing after leaving Select for a water tool, since they were gated on
+> *what was selected* rather than on Select being the tool in hand.
+>
+> Two were about cost, and had one cause: **terrain is now live whenever the water layer is
+> active.** Water draws nothing of its own — its entire output is the shape it removes from
+> terrain — so while you are making water, terrain is the layer being edited, and caching it
+> made every stroke re-render the continent into a bitmap *on top of* the derivation. That is
+> also why carving from the water layer felt slower than the identical sea-brush stroke from the
+> terrain layer, where terrain was already live. The commit debounce came down from 150 ms to
+> 40 ms with it: a debounce collapses bursts, and a committed stroke is not a burst.
+>
+> The rest reshaped the spline tool — see WP-43.
+
 - [x] **WP-43 · The spline generator** — a path that emits a water polygon with randomised width
       and roughness. **The preview shows the water, not a line.** Width is an artistic random
       walk, variation proportional to base width, no floor, **no Reroll**. The committed object
@@ -1124,6 +1144,17 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       11 driven checks. Removing the width effect fails only the "changes while the pointer is
       still" check; removing the clip fails only the "previews nothing over sea" check — so
       neither is passing vacuously.
+      **Reshaped after the first session of use, and three of its decisions moved.** The single
+      *River width* became an explicit **Narrowest/Widest** pair, because the width is randomised
+      and one number was a value the river mostly was not (amending D15; its reason survives, its
+      mechanism does not). **Roughness became noise on each bank, sampled independently** — it
+      had only been the step size of the width walk, which moves both banks in lockstep and
+      leaves a river that is its own mirror image, the defect `roughen.ts` exists to prevent. And
+      the preview grew two marks it was missing: a **silhouette at the maximum width**, so the
+      envelope is promised and the commit can only come out narrower, and the **clicked course**
+      — points and smoothed centreline — so you can see where the next click attaches. The
+      stretch running over open sea is now a **pale ghost rather than nothing**, which is D16
+      told truthfully instead of a tool that disappears mid-gesture. 14 more driven checks.
 
 ## Later phases (see the phase prompts)
 

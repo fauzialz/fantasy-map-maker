@@ -1,10 +1,11 @@
+import { createNoise2D } from "simplex-noise";
 import type { Point } from "../../scene/types";
 import { mulberry32 } from "../generator/fields";
 import type { Ring } from "../geometry/types";
 import { chaikin } from "../terrain/smooth";
 
 /**
- * WP-43 — the spline generator: a drawn path becomes a **water polygon**, and the path is
+ * WP-43 — the spline generator: a drawn course becomes a **water polygon**, and the course is
  * then thrown away.
  *
  * That discard is the design rather than an economy (ADR-48, `16` D2). The tool is a *shape
@@ -14,56 +15,95 @@ import { chaikin } from "../terrain/smooth";
  * disagree with the outline the user sees.
  */
 
-/** Corner-cut the drawn points into a centreline. Open, so the two ends stay where drawn. */
+/** Corner-cut the clicked points into a centreline. Open, so the two ends stay where clicked. */
 export const centreline = (points: Point[]): Point[] => chaikin(points, 2, false);
-
-/**
- * How far the width may wander from its nominal value, as a **fraction of that value** (D15).
- *
- * Proportional rather than absolute, which is the whole of D15: at ±30% a 40-unit river wanders
- * 28–52 and a 6-unit river wanders 4–8. **There is deliberately no floor** — and proportional
- * variation is what makes a floor unnecessary, because a river cannot wander to nothing when
- * every step is a fraction of where it already is.
- */
-const MAX_DEVIATION = 0.3;
 
 /** How many segments approximate the half-circle at each end. Six reads as round at any zoom. */
 const CAP_STEPS = 6;
 
+/** Cumulative distance along the line, so noise is sampled in map units rather than per vertex. */
+const travelled = (line: Point[]): number[] => {
+  const out = [0];
+  for (let i = 1; i < line.length; i++)
+    out.push(out[i - 1] + Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]));
+  return out;
+};
+
 /**
- * The half-width at each point of the centreline: a **random walk**, not a taper (D7).
+ * The half-width at each point: a **random walk between the two bounds the user set** (D7).
  *
  * A river may be wide in the middle, and nothing accumulates downstream — which closes
- * `15-river-engine.md`'s H2 permanently. Width is an artistic choice here, not a hydrological
+ * `15-river-engine.md`'s H2 permanently. Width is an artistic choice, not a hydrological
  * consequence, and this is the line where that is decided.
  *
- * The walk is clamped rather than reflected, and it starts at 1 rather than at a random value,
- * so the width the rail promises is the width the river actually starts at.
+ * **Bounded by an explicit min and max**, which replaced a nominal width with ±30% variation
+ * (the original D15). Proportional variation was doing two jobs at once and was legible as
+ * neither: the number in the rail was a width the river mostly was not, and the range it could
+ * reach was implicit. Two numbers say exactly what they mean, and a river can still never
+ * wander to nothing because the floor is now a value the user chose rather than an emergent
+ * property of the walk.
  */
-function widthWalk(count: number, roughness: number, random: () => number): number[] {
-  const step = 0.06 + roughness * 0.14;
+function widthWalk(
+  count: number,
+  minWidth: number,
+  maxWidth: number,
+  roughness: number,
+  random: () => number,
+): number[] {
+  const low = Math.min(minWidth, maxWidth) / 2;
+  const high = Math.max(minWidth, maxWidth) / 2;
+  const span = high - low;
+  if (span <= 0) return new Array(count).fill(low);
+
+  // A rough river changes width faster; a smooth one drifts. Both cover the whole range.
+  const step = span * (0.08 + roughness * 0.22);
   const walk: number[] = [];
-  let value = 1;
+  let value = low + span * random();
   for (let i = 0; i < count; i++) {
     value += (random() * 2 - 1) * step;
-    walk.push(Math.min(Math.max(value, 1 - MAX_DEVIATION), 1 + MAX_DEVIATION));
-    value = walk[i];
+    // Reflected at the bounds rather than clamped: clamping makes a rough river cling to its
+    // limits in long flat runs, which reads as a canal with two straight edges.
+    if (value < low) value = low + (low - value);
+    if (value > high) value = high - (value - high);
+    walk.push(Math.min(Math.max(value, low), high));
   }
   return walk;
 }
 
 /**
- * The closed outline of the ribbon: the left bank out, a cap, the right bank back, a cap.
+ * **Independent noise on each bank** — what "roughness" actually means (D13's "roughness noise").
+ *
+ * Varying only the *width* moves both banks in lockstep about the centreline, so the river
+ * pinches and swells in perfect symmetry. That is the same defect `engine/terrain/roughen.ts`
+ * was written for one level along: *nothing on a hand-drawn map runs parallel to anything.* A
+ * river whose left bank is the mirror of its right is exactly that, and no width walk can fix
+ * it, because the mirroring is in the construction rather than in the numbers.
+ *
+ * Sampled on **two different rows** of the same noise field, so the banks are decorrelated
+ * without needing two fields, and along *travelled distance* so the wobble has a wavelength in
+ * map units instead of one wobble per vertex.
+ */
+const bankNoise = (
+  noise: (x: number, y: number) => number,
+  distance: number,
+  width: number,
+  roughness: number,
+  row: number,
+): number => {
+  if (roughness <= 0) return 0;
+  const wavelength = Math.max(width, 24) * 2.2;
+  return noise(distance / wavelength, row) * width * 0.45 * roughness;
+};
+
+/**
+ * The closed outline: the left bank out, a cap, the right bank back, a cap.
  *
  * Each centreline point is pushed out along the normal of its local tangent — a central
- * difference, so a bend offsets smoothly instead of kinking at the vertex.
- *
- * `halfWidths` is passed in rather than generated here so the **preview and the commit can
- * share this function**: the preview hands it a flat array at the nominal width, and the commit
- * hands it the walk. `16` §5 requires exactly that split — the randomisation applies on commit,
- * the *shape* does not, so what you saw is what you get up to the wobble of its banks.
+ * difference, so a bend offsets smoothly instead of kinking at the vertex. **The two banks take
+ * separate half-width arrays**, which is what lets the commit rough them independently while
+ * the preview hands the same flat array to both.
  */
-export function ribbonOutline(line: Point[], halfWidths: number[]): Ring {
+export function ribbonOutline(line: Point[], leftHalf: number[], rightHalf: number[]): Ring {
   if (line.length < 2) return [];
 
   const left: Point[] = [];
@@ -74,10 +114,9 @@ export function ribbonOutline(line: Point[], halfWidths: number[]): Ring {
     const length = Math.hypot(bx - ax, by - ay) || 1;
     const nx = -(by - ay) / length;
     const ny = (bx - ax) / length;
-    const half = halfWidths[i];
     const [x, y] = line[i];
-    left.push([x + nx * half, y + ny * half]);
-    right.push([x - nx * half, y - ny * half]);
+    left.push([x + nx * leftHalf[i], y + ny * leftHalf[i]]);
+    right.push([x - nx * rightHalf[i], y - ny * rightHalf[i]]);
   }
 
   /**
@@ -93,9 +132,9 @@ export function ribbonOutline(line: Point[], halfWidths: number[]): Ring {
     line[line.length - 1],
     line[line.length - 2],
     left[left.length - 1],
-    halfWidths[halfWidths.length - 1],
+    leftHalf[leftHalf.length - 1],
   );
-  const startCap = cap(line[0], line[1], right[0], halfWidths[0]);
+  const startCap = cap(line[0], line[1], right[0], rightHalf[0]);
 
   return [...left, ...endCap, ...right.reverse(), ...startCap];
 }
@@ -124,14 +163,22 @@ function cap(end: Point, inward: Point, bankEnd: Point, radius: number): Point[]
   return arc;
 }
 
-/** The ribbon as the preview draws it: nominal width end to end, no randomisation. */
-export function previewRibbon(points: Point[], width: number): Ring {
+/**
+ * The **silhouette** the preview draws: a smooth ribbon at the *maximum* width, end to end.
+ *
+ * Max rather than the midpoint, deliberately. The preview's job is to promise the envelope the
+ * river will fit inside, so nothing the commit does can come as a spatial surprise — the
+ * randomisation is allowed to make the river *narrower* than what you saw, never wider than the
+ * ground you cleared for it. The surprise belongs in the detail, never in the object (`12` §1).
+ */
+export function previewRibbon(points: Point[], maxWidth: number): Ring {
   const line = centreline(points);
-  return ribbonOutline(line, new Array(line.length).fill(width / 2));
+  const half = new Array(line.length).fill(maxWidth / 2);
+  return ribbonOutline(line, half, half);
 }
 
 /**
- * The ribbon as it commits: the same shape, with banks that wander.
+ * The ribbon as it commits: width wandering between the bounds, and each bank roughened alone.
  *
  * **The seed is generated here and immediately forgotten** (D8, D17). Nothing about the
  * randomisation is stored, so there is no Reroll and can never be one — the way back from a
@@ -139,13 +186,33 @@ export function previewRibbon(points: Point[], width: number): Ring {
  * alternative is a `seed` field on the object, which would make a spline-made river
  * distinguishable from a brushed one forever and break C9.
  */
-export function commitRibbon(points: Point[], width: number, roughness: number): Ring {
+export function commitRibbon(
+  points: Point[],
+  minWidth: number,
+  maxWidth: number,
+  roughness: number,
+): Ring {
   const line = centreline(points);
   if (line.length < 2) return [];
+
   const random = mulberry32((Math.random() * 2 ** 32) >>> 0);
-  const walk = widthWalk(line.length, roughness, random);
-  return ribbonOutline(
-    line,
-    walk.map((factor) => (width / 2) * factor),
-  );
+  const noise = createNoise2D(random);
+  const walk = widthWalk(line.length, minWidth, maxWidth, roughness, random);
+  const distances = travelled(line);
+
+  /**
+   * **Clamped to the maximum the preview promised.** Bank noise is added to a width that is
+   * already anywhere in the range, so unclamped it can push a bank past the envelope the
+   * silhouette drew — and the whole point of previewing the max is that the commit can only
+   * come out *narrower* than the ground you cleared. Noise that would exceed it is spent
+   * inward instead, which costs nothing visually: a bank pinned to the limit still wanders,
+   * because the other one is free and they are independent.
+   */
+  const ceiling = Math.max(minWidth, maxWidth) / 2;
+  const bank = (row: number) =>
+    walk.map((half, i) =>
+      Math.min(Math.max(half + bankNoise(noise, distances[i], half * 2, roughness, row), 0.5), ceiling),
+    );
+
+  return ribbonOutline(line, bank(0), bank(37));
 }

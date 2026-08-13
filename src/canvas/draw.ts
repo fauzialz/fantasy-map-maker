@@ -119,31 +119,83 @@ export function drawCutLand(ctx: DrawContext, land: CutLandmass[]): void {
 }
 
 /**
- * WP-43 — the spline tool's live preview: **the water you will get, clipped to the land**.
+ * WP-43 — the spline tool's live preview: **the water you will get, and the course you clicked.**
  *
- * Two things make this honest rather than decorative. It is the *ribbon* at its nominal width
- * rather than a bare line, so the tool shows its object before you commit to it (`12` §1). And
- * it is **clipped to the land as currently drawn**, so a river dragged out over open sea simply
- * stops being visible — which is D16 told truthfully, because that is precisely what committing
- * it would produce: a cut through land that is not there.
+ * Three marks, and each answers a different question.
  *
- * The clip is a canvas region rather than a boolean op, and that is what makes it affordable per
- * frame: `polygon-clipping` against a 2 800-point coastline on every mousemove is the cost C2
- * spends its whole budget avoiding, while `ctx.clip()` is the rasteriser doing what it already
- * does.
+ * **The silhouette** is the ribbon at its *maximum* width, so it promises the envelope the
+ * river will fit inside — the randomisation may make it narrower, never wider than the ground
+ * you cleared. It is drawn twice: once unclipped in a pale tint, once clipped to the land in
+ * the full one. Over land you see the cut you are about to make; over open sea you see a pale
+ * ghost instead of nothing at all. **That is the change from "preview nothing over sea"** — a
+ * tool that vanishes while you are still drawing is untrackable, and D16's real requirement is
+ * that the preview not *lie* about what will be made. A ghost says "this part does nothing",
+ * which is the truth, where blankness said "there is no tool in your hand".
+ *
+ * **The centreline and its points** are the course itself: the clicked points as dots and the
+ * smoothed spline between them, so you can see where the next click will attach and what the
+ * corner-cutting did to the last one.
+ *
+ * The clip is a canvas region rather than a boolean op, and that is what makes it affordable
+ * per frame: `polygon-clipping` against a 2 800-point coastline on every mousemove is the cost
+ * C2 spends its whole budget avoiding, while `ctx.clip()` is the rasteriser doing what it
+ * already does.
  */
-export function drawSplinePreview(ctx: DrawContext, ribbon: Ring, clip: MultiPolygon): void {
-  if (ribbon.length < 3 || clip.length === 0) return;
+export function drawSplinePreview(
+  ctx: DrawContext,
+  ribbon: Ring,
+  clip: MultiPolygon,
+  line: Ring,
+  points: Ring,
+  scale: number,
+): void {
   ctx.save();
-  ctx.beginPath();
-  for (const polygon of clip) for (const ring of polygon) trace(ctx, ring);
-  ctx.clip();
 
-  ctx.beginPath();
-  trace(ctx, ribbon);
-  ctx.globalAlpha = 0.75;
-  ctx.fillStyle = PALETTE.sea;
-  ctx.fill();
+  if (ribbon.length >= 3) {
+    // The ghost, unclipped — trackable wherever it runs, including out over open sea.
+    ctx.beginPath();
+    trace(ctx, ribbon);
+    ctx.globalAlpha = 0.28;
+    ctx.fillStyle = PALETTE.sea;
+    ctx.fill();
+
+    // The real cut, clipped to the land it will actually remove.
+    if (clip.length > 0) {
+      ctx.save();
+      ctx.beginPath();
+      for (const polygon of clip) for (const ring of polygon) trace(ctx, ring);
+      ctx.clip();
+      ctx.beginPath();
+      trace(ctx, ribbon);
+      ctx.globalAlpha = 0.75;
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // The course. Screen-constant like every other piece of chrome (I8), so it neither vanishes
+  // at fit zoom nor turns into a band up close.
+  ctx.globalAlpha = 0.9;
+  if (line.length >= 2) {
+    ctx.beginPath();
+    ctx.moveTo(line[0][0], line[0][1]);
+    for (let i = 1; i < line.length; i++) ctx.lineTo(line[i][0], line[i][1]);
+    ctx.strokeStyle = PALETTE.ink;
+    ctx.lineWidth = 1.5 / scale;
+    ctx.setLineDash([6 / scale, 5 / scale]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  for (const [x, y] of points) {
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5 / scale, 0, Math.PI * 2);
+    ctx.fillStyle = PALETTE.peakLit;
+    ctx.fill();
+    ctx.strokeStyle = PALETTE.ink;
+    ctx.lineWidth = 1.5 / scale;
+    ctx.stroke();
+  }
+
   ctx.restore();
 }
 
