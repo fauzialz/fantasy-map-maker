@@ -1,9 +1,9 @@
-import type { Landmass, Water } from "../../scene/types";
+import type { Water } from "../../scene/types";
 import type { GenerateRequest, GenerateResult } from "../generator/generate";
 import type { WaterCommit } from "../water/commit";
 import type { DeriveTerrain, DerivedTerrain } from "../water/derive";
 import type { ResolveDrop, DropResult } from "../terrain/overlap";
-import type { TerrainCommit } from "../terrain/pipeline";
+import type { TerrainCommit, TerrainCommitResult } from "../terrain/pipeline";
 
 /**
  * Typed geometry-worker protocol (`04-geometry-pipeline.md` §"Worker message protocol").
@@ -14,7 +14,7 @@ export interface GeometryOps {
   /** liveness/round-trip check */
   ping: { payload: { echo: string }; result: { echo: string } };
   /** Pipeline A: one committed brush stroke → the new set of landmasses */
-  terrainCommit: { payload: TerrainCommit; result: { landmasses: Landmass[] } };
+  terrainCommit: { payload: TerrainCommit; result: TerrainCommitResult };
   /** WP-41: the same pipeline against the water collection — one laid stroke → the new set */
   waterCommit: { payload: WaterCommit; result: { waters: Water[] } };
   /**

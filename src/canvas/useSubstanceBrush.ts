@@ -4,7 +4,7 @@ import { createMask, stampMask, type Mask } from "../engine/terrain/mask";
 import { callGeometry } from "../engine/worker/client";
 import type { Point } from "../scene/types";
 import { selectWaters, selectLandmasses, useEditorStore } from "../state/editorStore";
-import { describeTerrainChange } from "../state/terrainChange";
+import { describeTerrainChange, describeWaterChange } from "../state/terrainChange";
 import { useToastStore } from "../state/toastStore";
 import type { Size } from "./viewport";
 
@@ -110,6 +110,7 @@ export function useSubstanceBrush({ enabled, mode, map, toMapPoint }: Options) {
             })
           : (() => {
               const before = selectLandmasses(state);
+              const waterBefore = selectWaters(state);
               const terrainMode = mode === "carve" ? "erase" : "paint";
               return callGeometry("terrainCommit", {
                 mask: current.mask,
@@ -118,18 +119,37 @@ export function useSubstanceBrush({ enabled, mode, map, toMapPoint }: Options) {
                 mode: terrainMode,
                 existingLand: before,
                 biome: state.terrainBiome,
-              }).then(({ landmasses }) => {
+                existingWater: waterBefore,
+              }).then(({ landmasses, waters }) => {
                 const store = useEditorStore.getState();
+                /**
+                 * **WP-42 — both halves, then one commit.** A stroke that grows land and shrinks
+                 * the water it crosses is one edit; writing the two collections either side of a
+                 * `commit` would make a single drag two undo steps, and undoing one of them
+                 * would leave land sitting in a river.
+                 *
+                 * `waters` is null whenever the stroke missed the water, so an ordinary land
+                 * stroke does not touch that layer at all.
+                 */
                 store.setLandmasses(landmasses);
+                if (waters) store.setWaters(waters);
                 store.commit(sceneBefore, terrainMode === "erase" ? "erase sea" : "paint land");
 
                 // The toast records its own step rather than calling undo(), so it still
                 // restores the land it is talking about even if the user has painted again.
                 const change = describeTerrainChange(before, landmasses, terrainMode);
-                if (change)
-                  useToastStore.getState().show(change, () => {
+                const wet = waters ? describeWaterChange(waterBefore, waters) : null;
+                // The water half wins the toast when both fired: it is the surprising one, and
+                // the destructive one — a severed or covered river is what C8 makes unrecoverable
+                // except by undo, while merged land is merely worth mentioning.
+                const message = wet ?? change;
+                if (message)
+                  useToastStore.getState().show(message, () => {
                     const now = useEditorStore.getState();
-                    now.record("restore land", () => now.setLandmasses(before));
+                    now.record("restore land and water", () => {
+                      now.setLandmasses(before);
+                      if (waters) now.setWaters(waterBefore);
+                    });
                   });
               });
             })();

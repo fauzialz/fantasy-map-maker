@@ -1,4 +1,4 @@
-import type { Landmass } from "../scene/types";
+import type { Landmass, Water } from "../scene/types";
 
 /**
  * ADR-10: when a boolean op splits or merges land, "the larger piece keeps the id/name".
@@ -39,6 +39,27 @@ export function describeTerrainChange(
   if (removed.length > 0) {
     const survivor = after.find((landmass) => beforeIds.has(landmass.id));
     return `${removed.length + 1} landmasses merged into ${label(survivor)}`;
+  }
+  return null;
+}
+
+/**
+ * WP-42 — what painting land did to the water it crossed (D18).
+ *
+ * Worth saying for the same reason `describeTerrainChange` exists: a stroke aimed at the coast
+ * can sever a river a screen away, or wipe a small pond out entirely, and neither announces
+ * itself. **The wipe is the one that must never be silent** — it is the only edit in the batch
+ * that destroys an object the user did not point at, and it is destructive by C8's necessity
+ * rather than by choice, so undo is the only way back.
+ */
+export function describeWaterChange(before: Water[], after: Water[]): string | null {
+  if (after.length > before.length) {
+    const extra = after.length - before.length;
+    return `A river was severed into ${extra + 1} — painting land cuts water`;
+  }
+  if (after.length < before.length) {
+    const gone = before.length - after.length;
+    return gone === 1 ? "A water body was covered over" : `${gone} water bodies were covered over`;
   }
   return null;
 }

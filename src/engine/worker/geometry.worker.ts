@@ -12,7 +12,7 @@ type Handlers = { [O in Op]: (payload: GeometryOps[O]["payload"]) => GeometryOps
 
 const handlers: Handlers = {
   ping: (payload) => payload,
-  terrainCommit: (payload) => ({ landmasses: terrainCommit(payload) }),
+  terrainCommit: (payload) => terrainCommit(payload),
   waterCommit: (payload) => ({ waters: waterCommit(payload) }),
   deriveTerrain: (payload) => deriveTerrain(payload),
   generate: (payload) => generateWorld(payload),

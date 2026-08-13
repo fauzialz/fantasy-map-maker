@@ -1064,9 +1064,27 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       A `data-selection-types` attribute on the rail joins `data-land-count` as a surface a
       driver can be exact against — "1 selected" cannot tell a channel from the continent it is
       cut through, and that distinction is the whole question here.
-- [ ] **WP-42 · Land carves water** — the terrain brush subtracts from water **destructively**
+- [x] **WP-42 · Land carves water** — the terrain brush subtracts from water **destructively**
       and severs a river in two. The asymmetry is required (`16` C8), not an oversight. Its own
       package because two destructive edits meet, and both must land in **one** undo step.
+      **One round-trip, not two**, which is what makes that undo step possible at all:
+      `terrainCommit` grew an `existingWater` input and now returns `{ landmasses, waters }`, and
+      the brush writes both collections before a single `commit`. Only `paint` carves — the sea
+      brush removes *land*, so it leaves water where it is, which is C8's asymmetry seen from the
+      other side and is asserted rather than assumed.
+      **`waters` is null when the stroke missed**, so an ordinary land stroke never touches that
+      layer: the reply crosses a `postMessage` and arrives as a copy, so echoing the input back
+      would rewrite the water layer on every stroke, put it in the undo diff, and invalidate a
+      derivation with no reason to re-run.
+      **A fixture caught the first version of that null test.** It asked whether the object count
+      or the vertex count had changed — and shaving one bank of a rectangular river along its
+      whole length leaves a rectangle, so a real carve reported as a miss. It compares **area**
+      now, which is the question with no false negative in it.
+      **The wipe and the sever are announced** (`describeWaterChange`), and the water half wins
+      the toast when both fired: a severed or covered river is the surprising, destructive one,
+      while merged land is merely worth mentioning. 13 driven checks. Writing the water half
+      *after* the commit instead of before — the one-line mutation of this package's whole reason
+      to exist — fails five of them.
 - [ ] **WP-43 · The spline generator** — a path that emits a water polygon with randomised width
       and roughness. **The preview shows the water, not a line.** Width is an artistic random
       walk, variation proportional to base width, no floor, **no Reroll**. The committed object
