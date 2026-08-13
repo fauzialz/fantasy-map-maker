@@ -37,6 +37,13 @@ interface Tool {
 const LAYER_TOOLBAR: Tool[] = [
   { id: "terrain", label: "Terrain", icon: Brush, layer: "terrain", hint: "Paint land" },
   {
+    id: "water",
+    label: "Water",
+    icon: Waves,
+    layer: "water",
+    hint: "Lay rivers and lakes, or carve land away",
+  },
+  {
     id: "mountains",
     label: "Mountains",
     icon: Mountain,
@@ -44,13 +51,6 @@ const LAYER_TOOLBAR: Tool[] = [
     hint: "Scatter peaks",
   },
   { id: "forests", label: "Forests", icon: Trees, layer: "forests", hint: "Scatter woodland" },
-  {
-    id: "water",
-    label: "Water",
-    icon: Waves,
-    layer: "water",
-    hint: "Lay rivers and lakes, or carve land away",
-  },
   { id: "icons", label: "Icons", icon: Castle, layer: "icons", hint: "Place a landmark" },
   { id: "labels", label: "Labels", icon: Type, layer: "labels", hint: "Name a place" },
 ];

@@ -1111,6 +1111,25 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
 > 40 ms with it: a debounce collapses bursts, and a committed stroke is not a burst.
 >
 > The rest reshaped the spline tool — see WP-43.
+>
+> **A second pass reshaped the rail itself.** The water layer's three flat chips became **two
+> tabs, Sea and River**, with the two river-authoring modes nested under the second: three peers
+> said the layer had three tools, when it has two substances to make and rivers happen to be
+> authorable two ways. Sea carries no sub-chips, because carving is one gesture and a segmented
+> control with one segment is a label pretending to be a control. `Draw a river` became **Draw
+> with Spline**, which names the gesture rather than the outcome — the Brush beside it also draws
+> a river.
+>
+> **Water moved beside Terrain in the toolbar**, ahead of the scatter layers: it edits the same
+> geometry, and the row now reads in the order the map is built rather than in the order the
+> layers stack. The *layer stack* is untouched — that is render order (ADR-15) and answers a
+> different question.
+>
+> And **`coastDetail` is labelled "Bank roughness" on the water layer** while staying "Coast
+> detail" on terrain. One value, two honest names: a bank *is* coastline, so the setting that
+> decides whether one comes out smooth or ragged should be named for the thing you are looking at.
+> Brush size sits between the modes and it, which is where the earlier "not on top" and this
+> pass's "above the detail slider" meet.
 
 - [x] **WP-43 · The spline generator** — a path that emits a water polygon with randomised width
       and roughness. **The preview shows the water, not a line.** Width is an artistic random

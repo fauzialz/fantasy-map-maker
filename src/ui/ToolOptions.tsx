@@ -39,6 +39,8 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const setBrushSize = useEditorStore((s) => s.setBrushSize);
   const terrainTool = useEditorStore((s) => s.terrainTool);
   const waterTool = useEditorStore((s) => s.waterTool);
+  /** Carving makes sea; laying and the spline make rivers. The tab is that distinction. */
+  const waterTab = waterTool === "carve" ? "sea" : "river";
   const setWaterTool = useEditorStore((s) => s.setWaterTool);
   const splineMinWidth = useEditorStore((s) => s.splineMinWidth);
   const splineMaxWidth = useEditorStore((s) => s.splineMaxWidth);
@@ -457,19 +459,60 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
       */}
       {onWater && !globalMode && (
         <>
+          {/*
+            **Two tabs, then the modes inside one of them.** Three flat chips said the layer had
+            three peer tools; it has two *substances to make* — sea, by taking land away, and
+            rivers, by putting water in — and rivers happen to be authorable two ways.
+
+            The nesting is the honest shape: Sea has nothing under it because carving is one
+            gesture, and a segmented control with one segment is a label pretending to be a
+            control. River has two, because a brush and a spline are genuinely different ways to
+            draw the same object (C9 — they are indistinguishable once committed).
+          */}
           <div className={segment()}>
-            {(["lay", "spline", "carve"] as const).map((mode) => (
+            {(["sea", "river"] as const).map((tab) => (
               <button
-                key={mode}
+                key={tab}
                 type="button"
-                data-mode={mode}
-                className={toolButton({ active: waterTool === mode })}
-                onClick={() => setWaterTool(mode)}
+                data-water-tab={tab}
+                className={toolButton({ active: waterTab === tab })}
+                onClick={() => setWaterTool(tab === "sea" ? "carve" : "lay")}
               >
-                {mode === "lay" ? "Brush" : mode === "spline" ? "Draw a river" : "Carve land"}
+                {tab === "sea" ? "Sea" : "River"}
               </button>
             ))}
           </div>
+          {waterTab === "river" && (
+            <div className={segment()}>
+              {(["lay", "spline"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  data-mode={mode}
+                  className={toolButton({ active: waterTool === mode })}
+                  onClick={() => setWaterTool(mode)}
+                >
+                  {mode === "lay" ? "Brush" : "Draw with Spline"}
+                </button>
+              ))}
+            </div>
+          )}
+          {/*
+            **Brush size above the detail slider, and below the modes.** It is the least specific
+            thing about the tool — every brush has one — so it belongs under the choice of tool
+            and over the setting that shapes what the stroke leaves behind.
+          */}
+          {waterTool !== "spline" && (
+            <Slider
+              label="Brush size"
+              value={brushSize}
+              min={40}
+              max={800}
+              step={10}
+              display={`${brushSize} px`}
+              onChange={setBrushSize}
+            />
+          )}
           {/*
             WP-43's two tool settings, and they are **tool settings** in the strictest sense
             (D8): they shape the geometry at creation and are then gone, exactly as brush size
@@ -517,15 +560,26 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
               />
             </>
           )}
+          {/*
+            The same `settings.coastDetail` the terrain layer calls **Coast detail**, named for
+            what it does *here*: a bank is coastline, so this is the setting that decides whether
+            one comes out smooth or ragged. One value, two honest names — the alternative is a
+            control labelled for a layer you are not on.
+
+            ponytail: the spline's own **Bank roughness** is a different value under the same
+            name — a *tool* setting, session-only, against this *scene* setting which is
+            persisted and undoable. They are never on screen together, so the collision is
+            invisible in use; if the two modes are ever shown side by side, one has to be renamed.
+          */}
           {waterTool !== "spline" && (
             <Slider
-              label="Coast detail"
+              label="Bank roughness"
               value={scene.settings.coastDetail}
               min={0}
               max={1}
               step={0.05}
               display={scene.settings.coastDetail.toFixed(2)}
-              hint="Smooth and stylised ↔ rough and natural. Banks are coastline, so this shapes them too."
+              hint="Smooth and stylised ↔ rough and natural. A bank is coastline, so this shapes the whole map's."
               onChange={(coastDetail) =>
                 record("coast detail", () => setSettings({ coastDetail }), true)
               }
@@ -554,16 +608,12 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         rather than as the headline, and putting it on top pushed the controls that actually
         distinguish one brush from another below the fold.
 
-        The eraser is global since WP-26, so its size has to be reachable from any layer,
-        including water, which is not an object layer and would otherwise hide the slider for
-        the one tool that works there. The spline has its own widths, so the disc's size would
-        be a control that cannot act on the tool in hand — what I4 exists to prevent.
+        The eraser is global since WP-26, so its size has to be reachable from any layer. The
+        **water layer renders its own** above its detail slider, because its modes sit in tabs
+        and the size belongs under the mode it applies to; the spline has its own widths, so the
+        disc's size would be a control that cannot act on the tool in hand — what I4 prevents.
       */}
-      {(erasing ||
-        (!selecting &&
-          (onTerrain ||
-            (onWater && waterTool !== "spline") ||
-            (isObjectLayer && objectTool === "scatter")))) && (
+      {(erasing || (!selecting && (onTerrain || (isObjectLayer && objectTool === "scatter")))) && (
         <Slider
           label="Brush size"
           value={brushSize}
