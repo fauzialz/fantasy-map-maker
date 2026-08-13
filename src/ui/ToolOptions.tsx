@@ -530,7 +530,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
                 : waterTool === "carve"
                   ? "Carve removes land, and the sea that fills the gap takes coastal bands."
                   : waterTool === "spline"
-                    ? "Drag a path and let go. The preview is the river you will get; only its banks are decided on release, so drawing the same path twice gives two different rivers."
+                    ? "Click to lay the river’s course, then double-click or press Enter to finish. The preview is the river you will get; only its banks are decided on commit, so the same course drawn twice gives two different rivers."
                     : "Drag to lay a river or lake. It cuts a channel through the land, and channels take no bands. Overlapping strokes merge into one."}
           </p>
         </>

@@ -458,7 +458,7 @@ export function MapStage({ editing }: { editing?: Label }) {
         : (selection.cursor ??
           // The eraser is global, so it promises a crosshair on every layer (I4).
           (erasing ||
-          (!selecting && (brushMode !== null || spline.drawing || LAYER_OBJECT[activeLayerId])) ||
+          (!selecting && (brushMode !== null || LAYER_OBJECT[activeLayerId])) ||
           (onWater && waterTool === "spline" && waterEditable && !selecting)
             ? "crosshair"
             : "default"));
@@ -527,6 +527,7 @@ export function MapStage({ editing }: { editing?: Label }) {
       onMouseDown={onMouseDown}
       onMouseMove={(e) => {
         selection.hover(e.clientX, e.clientY);
+        spline.hover(e.clientX, e.clientY);
         pointerRef.current = { x: e.clientX, y: e.clientY };
         setCursor(toMapPoint(e.clientX, e.clientY));
         setZooming(false);
@@ -536,6 +537,9 @@ export function MapStage({ editing }: { editing?: Label }) {
         setCursor(null);
       }}
       onDoubleClick={(e) => {
+        // **Only a river being *drawn* claims the gesture.** Keying this on the layer instead
+        // swallowed every double-click on the old rivers layer, Select on or not (`07`, WP-20).
+        if (spline.finish()) return;
         // A double-click's first press has already selected the label under the pointer.
         const selected = useEditorStore.getState().selection;
         const label = scene.layers
@@ -580,7 +584,7 @@ export function MapStage({ editing }: { editing?: Label }) {
               active={
                 layer.id === activeLayerId ||
                 liveLayers.has(layer.id) ||
-                (layer.id === "terrain" && spline.preview !== null)
+                (layer.id === "terrain" && spline.active)
               }
               cacheRect={cache.rect}
               cacheScale={cache.scale}
@@ -657,6 +661,13 @@ export function MapStage({ editing }: { editing?: Label }) {
         {selection.count > 0 && <span>{selection.count} selected</span>}
         {undoDepth > 0 && <span>{undoDepth} undo</span>}
         {!unlocked && <span className="mbf:text-note">{activeLayerId} locked</span>}
+        {spline.active && (
+          <span className="mbf:text-note">
+            {spline.count < 2
+              ? "click to lay the river’s course"
+              : `${spline.count} points · double-click or Enter to finish, Escape to cancel`}
+          </span>
+        )}
         {brush.committing && <span>vectorising…</span>}
         {derived.stale && (
           <span className="mbf:text-note">terrain frozen — it follows on drop</span>

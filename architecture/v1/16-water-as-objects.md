@@ -195,6 +195,10 @@ small water body deletes it, and says so.
 
 **Design.**
 - Drag or click a path; **the preview shows the water you will get**, at its nominal width, live.
+  **Settled at build time: click.** Shipped as a drag first and rejected by the owner — a river is
+  a route across a map, chosen, and a freehand drag makes it a brush stroke instead. Clicks lay
+  the course, the pointer rubber-bands the ribbon to where the next one would go, and a
+  double-click or Enter finishes it.
   Not a bare line. A tool that shows nothing until it commits is the exact complaint
   `12-tools-that-say-what-they-do.md` opens with and WP-24 was built to answer — the pleasant
   surprise belongs in the *detail*, never in the *object*. The randomisation applies on commit; the

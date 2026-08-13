@@ -1097,10 +1097,16 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       walk, variation proportional to base width, no floor, **no Reroll**. The committed object
       carries no `width`, `seed` or `points` — asserted against the **saved scene**, not the
       render, and the field list is exactly `holes,id,path,type`.
-      **A drag, not a click-by-click polyline.** The tool this replaces was modal — click to add
-      a point, double-click or Enter to finish, Escape to abandon — and that state is what made a
-      double-click on the layer ambiguous (WP-20's bug, `07`). One gesture with a beginning and an
-      end needs none of it and gives one undo step for free.
+      **Click to lay a course, double-click or Enter to finish, Escape to abandon.** `16` §5
+      allows either gesture — "drag or click a path" — and this shipped as a **drag** first, on
+      the argument that a modal gesture was what made a double-click on the old rivers layer
+      ambiguous (WP-20's bug). **The owner rejected that**: a river is a route across a map,
+      chosen, and a freehand drag makes it a brush stroke instead. The tool is named for the
+      spline, and the spline is a guide you place.
+      The WP-20 trap is avoided rather than reintroduced: its actual cause was keying the
+      double-click handler on the **layer**, so it fired whether or not a river was being drawn.
+      `MapStage` keys it on `spline.finish()` returning true — on a river actually in progress —
+      and the HUD says which state the gesture is in, so the modal mode is never invisible.
       **The preview is clipped to the land with `ctx.clip()`, not a boolean op**, which is what
       makes D16's honesty affordable per frame: `polygon-clipping` against a 2 800-point coastline
       on every mousemove is the cost C2 spends its whole budget avoiding. And **D16 became a
