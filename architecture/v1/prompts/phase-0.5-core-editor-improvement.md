@@ -891,51 +891,6 @@ there is no Reroll** (D17) — undo and draw again.
   is still · the same path drawn twice gives different banks — **assert the difference, not a
   value; irreproducibility is the design.**
 
-## Batch 15 — Vertex editing (WP-44 …) — **SCHEDULED, shape unsettled**
-
-**Design:** `../17-vertex-editing.md` — a *note*, not yet a work order, and it says so. **Read §5
-and §6 before anything else.** **Prerequisite:** Batch 14, **met** — accepted 2026-08-14 (`16`
-§10). **Deadline:** none.
-
-> **This entry exists to schedule the batch, not to brief it.** Every other entry in this file
-> can be handed to an agent; this one cannot, because **V2 is open** — exact node handles, a coast
-> sculpt brush, or both — and the two shapes do not share a package breakdown. Writing package
-> numbers before V2 would be picking the answer by implication, which is exactly what `17` §7
-> refused to do while V1 was open.
-
-**Settle first:** **V2 … V11** (`17` §6). V1 is answered — the batch arrives; the freehand brushes
-Batch 14 shipped did not turn out to be sufficient, which is the observation `17` §7 was waiting
-for rather than an argument it won.
-
-**V2 is the one that decides the rest.** `17` §5 puts two shapes on the table:
-
-- **A — vertex handles with proportional falloff.** What was literally asked for: select an
-  object, see its points, drag one, neighbours follow. Exact. Carries problems **P1–P5** in full.
-- **B — a coast sculpt brush.** No handles: a radius, a direction, a falloff, pushing the boundary
-  under the cursor. **Disposes of six of the eleven problems** — they turn out to be *handle*
-  problems rather than *editing* problems — and composes with the brush-first design of every
-  other tool. **It cannot be exact**, and exactness is precisely what Batch 14 took away.
-
-`17` §5's hypothesis is that **B is the larger half of the value at a fraction of the cost**, and
-it is written to be falsified. The counter-argument is in the same section and is not weak: if
-what was missed is exactness, B does not answer the complaint at all.
-
-**What is *not* in doubt**, whichever shape wins:
-
-- **Both substances.** `16` D3 says outline vertices, land and water alike, and a water object is
-  a landmass's shape (ADR-48). The landmass half was never blocked by Batch 14; the water half is
-  trivially unblocked by it. A batch that did rivers only would be building the special case this
-  repo's water design exists to avoid.
-- **`07` I5 gains a rung back.** WP-40 removed the top one when it deleted river control points,
-  and I5 records that node editing is the invariant that re-opens it — a vertex on a coastline
-  will sit on a frame corner exactly as an endpoint did.
-- **The dangerous problem is P-self-intersection**, `17` §4: an edit that crosses a coastline over
-  itself corrupts the *terrain derivation*, not merely the picture. **V3 and V10 answer it
-  together**, and both must be settled before the first package rather than after.
-
-**When V2 is settled**, `17` becomes a work order — per-package acceptance criteria and fixtures,
-an ADR for each load-bearing call — and the packages take WP-44 onward.
-
 ---
 
 ## Adding a future batch

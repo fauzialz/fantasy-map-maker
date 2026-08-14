@@ -234,11 +234,12 @@ P0 alone is a complete portfolio piece.
   (water costs 0–10% on top of the ring derivation); D12, D7 and D15 came back by eye. The
   evaluation is recorded in `16` §10, and **downstream work may now assume the water model
   exists**.
-- **Batch 15 is scheduled and not started** — `17-vertex-editing.md`: seeing an object's outline
-  points and dragging them, on water *and* land. Unblocked by Batch 14's acceptance, and the other
-  half of the request that produced it. **V1 is answered, V2 onward are not**, so it has no
-  package numbers yet — the shape it takes (exact node dragging, a coast sculpt brush, or both)
-  decides what the packages even are.
+- **Vertex editing is on the 0.5 backlog, awaiting an ideation session** — `17-vertex-editing.md`:
+  seeing an object's outline points and dragging them, on water *and* land. Unblocked by Batch 14's
+  acceptance, and the other half of the request that produced it. **V1 is answered, V2 onward are
+  not**, and V2 decides what the packages even are — exact node dragging and a coast sculpt brush
+  are different features. It gets a number and a brief when a session settles that, the way Batch
+  14 got its shape from the ideation session of 2026-08-12.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
   ~~first-class water bodies/canals~~ — **brought forward as Batch 14** (`16`); a canal is water a
   user painted straight, so it needs nothing further — auto-generated rivers, rich blended biome

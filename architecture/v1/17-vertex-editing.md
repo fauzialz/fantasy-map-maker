@@ -1,10 +1,11 @@
 # Editing an outline point by point — design note
 
-**Status: SCHEDULED as Batch 15, and still a note rather than a work order.** Batch 14 was
-accepted on **2026-08-14** (`16-water-as-objects.md` §10), which unblocks this and answers **V1**:
-*yes, it arrives.* What it does **not** answer is **V2** — exact node dragging, a coast sculpt
-brush, or both — and until that is settled this document cannot become a work order, because the
-two shapes do not share a package breakdown. §6's remaining decisions are the settle-first list.
+**Status: on the 0.5 backlog, awaiting an ideation session. Still a note, not a work order.**
+Batch 14 was accepted on **2026-08-14** (`16-water-as-objects.md` §10), which unblocks this and
+answers **V1**: *yes, it arrives.* It does **not** answer **V2** — exact node dragging, a coast
+sculpt brush, or both — and that is not a detail to settle while building: the two shapes are
+different features with different package breakdowns. **The next step is a session that settles
+§6, not a package.** Until then this document stays what it is.
 
 It exists because the request that produced Batch 14 asked for it in the same breath, Batch 14
 removed the only place it existed, and the owner wanted it written down before it was forgotten.

@@ -426,8 +426,8 @@ proportion), **D13** (noise on the banks, which is what its own wording had alwa
 Sea tab running the identical op, the button was a second visible route to one tool.
 
 **The provisional constraints above are lifted.** Later batches may assume the water model;
-node editing (D3) is unblocked and is scheduled as the next batch (`17-vertex-editing.md`); the
-debt this design created may be paid down normally. **DEBT V-02 is deleted with this record** —
+node editing (D3) is unblocked and sits on the 0.5 backlog awaiting an ideation session to settle
+its shape (`17-vertex-editing.md` V2); the debt this design created may be paid down normally. **DEBT V-02 is deleted with this record** —
 both defects it tracked stopped being representable, and its retire-when was this line.
 
 The one thing that does **not** relax: §8's migration deadline was about data, not design, and it

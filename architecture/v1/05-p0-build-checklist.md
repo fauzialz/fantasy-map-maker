@@ -998,7 +998,8 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
 > sessions of use and fourteen corrections — three of which amended the design's own decisions.
 >
 > **The provisional constraints are lifted.** Later work may assume the water model, node editing
-> (`16` D3) is scheduled as **Batch 15**, and this design's debt may be paid down normally.
+> (`16` D3) is unblocked and on the backlog below, and this design's debt may be paid down
+> normally.
 > **DEBT V-02 is deleted**: both defects it tracked stopped being representable, and its
 > retire-when was exactly this record.
 >
@@ -1185,22 +1186,28 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       stretch running over open sea is now a **pale ghost rather than nothing**, which is D16
       told truthfully instead of a tool that disappears mid-gesture. 14 more driven checks.
 
-**Batch 15 — vertex editing — SCHEDULED, shape unsettled (WP-44 …).** Seeing an object's outline
+**Vertex editing — on the 0.5 backlog, awaiting an ideation session.** Seeing an object's outline
 points and dragging them, on water **and** land — the other half of the request that produced
-Batch 14, unblocked by its acceptance. Design note: `17-vertex-editing.md`; work order:
-`prompts/phase-0.5-core-editor-improvement.md`, Batch 15.
+Batch 14, and unblocked by its acceptance. Design note: `17-vertex-editing.md`.
 
-> **No package numbers yet, deliberately.** `17` **V1 is answered** (it arrives) and **V2 is not**:
-> exact vertex handles, a coast sculpt brush, or both. The two shapes do not share a package
-> breakdown, so numbering now would pick the answer by implication. `17` §5's hypothesis is that
-> the sculpt brush is the larger half of the value at a fraction of the cost — six of its eleven
-> problems are *handle* problems — and its counter-argument is that a brush cannot be exact, which
-> is the one thing Batch 14 took away.
+> **The next step is a session, not a package.** `17` **V1 is answered** — it arrives; the freehand
+> brushes Batch 14 shipped did not turn out to be sufficient, which is the observation `17` §7 was
+> waiting for. **V2 onward are not**, and V2 is not a detail: exact vertex handles and a coast
+> sculpt brush are different features with different package breakdowns, and `17` §5 argues both
+> sides honestly — the brush disposes of six of the eleven problems because they are *handle*
+> problems, and cannot be exact, which is the one thing Batch 14 took away.
 >
-> Settled regardless of shape: **both substances** (`16` D3 — a water object is a landmass's
-> shape), **`07` I5 gets its top rung back**, and **V3 + V10 answer self-intersection together**,
+> So it is **not** in `prompts/phase-0.5-core-editor-improvement.md`, which by its own rule carries
+> a work order for a batch *about to be built*. It gets a number and a brief when a session settles
+> V2 — the way Batch 14 got its shape from the ideation session of 2026-08-12.
+
+> **Settled already, whichever shape wins**, and worth carrying into that session rather than
+> rediscovering: **both substances** (`16` D3 — a water object is a landmass's shape, so a
+> rivers-only feature would build the special case the water design exists to avoid); **`07` I5
+> gets back the top rung** WP-40 removed, because a vertex on a coastline will sit on a frame
+> corner exactly as a river endpoint did; and **V3 + V10 must answer self-intersection together**,
 > before the first package rather than after, because an outline crossing itself corrupts the
-> terrain *derivation* and not just the picture.
+> terrain *derivation* and not merely the picture.
 
 ## Later phases (see the phase prompts)
 
