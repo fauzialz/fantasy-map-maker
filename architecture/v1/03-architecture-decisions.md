@@ -1279,7 +1279,7 @@ issues for to the public Certificate Transparency logs — the Origin cert does 
 
 ## ADR-47 — Water is a substance, subtracted from land at draw time
 _WP-40 … WP-43. Design in `16-water-as-objects.md`. **Narrows ADR-14 and ADR-41; does not
-overturn either.** **EXPERIMENTAL** — see `16` §10._
+overturn either.** **Accepted** at `16` §10's evaluation, 2026-08-14._
 
 **Decision:** water becomes a **first-class substance with its own geometry**, and the land is
 drawn as `union(landmass.path) − union(water.path)`, **computed at draw time and never stored**.
@@ -1329,7 +1329,7 @@ it is deferred to the moment someone wants a delta, a braided channel or generat
 which point it stops being an improvement and becomes the only way to get the feature.
 
 ## ADR-48 — One kind of water object; the nodes are outline vertices; everything merges
-_WP-40 … WP-43. Design in `16-water-as-objects.md`. **EXPERIMENTAL** — see `16` §10._
+_WP-40 … WP-43. Design in `16-water-as-objects.md`. **Accepted** at `16` §10's evaluation, 2026-08-14._
 
 **Decision:** there is **one** water object, whatever made it.
 
@@ -1374,7 +1374,7 @@ therefore not offered at all** — with no stored inputs there is nothing to re-
 again.
 
 ## ADR-49 — Land carves water destructively; the asymmetry is required
-_WP-42. Design in `16-water-as-objects.md` §4 (C8) and §5. **EXPERIMENTAL** — see `16` §10._
+_WP-42. Design in `16-water-as-objects.md` §4 (C8) and §5. **Accepted** at `16` §10's evaluation, 2026-08-14._
 
 **Decision:** the **terrain brush subtracts its stroke from every water object it crosses**,
 destructively, then runs connected components — so painting land across a river **severs it into

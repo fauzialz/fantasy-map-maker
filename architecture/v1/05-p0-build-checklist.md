@@ -984,8 +984,7 @@ deadline argument wrong.
       undoing it, which is fewer moving parts than a second vhost to test an unflipped release.
       **This half-closes WP-13's deploy**; production and a public domain remain.
 
-**Batch 14 — water as objects — EXPERIMENTAL, all four packages built; the evaluation is what
-remains (WP-40 … WP-43).** Rivers stop being
+**Batch 14 — water as objects — built and ACCEPTED (WP-40 … WP-43).** Rivers stop being
 independent ribbons (ADR-14) and water becomes a substance: land is drawn as
 `union(land) − union(water)`, derived at draw time and never stored. Both defects
 `15-river-engine.md` recorded stop being representable rather than patched, at the cost of the
@@ -993,15 +992,15 @@ topology — no drainage graph, and **`15` H2 closed permanently**. Design, cons
 per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1–D18 all settled**;
 **ADR-47, ADR-48, ADR-49**.
 
-> **This batch ends in an evaluation session, not a tick** (`16` §10). Three of its decisions can
-> only be judged by drawing maps. Until the owner records accept-or-revamp in `16` §10, **nothing
-> may be built on top of it** and node editing (`16` D3) stays unscheduled.
+> **This batch ended in an evaluation session, not a tick** (`16` §10), and the session returned
+> **accept**, on 2026-08-14. Four ticks were never that session: D12, D7/D15 and C2 were not
+> things a fixture could answer. C2 came back measured; the rest came back by eye, after two
+> sessions of use and fourteen corrections — three of which amended the design's own decisions.
 >
-> **Four ticks are not that session.** Every box below is ticked and the batch is still not
-> accepted: `16` D12 (a heavy outline on a narrow river), D7 and D15 (artistic random width) and
-> C2 (whether the derivation is fast enough in use) were never things a fixture could answer.
-> C2 now has a number — water costs 0–10% on top of the ring derivation, WP-40 — but the other
-> three are still owed a session of drawing maps.
+> **The provisional constraints are lifted.** Later work may assume the water model, node editing
+> (`16` D3) is scheduled as **Batch 15**, and this design's debt may be paid down normally.
+> **DEBT V-02 is deleted**: both defects it tracked stopped being representable, and its
+> retire-when was exactly this record.
 >
 > **It also has a deadline** (`16` §8): WP-40's `migrate()` **deletes** every existing river
 > rather than converting it, which is free only while the owner is the only person holding
@@ -1185,6 +1184,23 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       — points and smoothed centreline — so you can see where the next click attaches. The
       stretch running over open sea is now a **pale ghost rather than nothing**, which is D16
       told truthfully instead of a tool that disappears mid-gesture. 14 more driven checks.
+
+**Batch 15 — vertex editing — SCHEDULED, shape unsettled (WP-44 …).** Seeing an object's outline
+points and dragging them, on water **and** land — the other half of the request that produced
+Batch 14, unblocked by its acceptance. Design note: `17-vertex-editing.md`; work order:
+`prompts/phase-0.5-core-editor-improvement.md`, Batch 15.
+
+> **No package numbers yet, deliberately.** `17` **V1 is answered** (it arrives) and **V2 is not**:
+> exact vertex handles, a coast sculpt brush, or both. The two shapes do not share a package
+> breakdown, so numbering now would pick the answer by implication. `17` §5's hypothesis is that
+> the sculpt brush is the larger half of the value at a fraction of the cost — six of its eleven
+> problems are *handle* problems — and its counter-argument is that a brush cannot be exact, which
+> is the one thing Batch 14 took away.
+>
+> Settled regardless of shape: **both substances** (`16` D3 — a water object is a landmass's
+> shape), **`07` I5 gets its top rung back**, and **V3 + V10 answer self-intersection together**,
+> before the first package rather than after, because an outline crossing itself corrupts the
+> terrain *derivation* and not just the picture.
 
 ## Later phases (see the phase prompts)
 

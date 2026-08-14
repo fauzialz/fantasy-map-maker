@@ -1,11 +1,11 @@
 # Water as Objects — One Substance, Two Brushes, No Special Cases
 
-_Status: **EXPERIMENTAL · scheduled as WP-40 → WP-43.** Shape agreed in the ideation session of
-**2026-08-12**; every decision in §9 is settled. But this is the first design in the repo that is
-**deliberately not approved in shape** — the owner will build it, use it, and judge the look and
-the performance by hand before it is accepted. See **§10**, which is binding: an evaluation
-session may follow, and its outcome may be a few tweaks or a complete revamp. Nothing downstream
-should be built on the assumption that this survives contact._
+_Status: **ACCEPTED · built as WP-40 → WP-43.** Shape agreed in the ideation session of
+**2026-08-12**; every decision in §9 settled; built, used, and **accepted by the owner on
+2026-08-14** — see §10, which records the outcome and the tweaks that preceded it. This was the
+first design in the repo deliberately **not** approved in shape: argued to a settled shape and
+then *tried*. It survived contact, with three of its own decisions amended by use. **Downstream
+work may now assume the water model exists.**_
 
 _This document **supersedes most of `15-river-engine.md`**, which stays for its analysis. It is
 the **design**; the **work order** is `prompts/phase-0.5-core-editor-improvement.md` (Batch 14).
@@ -398,6 +398,41 @@ Until that decision is recorded here, **treat this design as provisional**:
 
 The evaluation session, if it happens, appends its findings to this section rather than starting a
 new document.
+
+---
+
+### The evaluation, 2026-08-14 — **accepted**
+
+**Outcome 1: accept, with tweaks — and the tweaks were taken before the verdict rather than
+after.** The owner used the editor across two sessions and returned fourteen specific
+corrections; all were applied, and the acceptance followed the corrected build rather than the
+one that first passed its acceptance criteria. That ordering is worth recording, because it is
+what the "built, then tried" experiment was *for*: three of the corrections moved decisions in
+this document, and none of them could have been reached by argument.
+
+**What the three unjudgeable decisions came back as:**
+
+| | Question | Verdict |
+|---|---|---|
+| **C2** | fast enough to work in? | **Yes**, and measured: water costs 0–10% on top of the ring derivation (WP-40). Two further costs *were* felt and fixed — the terrain layer being cached while the water layer was active, and a 150 ms commit debounce. |
+| **D12** | does a heavy outline on a narrow river read as a stream or a mistake? | **Accepted.** Not raised as a complaint in either session. |
+| **D7, D15** | does an artistic random width look like a river or a worm? | **Accepted in principle, amended in mechanism.** D15's proportional variation was replaced by an explicit min/max, and D13's roughness became genuine per-bank noise — the width walk alone left a river that was its own mirror image. |
+
+**Three decisions in §9 are therefore amended rather than as-written**: **D15** (bounds, not
+proportion), **D13** (noise on the banks, which is what its own wording had always implied), and
+**D16** (a pale ghost over open sea rather than nothing — the requirement is that the preview not
+*lie*, and blankness said "there is no tool in your hand"). Each is struck through where it stands.
+**ADR-50** was added in the same pass, deleting the sea brush's button: once the water layer had a
+Sea tab running the identical op, the button was a second visible route to one tool.
+
+**The provisional constraints above are lifted.** Later batches may assume the water model;
+node editing (D3) is unblocked and is scheduled as the next batch (`17-vertex-editing.md`); the
+debt this design created may be paid down normally. **DEBT V-02 is deleted with this record** —
+both defects it tracked stopped being representable, and its retire-when was this line.
+
+The one thing that does **not** relax: §8's migration deadline was about data, not design, and it
+is spent. The v1 → v2 step deletes rivers, and that was free because the owner held the only
+drafts. It is not free again.
 
 ## 11. Cost
 

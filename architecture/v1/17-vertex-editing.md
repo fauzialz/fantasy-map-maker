@@ -1,10 +1,14 @@
 # Editing an outline point by point — design note
 
-**Status: not scheduled, and deliberately undecided. This is a note, not a work order.** No package
-points at it, nothing in the build order depends on it, and **its shape depends on the outcome of
-Batch 14** (`16-water-as-objects.md` §10). It exists because the request that produced Batch 14
-asked for it in the same breath, Batch 14 removes the only place it currently exists, and the owner
-wanted it written down before it is forgotten.
+**Status: SCHEDULED as Batch 15, and still a note rather than a work order.** Batch 14 was
+accepted on **2026-08-14** (`16-water-as-objects.md` §10), which unblocks this and answers **V1**:
+*yes, it arrives.* What it does **not** answer is **V2** — exact node dragging, a coast sculpt
+brush, or both — and until that is settled this document cannot become a work order, because the
+two shapes do not share a package breakdown. §6's remaining decisions are the settle-first list.
+
+It exists because the request that produced Batch 14 asked for it in the same breath, Batch 14
+removed the only place it existed, and the owner wanted it written down before it was forgotten.
+That gap has now been felt for the length of a batch, which is what §7 said it was waiting for.
 
 Written in the same spirit as `15-river-engine.md`: everything below marked **hypothesis** is
 reasoning from the code and from one measurement, not from a driven check. It is written to be
@@ -200,8 +204,11 @@ B already, and if it turns out to be enough, B is the whole feature.
 
 ## 6. What has to be settled first
 
-- **V1** — does this arrive at all, or did brush editing turn out to be sufficient? **Cannot be
-  answered before Batch 14 is used.** This is the dependency the whole note hangs on.
+- **V1** — does this arrive at all, or did brush editing turn out to be sufficient?
+  **ANSWERED 2026-08-14: it arrives.** Batch 14 was accepted and the owner asked for vertex
+  editing in the same breath, so the freehand brushes did *not* turn out to be sufficient — which
+  is the outcome §7 was waiting to observe rather than argue. This was the dependency the whole
+  note hung on; everything below it is now a settle-first list on a scheduled batch.
 - **V2** — shape A, shape B, or both? A and B are not exclusive; they are exact and freehand, and
   the app may want one of each. Two tools is the honest answer and also the expensive one.
 - **V3** — what happens to an edit that makes a polygon invalid: reject the drag, repair the
