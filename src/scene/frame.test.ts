@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { objectBounds } from "./bounds";
 import { frameContains, frameCorners, frameOf, toFrameLocal } from "./frame";
 import { rotateObjects } from "./transform";
-import type { Mountain, River, SceneObject, Tree } from "./types";
+import type { Mountain, SceneObject, Tree, Water } from "./types";
 
 const tree = (id: string, x: number, y: number, rotation = 0, scale = 1): Tree => ({
   id,
@@ -119,38 +119,44 @@ describe("frameOf", () => {
     biome: "grassland",
   };
 
-  const river: River = {
+  /**
+   * WP-40 — a river is an **outline** now, so the fixture states the ribbon directly instead
+   * of a centreline and a width. Same 120×20 shape the two assertions below always measured;
+   * what changed is that it is stored rather than derived.
+   */
+  const river: Water = {
     id: "r",
-    type: "river",
-    points: [
-      [0, 0],
-      [100, 0],
+    type: "water",
+    path: [
+      [-10, -10],
+      [110, -10],
+      [110, 10],
+      [-10, 10],
     ],
-    width: 20,
-    taper: false,
-    z: 0,
+    holes: [],
   };
 
   it("has no frame without selectable objects", () => {
     expect(frameOf([])).toBeUndefined();
   });
 
-  /**
-   * WP-20 — the same precondition as the landmass below, met for a different reason. Land
-   * had to wait for the transforms behind the handles to move geometry; a river's are
-   * lossless the moment they exist, which is why it was the right pilot.
-   */
-  it("frames a river over its ribbon, not its centreline", () => {
+  it("frames a water body over its outline", () => {
     const frame = frameOf([river])!;
-    // The ribbon is 20 wide, so a frame measuring only the control points would be a line
-    // of zero height and half the handles would sit on the water.
     expect(frame.height).toBe(20);
     expect(frame.width).toBe(120);
     expect([frame.cx, frame.cy]).toEqual([50, 0]);
   });
 
-  it("widens a river's frame with its width — the box follows what is drawn", () => {
-    const wide = frameOf([{ ...river, width: 60 }])!;
+  /**
+   * **WP-40 deleted the sibling of this test**, which widened the frame by raising `width`
+   * on the object. There is no `width` to raise: the outline *is* the shape (ADR-48), so the
+   * only way to make the water wider is to move its points — which is what the assertion
+   * above already measures.
+   */
+  it("follows the outline when the outline moves", () => {
+    const wide = frameOf([
+      { ...river, path: river.path.map(([x, y]): [number, number] => [x, y * 3]) },
+    ])!;
     expect(wide.height).toBe(60);
   });
 

@@ -1,4 +1,4 @@
-import type { Landmass, Point, River, SceneObject } from "./types";
+import type { Landmass, Point, SceneObject, Water } from "./types";
 
 /**
  * Multi-object transforms. Every one takes the objects as they were when the drag began
@@ -10,29 +10,32 @@ import type { Landmass, Point, River, SceneObject } from "./types";
  * anchor and records its own `rotation`. A path-based object has neither: its geometry is
  * absolute (C5), so a transform has nowhere to record itself and **bakes into the points**.
  *
- * **Both path types are here since WP-20**, and they cost the transforms different things.
- * A landmass's coastline detail is baked in map units at a simplification epsilon chosen at
- * commit time (C3), so a scaled coast comes back coarser and has to be re-detailed — once,
- * on drop, in `engine/terrain/rescale.ts`. A river's points are the user's own control
- * points, Chaikin-smoothed at draw time, so all three transforms are **lossless** on it.
- * That is why rivers were the right place to prove this model rather than coastlines.
+ * **Both path types are outlines since WP-40**, so they transform through one code path
+ * rather than two. What differs is the cost: a landmass's coastline detail is baked in map
+ * units at a simplification epsilon chosen at commit time (C3), so a scaled coast comes back
+ * coarser and has to be re-detailed — once, on drop, in `engine/terrain/rescale.ts`. Water is
+ * the same geometry and inherits the same caveat, which is a change from WP-20: a river was a
+ * centreline plus a `width` number, and scaling it was lossless precisely because the width
+ * was not geometry. It is now (ADR-48), so there is nothing left to multiply.
  */
 
 const isPlaced = (object: SceneObject): object is Extract<SceneObject, { x: number; y: number }> =>
   "x" in object && "y" in object;
 
 /** The other model: absolute geometry, no anchor and no `rotation` to record against. */
-const isPath = (object: SceneObject): object is Landmass | River => !isPlaced(object);
+const isPath = (object: SceneObject): object is Landmass | Water => !isPlaced(object);
 
-/** Apply a point map to a coastline and every lake in it, or to a river's control points. */
-const remapPath = (object: Landmass | River, move: (point: Point) => Point): Landmass | River =>
-  object.type === "landmass"
-    ? {
-        ...object,
-        path: object.path.map(move),
-        holes: object.holes.map((hole) => hole.map(move)),
-      }
-    : { ...object, points: object.points.map(move) };
+/**
+ * Apply a point map to an outline and every hole in it.
+ *
+ * One branch for both substances, which is `16`'s "no special cases" showing up as deleted
+ * code: land and water are the same shape, so they move the same way.
+ */
+const remapPath = <T extends Landmass | Water>(object: T, move: (point: Point) => Point): T => ({
+  ...object,
+  path: object.path.map(move),
+  holes: object.holes.map((hole) => hole.map(move)),
+});
 
 export interface Origin {
   x: number;
@@ -61,19 +64,10 @@ export function scaleObjects<T extends SceneObject>(
    */
   return objects.map((object) => {
     if (isPath(object)) {
-      const moved = remapPath(object, ([x, y]) => [
+      return remapPath(object, ([x, y]) => [
         origin.x + (x - origin.x) * safe,
         origin.y + (y - origin.y) * safe,
-      ]);
-      /**
-       * A river keeps its width as a number rather than in its geometry, so scaling the
-       * points alone leaves a river stretched to twice the length and still drawn at the
-       * old width — a thread. `taper` needs nothing: it is a fraction along the path, and
-       * every transform here preserves that.
-       */
-      return (moved.type === "river"
-        ? { ...moved, width: moved.width * safe }
-        : moved) as unknown as T;
+      ]) as unknown as T;
     }
     if (!isPlaced(object)) return object;
     return {

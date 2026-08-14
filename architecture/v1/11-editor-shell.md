@@ -140,12 +140,12 @@ total chrome height is unchanged.
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │ [M] │ Map  Edit  View  Help    Ardenmoor Coast ✎    saved  ☾  Generate  [Export] │
 ├──────────────────────────────────────────────────────────────────────────────────┤
-│ ▣ Select   ≋ Sea brush │ Terrain Mountains Forests Rivers Icons Labels     │ ↶ ↷ │
+│ ▣ Select  ⌫ Erase      │ Terrain Water Mountains Forests Icons Labels     │ ↶ ↷ │
 ├────────────────┬────────────────────────────────────────────────┬────────────────┤
 │ TOOL OPTIONS   │                                                │ LAYERS         │
-│ · terrain      │                                                │  labels      0 │
-│ [Brush] [ Sea ]│                                                │  icons       2 │
-│ Brush size     │                                                │  rivers      1 │
+│ · water        │                                                │  labels      0 │
+│ [Sea] [ River ]│                                                │  icons       2 │
+│ Brush size     │                                                │  water       1 │
 │  ───●─────  240│                  c a n v a s                   │  mountains  38 │
 │ Coast detail   │                                                │  forests    64 │
 │  ───●─────  0.4│                                                │  terrain     3 │

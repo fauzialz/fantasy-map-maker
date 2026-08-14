@@ -37,6 +37,13 @@ interface Tool {
 const LAYER_TOOLBAR: Tool[] = [
   { id: "terrain", label: "Terrain", icon: Brush, layer: "terrain", hint: "Paint land" },
   {
+    id: "water",
+    label: "Water",
+    icon: Waves,
+    layer: "water",
+    hint: "Lay rivers and lakes, or carve land away",
+  },
+  {
     id: "mountains",
     label: "Mountains",
     icon: Mountain,
@@ -44,7 +51,6 @@ const LAYER_TOOLBAR: Tool[] = [
     hint: "Scatter peaks",
   },
   { id: "forests", label: "Forests", icon: Trees, layer: "forests", hint: "Scatter woodland" },
-  { id: "rivers", label: "Rivers", icon: Waves, layer: "rivers", hint: "Draw a river" },
   { id: "icons", label: "Icons", icon: Castle, layer: "icons", hint: "Place a landmark" },
   { id: "labels", label: "Labels", icon: Type, layer: "labels", hint: "Name a place" },
 ];
@@ -55,17 +61,15 @@ const DEFAULT_TOOL = (layer: LayerId) =>
 
 export function Toolbar() {
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
-  const terrainTool = useEditorStore((s) => s.terrainTool);
   const objectTool = useEditorStore((s) => s.objectTool);
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
-  const setTerrainTool = useEditorStore((s) => s.setTerrainTool);
+  const setWaterTool = useEditorStore((s) => s.setWaterTool);
   const setObjectTool = useEditorStore((s) => s.setObjectTool);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const past = useEditorStore((s) => s.past);
   const future = useEditorStore((s) => s.future);
 
-  const onTerrain = activeLayerId === "terrain";
   // Select is a mode on every layer now, terrain included (ADR-28) — it is never a
   // capability the active layer has to grant. Since WP-26 the same is true of Erase
   // (ADR-37), so the two are peers in the mode group and neither is ever disabled.
@@ -73,7 +77,6 @@ export function Toolbar() {
   const erasing = objectTool === "erase";
   /** A create tool is in hand — neither global mode is on. */
   const creating = !selecting && !erasing;
-  const seaBrush = creating && onTerrain && terrainTool === "sea";
 
   /**
    * Reaching for a create tool always leaves the global modes.
@@ -90,7 +93,13 @@ export function Toolbar() {
   const pickLayer = (layer: LayerId) => {
     setActiveLayer(layer);
     if (layer === "terrain") {
-      setTerrainTool("brush");
+      leaveGlobalMode();
+    } else if (layer === "water") {
+      // Water is the second layer with a brush rather than an `objectTool`, so it takes the
+      // terrain branch's shape: arm the additive mode and drop any global mode, the same trap
+      // `leaveGlobalMode` exists for. Laying is the default because it is the mode that makes
+      // the thing the layer is named after; carving is reachable in one click from the rail.
+      setWaterTool("lay");
       leaveGlobalMode();
     } else setObjectTool(DEFAULT_TOOL(layer));
   };
@@ -115,9 +124,13 @@ export function Toolbar() {
         </Hint>
 
         {/*
-          Two tools, not one tool in two costumes (ADR-37). Erase is global and always
-          available; the sea brush edits terrain *geometry*, so it appears only where there
-          is geometry to edit and keeps its own name.
+          Two modes, not one tool in two costumes (ADR-37). Both act on what is already on the
+          map rather than on the active layer, which is why they are peers of each other and not
+          of the six layers below.
+
+          **The Sea brush stood here until Batch 14's follow-up.** It survives as the water
+          layer's **Sea** tab, which runs the identical op through the identical pipeline — so
+          this row is once again the two global modes and nothing else.
         */}
         <Hint text="Erase whole objects on every visible, unlocked layer">
           <button
@@ -127,28 +140,6 @@ export function Toolbar() {
             onClick={() => setObjectTool("erase")}
           >
             <Eraser size={14} /> Erase
-          </button>
-        </Hint>
-
-        {/*
-          Always present, like Select and Erase. It was rendered only on terrain — "where there
-          is geometry to edit" (WP-26) — which meant reaching for it from any other layer took
-          two clicks, and the one you pressed first was the *land* brush, which resets it.
-          Pressing it takes you to the terrain layer, because that is the geometry it edits:
-          the button is reachable everywhere, and it is honest about where it puts you.
-        */}
-        <Hint text="Paints sea over land, on the terrain layer — can cut a landmass in two">
-          <button
-            type="button"
-            data-tool="sea"
-            className={toolButton({ active: seaBrush })}
-            onClick={() => {
-              setActiveLayer("terrain");
-              setTerrainTool("sea");
-              leaveGlobalMode(); // same trap as pickLayer: the sea brush is a create tool
-            }}
-          >
-            <Waves size={14} /> Sea brush
           </button>
         </Hint>
       </div>
@@ -162,7 +153,7 @@ export function Toolbar() {
               type="button"
               data-tool={id}
               className={toolButton({
-                active: activeLayerId === layer && creating && !(layer === "terrain" && seaBrush),
+                active: activeLayerId === layer && creating,
               })}
               onClick={() => layer && pickLayer(layer)}
             >

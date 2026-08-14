@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { boundsOf, objectBounds } from "./bounds";
 import { SPRITE_HEIGHT } from "../sprites/registry";
 import { restack, rotateObjects, scaleObjects, translateObjects } from "./transform";
-import type { Landmass, Mountain, River, SceneObject, Tree } from "./types";
+import type { Landmass, Mountain, SceneObject, Tree, Water } from "./types";
 
 const tree = (id: string, x: number, y: number, scale = 1, z = 0): Tree => ({
   id,
@@ -15,18 +15,21 @@ const tree = (id: string, x: number, y: number, scale = 1, z = 0): Tree => ({
   variant: 0,
 });
 
-/** A straight river running 200 units east, 20 wide. */
-const river = (): River => ({
+/**
+ * A straight river running 200 units east, 20 wide — **as an outline**, since WP-40. The
+ * shape it describes is the one the old centreline-plus-width fixture drew; what changed is
+ * that the width is now geometry rather than a number beside it (ADR-48).
+ */
+const river = (): Water => ({
   id: "r",
-  type: "river",
-  points: [
-    [0, 0],
-    [100, 0],
-    [200, 0],
+  type: "water",
+  path: [
+    [0, -10],
+    [200, -10],
+    [200, 10],
+    [0, 10],
   ],
-  width: 20,
-  taper: true,
-  z: 0,
+  holes: [],
 });
 
 const land: Landmass = {
@@ -314,69 +317,64 @@ describe("path-based transforms", () => {
   });
 
   /**
-   * WP-20 — the same model on the object type where it costs nothing. A river's points are
-   * the user's own control points, so nothing is baked at a tolerance and every transform
-   * is reversible. The one thing that is *not* in the geometry is `width`, and that is
-   * exactly where this can go wrong quietly.
+   * **WP-40 rewrote this block, and shrank it.** WP-20 put a river here because its
+   * transforms were *lossless*: its points were the user's own control points and its width
+   * was a number beside them, so the only way to get it wrong was to forget to scale the
+   * width — which is what most of the assertions here guarded.
+   *
+   * There is no width to forget. Water is an outline (ADR-48), so it transforms through the
+   * identical code path as a landmass and the whole class of bug is gone rather than tested
+   * for. What remains is the part that is still worth asserting: the outline moves, and it
+   * moves with everything else in the same call.
    */
-  describe("a river", () => {
-    const polylineLength = (points: [number, number][]) => {
-      let total = 0;
-      for (let i = 0; i + 1 < points.length; i++) {
-        total += Math.hypot(points[i + 1][0] - points[i][0], points[i + 1][1] - points[i][1]);
-      }
-      return total;
-    };
+  describe("a water body", () => {
+    const span = (path: [number, number][], axis: 0 | 1) =>
+      Math.max(...path.map((p) => p[axis])) - Math.min(...path.map((p) => p[axis]));
 
-    it("translates every control point", () => {
-      const [moved] = translateObjects([river()], 40, -25) as River[];
-      expect(moved.points).toEqual([
-        [40, -25],
-        [140, -25],
-        [240, -25],
+    it("translates every point of its outline", () => {
+      const [moved] = translateObjects([river()], 40, -25) as Water[];
+      expect(moved.path).toEqual([
+        [40, -35],
+        [240, -35],
+        [240, -15],
+        [40, -15],
       ]);
     });
 
     it("round-trips a 360° rotation", () => {
       const before = river();
-      const [after] = rotateObjects([before], { x: 173, y: 241 }, 360) as River[];
-      for (const [i, [x, y]] of after.points.entries()) {
-        expect(x).toBeCloseTo(before.points[i][0], 6);
-        expect(y).toBeCloseTo(before.points[i][1], 6);
+      const [after] = rotateObjects([before], { x: 173, y: 241 }, 360) as Water[];
+      for (const [i, [x, y]] of after.path.entries()) {
+        expect(x).toBeCloseTo(before.path[i][0], 6);
+        expect(y).toBeCloseTo(before.path[i][1], 6);
       }
-    });
-
-    it("keeps its width through a rotation — turning a river does not thin it", () => {
-      const [after] = rotateObjects([river()], { x: 0, y: 0 }, 90) as River[];
-      expect(after.width).toBe(20);
-      expect(after.points[2]).toEqual([expect.closeTo(0, 6), expect.closeTo(200, 6)]);
     });
 
     /**
-     * The assertion this describe block exists for. Scaling the points alone leaves a
-     * river twice as long and still drawn at the old width — a thread across the map, and
-     * a silent one: every other property survives, the geometry is right, and it simply
-     * stops reading as the same river.
+     * The old sibling of this test asserted that a rotation left `width` alone. The width is
+     * in the geometry now, so the question becomes whether the *shape* survives the turn —
+     * a 90° rotation swaps the spans rather than preserving them in place.
      */
-    it("scales its width along with its length", () => {
+    it("keeps its proportions through a rotation — turning a river does not thin it", () => {
       const before = river();
-      const [after] = scaleObjects([before], { x: 0, y: 0 }, 2) as River[];
-      expect(after.width).toBe(40);
-      expect(polylineLength(after.points)).toBeCloseTo(polylineLength(before.points) * 2, 6);
+      const [after] = rotateObjects([before], { x: 0, y: 0 }, 90) as Water[];
+      expect(span(after.path, 0)).toBeCloseTo(span(before.path, 1), 6);
+      expect(span(after.path, 1)).toBeCloseTo(span(before.path, 0), 6);
     });
 
-    it("holds the ratio of width to length at any factor — the shape is the invariant", () => {
+    /**
+     * The assertion the old block existed for, inverted: width used to need scaling *because*
+     * it sat outside the geometry, and the failure was a river twice as long still drawn at
+     * the old width — a thread across the map. Scaling an outline cannot produce that, and
+     * this is what says so.
+     */
+    it("scales width and length together, because they are the same thing", () => {
       const before = river();
-      const ratio = before.width / polylineLength(before.points);
       for (const factor of [0.3, 1, 2.5, 7]) {
-        const [after] = scaleObjects([before], { x: 500, y: 500 }, factor) as River[];
-        expect(after.width / polylineLength(after.points)).toBeCloseTo(ratio, 6);
+        const [after] = scaleObjects([before], { x: 500, y: 500 }, factor) as Water[];
+        expect(span(after.path, 0)).toBeCloseTo(span(before.path, 0) * factor, 6);
+        expect(span(after.path, 1)).toBeCloseTo(span(before.path, 1) * factor, 6);
       }
-    });
-
-    it("carries taper through untouched — it is a fraction along the path", () => {
-      const [after] = scaleObjects([river()], { x: 0, y: 0 }, 3) as River[];
-      expect(after.taper).toBe(true);
     });
 
     it("moves alongside a landmass and a mountain in one call", () => {
@@ -391,11 +389,11 @@ describe("path-based transforms", () => {
         variant: 0,
       };
       const [stream, coast, peak] = translateObjects([river(), square(), mountain], 5, 5) as [
-        River,
+        Water,
         Landmass,
         typeof mountain,
       ];
-      expect(stream.points[0]).toEqual([5, 5]);
+      expect(stream.path[0]).toEqual([5, -5]);
       expect(coast.path[0]).toEqual([105, 105]);
       expect([peak.x, peak.y]).toEqual([15, 25]);
     });

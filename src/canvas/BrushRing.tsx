@@ -3,7 +3,7 @@ import type { Point } from "../scene/types";
 import { PALETTE } from "./palette";
 
 /** What the brush in hand does, which is what the ring has to say (`12` §1). */
-export type BrushTone = "paint" | "sea" | "erase";
+export type BrushTone = "paint" | "sea" | "water" | "erase";
 
 interface Props {
   at: Point;
@@ -37,7 +37,13 @@ export function BrushRing({ at, radius, scale, tone }: Props) {
   // The sea brush previews as water already, so its ring matches; the object eraser has no
   // colour to borrow and says "removing" with a dashed stroke instead — which also reads
   // without relying on hue at all.
-  const core = tone === "sea" ? PALETTE.seaDeep : PALETTE.ink;
+  //
+  // **`water` is the third tone, added by WP-41 for the lay mode (C6).** It takes the shallower
+  // `sea` rather than `seaDeep` because the two water modes have to be told apart *before* the
+  // press, and they are the pair most easily confused — carve and lay both make water appear,
+  // and only one of them destroys land to do it. Deep for the destructive one is the same
+  // reading the sea brush's preview already gives.
+  const core = tone === "sea" ? PALETTE.seaDeep : tone === "water" ? PALETTE.sea : PALETTE.ink;
   const dash = tone === "erase" ? [px(7), px(6)] : undefined;
 
   return (

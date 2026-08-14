@@ -11,7 +11,7 @@ import {
 } from "../sprites/registry";
 import { landmassToPolygon } from "../engine/terrain/assemble";
 import { pointInPolygon, pointInRing } from "../engine/geometry/nesting";
-import type { Landmass, SceneObject } from "./types";
+import type { Landmass, SceneObject, Water } from "./types";
 
 export interface Bounds {
   minX: number;
@@ -38,7 +38,7 @@ export const spriteRef = (object: SpriteObject): { kind: SpriteKind; variant: nu
  * This predicate is the seam the whole interaction stack keys on — hit-testing, the rbush
  * index, the selection frame, the eraser and the transforms all ask it. Anything that
  * answers `true` here is selectable, movable and erasable without further work; anything
- * that does not (landmass, river) is path-based and interacts through its own tool.
+ * that does not (landmass, water) is path-based and interacts through its own geometry.
  */
 export type PlacedObject = SpriteObject | Extract<SceneObject, { type: "label" }>;
 
@@ -178,41 +178,42 @@ export function worldCorners(object: SceneObject): [number, number][] {
     });
   }
   /**
-   * A river contributes its **control points, each grown by half the maximum width**
-   * (WP-20). Chaikin keeps the drawn centreline inside the convex hull of its inputs and
-   * the ribbon within a half-width of that line, so this is a correct superset of the
-   * ribbon in any basis — including the rotated one a group frame measures in. Slightly
-   * looser than the drawn ribbon at a tapered source; memoising `riverRibbon` is the
-   * upgrade if that slack ever shows.
+   * Both path types answer with their outline, and holes cannot widen a box because they are
+   * inside the outer ring by construction.
+   *
+   * **WP-40 deleted the river case that used to sit here**, which grew each control point by
+   * half the maximum width to bound a ribbon that was never stored. Water has no centreline
+   * and no width — the outline *is* the object (ADR-48) — so the superset it needed is gone
+   * along with the slack it cost.
    */
-  if (object.type === "river") {
-    const half = object.width / 2;
-    return object.points.flatMap(([x, y]): [number, number][] => [
-      [x - half, y - half],
-      [x + half, y - half],
-      [x + half, y + half],
-      [x - half, y + half],
-    ]);
-  }
-  // Holes are inside the outer ring by construction, so they cannot widen the box.
-  return object.type === "landmass" ? object.path : [];
+  return object.type === "landmass" || object.type === "water" ? object.path : [];
 }
 
 /** Anything a selection frame can be drawn around — the union of both models. */
 export const isFramed = (object: SceneObject): boolean =>
-  hasFootprint(object) || object.type === "landmass" || object.type === "river";
+  hasFootprint(object) || object.type === "landmass" || object.type === "water";
 
 /**
- * Which landmass covers this point, if any — the path-based half of the two interaction
- * models (I9). Promoted here from the generator's scatter, because selection needs the same
- * question the scatter asks: is this point on land?
+ * Which object in this collection covers the point, if any — the path-based half of the two
+ * interaction models (I9). Promoted here from the generator's scatter, because selection needs
+ * the same question the scatter asks: is this point on land?
+ *
+ * **Generic over the substance since WP-41.** It never cared which one it was given: the
+ * question is "point in this polygon collection", and land and water are the same shape
+ * (ADR-48). Keeping the name is deliberate — a second identically-bodied `waterAt` is exactly
+ * the special case `16` exists to avoid — and the caller's precedence is what decides which
+ * collection is asked first.
  *
  * `pointInPolygon` is even-odd across every ring, so a point in a lake counts as outside its
  * parent — which is what lets an island inside a lake be clicked rather than the continent
  * around it. That is also `08` C4's requirement, for free.
  */
-export const landmassAt = (landmasses: Landmass[], x: number, y: number): Landmass | undefined =>
-  landmasses.find((landmass) => pointInPolygon(landmassToPolygon(landmass), [x, y]));
+export const landmassAt = <T extends Landmass | Water>(
+  landmasses: T[],
+  x: number,
+  y: number,
+): T | undefined =>
+  landmasses.find((object) => pointInPolygon([object.path, ...object.holes], [x, y]));
 
 /**
  * What stands on a landmass — the double-click gesture of WP-19 (`09` §4, item 8).
@@ -235,7 +236,7 @@ export const standingOn = (landmass: Landmass, objects: SceneObject[]): PlacedOb
 };
 
 /**
- * A path-based object's axis-aligned box — a landmass's coastline, or a river's ribbon.
+ * A path-based object's axis-aligned box — a landmass's coastline, or a water body's outline.
  *
  * Deliberately **not** part of `objectBounds`, which stays undefined for path objects. That
  * is what keeps them out of the rbush index, and so out of `index.hit`, where a box would

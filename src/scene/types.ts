@@ -5,7 +5,7 @@
  * CURRENT_SCHEMA_VERSION and adding the matching step in `migrate()`.
  */
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export type Point = [number, number];
 /** Closed ring of map-space points. Outer rings CCW, holes CW (even-odd fill). */
@@ -15,7 +15,7 @@ export type CanvasPreset = "landscape" | "square" | "portrait";
 export type Biome = "grassland" | "forest" | "desert" | "snow" | "swamp";
 export type WorldType = "single" | "archipelago" | "multiple";
 
-/** Every object placed at a point. Path-based types (landmass, river) omit x/y. */
+/** Every object placed at a point. Path-based types (landmass, water) omit x/y. */
 export interface PlacedBase {
   id: string;
   /** map-space position */
@@ -56,14 +56,23 @@ export interface Mountain extends PlacedBase {
   variant: number;
 }
 
-/** rivers layer — path-based, omits x/y. Tapering polyline, never gets coastal rings. */
-export interface River {
+/**
+ * water layer — path-based, omits x/y. **The same shape as a landmass, deliberately**
+ * (ADR-48): one object kind however it was authored, so a brushed channel and a
+ * spline-generated river are indistinguishable once committed.
+ *
+ * It carries no `width`, `taper`, `points`, `seed` or `roughness`. Those are tool settings
+ * that shape the geometry at creation and are then gone, the way brush size is gone — and
+ * no `z`, because water draws nothing of its own to stack (§3): the land is drawn as
+ * `union(landmass) − union(water)` and that is the layer's whole visual contribution.
+ */
+export interface Water {
   id: string;
-  type: "river";
-  points: Point[];
-  width: number;
-  taper: boolean;
-  z: number;
+  type: "water";
+  /** closed outer boundary, CCW */
+  path: Ring;
+  /** inner boundaries = islands within the water, CW */
+  holes: Ring[];
 }
 
 export interface Landmark extends PlacedBase {
@@ -81,10 +90,10 @@ export interface Label extends PlacedBase {
   pathId: string | null;
 }
 
-export type SceneObject = Landmass | Tree | Mountain | River | Landmark | Label;
+export type SceneObject = Landmass | Tree | Mountain | Water | Landmark | Label;
 
-export type LayerId = "terrain" | "forests" | "mountains" | "rivers" | "icons" | "labels";
-export type LayerKind = "terrain" | "forest" | "mountain" | "river" | "icon" | "label";
+export type LayerId = "terrain" | "forests" | "mountains" | "water" | "icons" | "labels";
+export type LayerKind = "terrain" | "forest" | "mountain" | "water" | "icon" | "label";
 
 // ponytail: one Layer type over the union rather than a layer-per-kind generic — narrow
 // at the few call sites that care until per-layer typing actually catches something.
@@ -145,7 +154,7 @@ export const LAYER_ORDER: ReadonlyArray<{ id: LayerId; kind: LayerKind }> = [
   { id: "terrain", kind: "terrain" },
   { id: "forests", kind: "forest" },
   { id: "mountains", kind: "mountain" },
-  { id: "rivers", kind: "river" },
+  { id: "water", kind: "water" },
   { id: "icons", kind: "icon" },
   { id: "labels", kind: "label" },
 ];

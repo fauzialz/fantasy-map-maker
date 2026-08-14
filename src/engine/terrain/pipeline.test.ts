@@ -15,12 +15,19 @@ function stroke(from: [number, number], to: [number, number], brushSize = 300) {
   return stampMask(mask, scale(from), scale(to), brushSize * MASK_RESOLUTION);
 }
 
+/**
+ * The landmass half of the commit. WP-42 gave `terrainCommit` a second collection to return,
+ * and every assertion in this file is about land — the water half has its own suite in
+ * `engine/water/`, so unwrapping here keeps these reading as they always did.
+ */
 const commit = (
   mask: ReturnType<typeof stroke>,
   existingLand: Landmass[] = [],
   coastDetail = 0.5,
   mode: "paint" | "erase" = "paint",
-) => terrainCommit({ mask, maskResolution: MASK_RESOLUTION, coastDetail, mode, existingLand });
+) =>
+  terrainCommit({ mask, maskResolution: MASK_RESOLUTION, coastDetail, mode, existingLand })
+    .landmasses;
 
 const areaOf = (landmass: Landmass) => polygonArea([landmass.path, ...landmass.holes]);
 

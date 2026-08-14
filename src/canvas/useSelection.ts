@@ -1,28 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { callGeometry } from "../engine/worker/client";
-import { isOnRiver } from "../engine/river";
 import type { DropGesture } from "../engine/terrain/overlap";
 import { hasFootprint, landmassAt, pathBounds, standingOn, type Bounds } from "../scene/bounds";
 import { frameOf } from "../scene/frame";
 import { rotateObjects, scaleObjects, translateObjects } from "../scene/transform";
+import { mergeWater } from "../engine/water/commit";
 import type {
   Landmass,
   Layer as SceneLayer,
   Point,
-  River,
   Scene,
   SceneObject,
+  Water,
 } from "../scene/types";
 import { layersHolding, useEditorStore } from "../state/editorStore";
 import { useToastStore } from "../state/toastStore";
 import { resolveGesture } from "./gesture";
-import { cursorForHandle, cursorForHover, HANDLE_PX, type Handle } from "./handles";
+import { cursorForHandle, cursorForHover, type Handle } from "./handles";
 import { SpatialIndex } from "./spatialIndex";
 
 /**
  * Everything a selection may touch, wherever it lives (WP-18, ADR-28) — footprint objects,
- * landmasses since WP-14, and rivers since WP-20. Both path types are hit-tested by their
- * geometry rather than by a box.
+ * landmasses since WP-14, and **water since WP-41**. Both path types are hit-tested by their
+ * geometry rather than by a box, and by the *same* test: they are the same shape (ADR-48), so
+ * `landmassAt` generalised to "which of these polygons covers the point" rather than growing a
+ * second branch.
  *
  * Membership is not decided by layer: hidden and locked layers contribute nothing, which is
  * what keeps a marquee over a forest from taking 200 trees when you wanted three castles.
@@ -37,44 +39,18 @@ const selectablePool = (layers: SceneLayer[]): SceneObject[] =>
     .filter((layer) => layer.visible && !layer.locked)
     .flatMap((layer) =>
       layer.objects.filter(
-        (object) => hasFootprint(object) || object.type === "landmass" || object.type === "river",
+        (object) => hasFootprint(object) || object.type === "landmass" || object.type === "water",
       ),
     );
 
 const landmassesIn = (objects: SceneObject[]): Landmass[] =>
   objects.filter((object): object is Landmass => object.type === "landmass");
 
-const riversIn = (objects: SceneObject[]): River[] =>
-  objects.filter((object): object is River => object.type === "river");
-
-/**
- * Which river's **water** covers the point — never its box (`09` S8, item 4). Last drawn
- * is topmost, so a click at a confluence picks the river you can see.
- */
-const riverAt = (rivers: River[], [x, y]: Point, slack: number): River | undefined => {
-  for (let i = rivers.length - 1; i >= 0; i--) {
-    if (isOnRiver(rivers[i], [x, y], slack)) return rivers[i];
-  }
-  return undefined;
-};
-
-/** Which control point of a selected river the pointer is on, if any. */
-const controlPointAt = (
-  rivers: River[],
-  [x, y]: Point,
-  slack: number,
-): { river: River; index: number } | undefined => {
-  for (const river of rivers) {
-    const index = river.points.findIndex(([px, py]) => Math.hypot(px - x, py - y) <= slack);
-    if (index >= 0) return { river, index };
-  }
-  return undefined;
-};
+const watersIn = (objects: SceneObject[]): Water[] =>
+  objects.filter((object): object is Water => object.type === "water");
 
 type Drag =
   | { kind: "move"; start: Point; snapshot: SceneObject[]; gesture?: DropGesture }
-  /** one control point of one river, against the river as it was when it was grabbed (I6) */
-  | { kind: "reshape"; index: number; snapshot: River }
   | {
       kind: "scale" | "rotate";
       /** the handle the drag started on, so its cursor survives the whole drag */
@@ -143,28 +119,27 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
 
   const frame = useMemo(() => frameOf(selected, groupRotation), [selected, groupRotation]);
   const selectedLandmasses = useMemo(() => landmassesIn(selected), [selected]);
-  const selectedRivers = useMemo(() => riversIn(selected), [selected]);
-  const riverPoints = useMemo(
-    () => selectedRivers.flatMap((river) => river.points),
-    [selectedRivers],
-  );
-  /** Grab radii are screen-constant, so they convert to map units at the current zoom (I8). */
-  const grab = HANDLE_PX / scale;
+  const selectedWaters = useMemo(() => watersIn(selected), [selected]);
 
   /**
    * What lies under the point, in the order the map is drawn (I4 — the press and the
    * cursor both come here, so the pointer promises what a press does).
    *
-   * Footprint first, then rivers, then land: a mountain standing on a river bank wins the
-   * click because it is what you see, and a river crossing a continent wins over the
-   * continent for the same reason. Each path type answers by its own geometry.
+   * Footprint first, then **water**, then land: a mountain standing on a coast wins the click
+   * because it is what you see, and a channel wins over the continent it is cut through for the
+   * same reason — the water is what is drawn there. That is WP-19's footprint-first rule in the
+   * shape `16` §5 asks for, and it is the *only* ordering that works: water is always inside
+   * some landmass's outline, so land-first would make a channel unclickable.
+   *
+   * Both path types answer through `landmassAt`, which is a point-in-polygon over a collection
+   * and never cared which substance it was given.
    */
   const objectAt = useCallback(
     (point: Point) =>
       index.hit(point[0], point[1]) ??
-      riverAt(riversIn(objects), point, grab) ??
+      landmassAt(watersIn(objects), point[0], point[1]) ??
       landmassAt(landmassesIn(objects), point[0], point[1]),
-    [grab, index, objects],
+    [index, objects],
   );
 
   /**
@@ -199,17 +174,17 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
    * A sprite's box hugs its artwork, and the gaps between sprites in a group are still
    * part of "the group" — pressing there to drag them all is exactly right, so a selection
    * holding any footprint object keeps the interior live. A **path-only** selection is the
-   * other case: a crescent continent's box is mostly open sea and a corner-to-corner
-   * river's is ~95% of it (C4), so the interior only counts where the coastline or the
-   * water actually is. Press the empty part and it marquees, as pressing water always has.
+   * other case: a crescent continent's box is mostly open sea (C4), so the interior only
+   * counts where the coastline actually is. Press the empty part and it marquees, as
+   * pressing water always has.
    */
   const frameInteriorAt = useCallback(
     (point: Point) =>
       selected.length === 0 ||
       selected.some(hasFootprint) ||
       landmassAt(selectedLandmasses, point[0], point[1]) !== undefined ||
-      riverAt(selectedRivers, point, grab) !== undefined,
-    [grab, selected, selectedLandmasses, selectedRivers],
+      landmassAt(selectedWaters, point[0], point[1]) !== undefined,
+    [selected, selectedLandmasses, selectedWaters],
   );
 
   /**
@@ -236,10 +211,6 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       pending.current = store.scene;
 
       const hit = objectAt(point);
-      // Resolved here rather than inside `resolveGesture`, which has no selection to read.
-      // One lookup: the gesture only needs to know the rung is claimed, the drag needs the
-      // point itself.
-      const control = controlPointAt(selectedRivers, point, grab);
       const gesture = resolveGesture({
         point,
         frame,
@@ -247,12 +218,9 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
         shift,
         scale,
         frameInterior: frameInteriorAt(point),
-        overControlPoint: control !== undefined,
       });
 
-      if (gesture.kind === "reshape" && control) {
-        drag.current = { kind: "reshape", index: control.index, snapshot: control.river };
-      } else if (gesture.kind === "scale" || gesture.kind === "rotate") {
+      if (gesture.kind === "scale" || gesture.kind === "rotate") {
         drag.current = {
           kind: gesture.kind,
           handle: gesture.handle,
@@ -290,13 +258,11 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       frame,
       enabled,
       frameInteriorAt,
-      grab,
       groupRotation,
       objectAt,
       objects,
       scale,
       selected,
-      selectedRivers,
       selection,
       toMapPoint,
     ],
@@ -313,8 +279,8 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
         return;
       }
       const point = toMapPoint(clientX, clientY);
-      // Same precedence the press resolves, control points and land included — I4, and the
-      // reason bug #2 stayed invisible.
+      // Same precedence the press resolves, land included — I4, and the reason bug #2 stayed
+      // invisible.
       setHoverCursor(
         cursorForHover({
           point,
@@ -322,11 +288,10 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
           overObject: objectAt(point) !== undefined,
           scale,
           frameInterior: frameInteriorAt(point),
-          overControlPoint: controlPointAt(selectedRivers, point, grab) !== undefined,
         }),
       );
     },
-    [frame, enabled, frameInteriorAt, grab, objectAt, scale, selectedRivers, toMapPoint],
+    [frame, enabled, frameInteriorAt, objectAt, scale, toMapPoint],
   );
 
   /**
@@ -433,19 +398,6 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
         return;
       }
 
-      if (current.kind === "reshape") {
-        // Rewrites one point against the snapshot, so the ribbon re-derives from it and
-        // the whole reshape is still one undo step.
-        const river = current.snapshot;
-        apply([
-          {
-            ...river,
-            points: river.points.map((point, i) => (i === current.index ? [x, y] : point)),
-          },
-        ]);
-        return;
-      }
-
       if (current.kind === "move") {
         const dx = x - current.start[0];
         const dy = y - current.start[1];
@@ -507,20 +459,48 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
       // nothing to diff and commits no step.
       const before = pending.current;
       pending.current = null;
-      const label =
-        current?.kind === "marquee"
-          ? "select"
-          : current?.kind === "reshape"
-            ? "reshape river"
-            : (current?.kind ?? "move");
-      // A marquee has no gesture, and a reshape moves one river's point rather than a
-      // selection — only a move or a transform of the whole frame can carry land.
+      const label = current?.kind === "marquee" ? "select" : (current?.kind ?? "move");
+      // A marquee has no gesture — only a move or a transform of the whole frame can carry
+      // land.
       const transform =
         current &&
         (current.kind === "move" || current.kind === "scale" || current.kind === "rotate")
           ? current
           : undefined;
       const movedLand = transform?.gesture ? landmassesIn(transform.snapshot) : [];
+
+      /**
+       * **C1 for water, restored on drop — and it honours the overlap policy** (WP-41's
+       * follow-up). Water never overlaps water at rest, and a drop is as much a commit as a
+       * stroke; what happens then is the user's choice, exactly as it is for land (ADR-25).
+       *
+       * D10 said water simply merges, and that was written when water could not be *dragged*.
+       * A brush stroke has no other sensible outcome — you drew over it — but a drop is a
+       * gesture you can mean to undo, and "keep apart" is what protects a river system you did
+       * not intend to fuse. The policy is read here rather than asked, for ADR-25's reason: a
+       * dialog appears after the press, so the pointer could not have promised the outcome.
+       *
+       * ponytail: **"apart" reverts the whole drag rather than sliding back along it**, where
+       * land finds the fraction that last fit (`resolveDrop`). That machinery is landmass-typed
+       * and lives in the worker; borrowing it means generalising the overlap resolver, which is
+       * a package rather than a line. Retire this when someone drags water often enough to be
+       * annoyed by the difference — the toast says which happened, so it is at least honest.
+       */
+      if (transform?.gesture && watersIn(transform.snapshot).length > 0) {
+        const store = useEditorStore.getState();
+        const all = watersIn(store.scene.layers.flatMap((l) => l.objects));
+        const merged = mergeWater(all);
+        if (merged.length < all.length && store.overlapPolicy === "apart") {
+          // Put the dragged water back where it started; everything else in the drag stays.
+          const restored = new Map(watersIn(transform.snapshot).map((w) => [w.id, w]));
+          store.setWaters(all.map((water) => restored.get(water.id) ?? water));
+          useToastStore.getState().show("Slid back — water bodies kept apart");
+        } else {
+          store.setWaters(merged);
+          if (merged.length < all.length)
+            useToastStore.getState().show("Water merged — the larger body kept its id");
+        }
+      }
 
       if (before && transform?.gesture && movedLand.length > 0) {
         // C1 has to hold at rest, so a drop that lands on other land resolves before it
@@ -568,11 +548,9 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
   const dragCursor =
     active?.kind === "move"
       ? "move"
-      : active?.kind === "reshape"
-        ? "grabbing"
-        : active?.kind === "scale" || active?.kind === "rotate"
-          ? cursorForHandle(active.handle, frame?.rotation ?? 0)
-          : undefined;
+      : active?.kind === "scale" || active?.kind === "rotate"
+        ? cursorForHandle(active.handle, frame?.rotation ?? 0)
+        : undefined;
 
   return {
     begin,
@@ -581,15 +559,18 @@ export function useSelection({ enabled, scale, toMapPoint }: Options) {
     frame,
     marquee,
     selection,
-    /** Selected landmasses, which draw as an outline rather than entering the frame. */
-    landmasses: selectedLandmasses,
     /**
-     * Control points of every selected river, drawn *in addition to* the frame — they are
-     * the finer tool, and they outrank the handles they sit on top of.
+     * Selected **path objects** — land and water alike — which draw as a highlighted outline
+     * rather than entering the frame (`08` §4 T1). One list, because the highlight traces an
+     * outline and both substances have one.
      */
-    riverPoints,
-    /** True while land is being dragged — rings suspend and fade for the duration (C2). */
-    movingLand: transforming && selectedLandmasses.length > 0,
+    landmasses: [...selectedLandmasses, ...selectedWaters],
+    /**
+     * True while either substance is being dragged — the derivation suspends and fades for the
+     * duration (C2). **Water counts since WP-41**: the cut depends on it, so dragging a river
+     * queues exactly the same per-mousemove derivation that dragging a continent does.
+     */
+    movingLand: transforming && (selectedLandmasses.length > 0 || selectedWaters.length > 0),
     count: selected.length,
     /** what the pointer should look like right now, or undefined to fall back */
     cursor: dragging ? dragCursor : hoverCursor,

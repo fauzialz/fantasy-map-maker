@@ -13,6 +13,7 @@ import type {
   Scene,
   SceneObject,
   SceneSettings,
+  Water,
 } from "../scene/types";
 import { applyStep, coalesce, diffScene, pushStep, type Step } from "./history";
 
@@ -29,7 +30,11 @@ export const LAYER_OBJECT: Partial<Record<LayerId, "mountain" | "tree" | "landma
 /**
  * Which tools each layer offers. Scattering suits the types that come in ranges and
  * forests — nobody wants a hundred jittered castles, and a scattered label is nonsense.
- * Rivers are absent because they are drawn point-by-point by their own tool, not brushed.
+ *
+ * **Water has no entry since WP-40**, and the empty layer is the point: the river tool was
+ * deleted with the ribbon it drew, and its replacement — one brush, two modes — arrives in
+ * WP-41. Until then the layer holds objects that only a fixture can make, which is what a
+ * package with no tools in it means (`16` §5).
  *
  * **`select` is not in here (WP-25).** ADR-28 made Select a global mode in the toolbar,
  * acting on every visible, unlocked layer; the per-layer copies survived that change and
@@ -44,7 +49,6 @@ export const LAYER_TOOLS: Partial<Record<LayerId, ObjectTool[]>> = {
   forests: ["scatter", "place"],
   icons: ["place"],
   labels: ["place"],
-  rivers: ["place"],
 };
 
 /**
@@ -65,10 +69,19 @@ interface EditorState {
   /** brush diameter in map units */
   brushSize: number;
   /**
-   * ADR-18: the eraser is contextual to the active tool. On the terrain layer, erasing
-   * IS the sea brush — one water tool, no mode confusion (ADR-11).
+   * The water brush's two modes (`16` D4). **Carve** is the sea brush — it removes land, and
+   * what is left behind is ordinary sea, so it bands. **Lay** adds a water object, which cuts a
+   * channel that does not band (D5).
+   *
+   * That difference is the reason two modes are one tool rather than two: D6 makes them produce
+   * visibly different things, so the mode is legible in the *result* and not only in the rail —
+   * which is the standing answer to "a mode is invisible state".
+   *
+   * **The whole of the water tool's mode state**, since Batch 14's follow-up dropped the Sea
+   * brush from the toolbar: the terrain brush paints land and does nothing else, so there is no
+   * `terrainTool` left for this to be confused with.
    */
-  terrainTool: "brush" | "sea";
+  waterTool: "carve" | "lay" | "spline";
   /** Placement mode on object layers; "erase" is the contextual object eraser (ADR-18). */
   objectTool: ObjectTool;
   /** which icon the palette will place next */
@@ -123,10 +136,22 @@ interface EditorState {
   spriteSpacing: Record<SpriteKind, number>;
   /** font size for the next label, in map units */
   labelSize: number;
-  /** width of the next river at its mouth, in map units */
-  riverWidth: number;
-  /** whether the next river narrows toward its source */
-  riverTaper: boolean;
+  /**
+   * WP-43's spline tool settings — the **bounds** its river's width wanders between, in map
+   * units, and how much its banks wander.
+   *
+   * A min and a max rather than one nominal width: the width is randomised, so a single number
+   * was a value the river mostly was not, and the range it could actually reach was implicit.
+   * Two numbers say what they mean, and the preview promises the **max** as the envelope.
+   *
+   * **Tool settings, never written to the object** (D8). They shape the geometry at creation
+   * and are then gone, exactly as brush size is gone: a committed river carries no `width`,
+   * `seed` or `points`, which is what keeps a spline-made one indistinguishable from a brushed
+   * one (C9) and is why there is no Reroll to offer (D17).
+   */
+  splineMinWidth: number;
+  splineMaxWidth: number;
+  splineRoughness: number;
   /** ids of the current multi-selection, within the active layer */
   selection: string[];
   /**
@@ -159,7 +184,8 @@ interface EditorState {
   future: Step[];
   setActiveLayer: (id: LayerId) => void;
   setBrushSize: (size: number) => void;
-  setTerrainTool: (tool: "brush" | "sea") => void;
+  setWaterTool: (tool: "carve" | "lay" | "spline") => void;
+  setSpline: (patch: { min?: number; max?: number; roughness?: number }) => void;
   setObjectTool: (tool: ObjectTool) => void;
   setIconKind: (kind: string) => void;
   setTerrainBiome: (biome: Biome) => void;
@@ -168,13 +194,11 @@ interface EditorState {
   setSpriteScale: (kind: SpriteKind, scale: number) => void;
   setSpriteSpacing: (kind: SpriteKind, spacing: number) => void;
   setLabelSize: (size: number) => void;
-  setRiverWidth: (width: number) => void;
-  setRiverTaper: (taper: boolean) => void;
   setSelection: (ids: string[]) => void;
   setLayerObjects: (layerId: LayerId, objects: SceneObject[]) => void;
   addObjects: (layerId: LayerId, objects: SceneObject[]) => void;
   removeObjects: (layerId: LayerId, ids: string[]) => void;
-  /** Replace one object in place — a dragged river point, an edited label. */
+  /** Replace one object in place — an edited label, a recoloured landmass. */
   patchObject: <T extends SceneObject>(layerId: LayerId, id: string, patch: Partial<T>) => void;
   setSettings: (patch: Partial<SceneSettings>) => void;
   /**
@@ -184,6 +208,7 @@ interface EditorState {
    */
   setLayerFlags: (layerId: LayerId, patch: { visible?: boolean; locked?: boolean }) => void;
   setLandmasses: (landmasses: Landmass[]) => void;
+  setWaters: (waters: Water[]) => void;
   /**
    * Close one undo step: everything that changed between `before` and the scene as it
    * stands now. Gestures capture `before` at pointerdown and commit at pointerup, which is
@@ -239,6 +264,13 @@ interface EditorState {
 }
 
 const TERRAIN = "terrain";
+const WATER = "water";
+
+/**
+ * Stable empty result for `selectWaters`, so a hidden or absent water layer does not hand
+ * zustand a fresh array on every read and re-render the stage forever.
+ */
+const NO_WATER: Water[] = [];
 
 /**
  * The layers holding any of these ids — every write that touches a cross-layer selection walks
@@ -257,7 +289,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   scene: createEmptyScene("landscape"),
   activeLayerId: "terrain",
   brushSize: 260,
-  terrainTool: "brush",
+  waterTool: "lay",
   objectTool: "scatter",
   iconKind: ICON_KINDS[0],
   terrainBiome: "grassland",
@@ -269,8 +301,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Landmarks are placed one at a time and never scattered, so theirs is inert.
   spriteSpacing: { mountain: 0.58, tree: 0.4, landmark: 0.5 },
   labelSize: 96,
-  riverWidth: 26,
-  riverTaper: true,
+  splineMinWidth: 24,
+  splineMaxWidth: 56,
+  splineRoughness: 0.5,
   selection: [],
   seaLevel: null,
   generatorRotation: 5,
@@ -297,7 +330,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { activeLayerId, objectTool: keep ? state.objectTool : tools[0] };
     }),
   setBrushSize: (brushSize) => set({ brushSize }),
-  setTerrainTool: (terrainTool) => set({ terrainTool }),
+  setWaterTool: (waterTool) => set({ waterTool }),
+  /**
+   * The two bounds push rather than block each other: dragging the minimum past the maximum
+   * carries the maximum with it, and vice versa. A slider that silently refuses to move is the
+   * control equivalent of a dead button, and clamping to "no wider than the other one" is a
+   * rule the user cannot see while dragging.
+   */
+  setSpline: (patch) =>
+    set((state) => {
+      const min = patch.min ?? state.splineMinWidth;
+      const max = patch.max ?? state.splineMaxWidth;
+      return {
+        splineMinWidth: patch.max !== undefined ? Math.min(min, max) : min,
+        splineMaxWidth: patch.min !== undefined ? Math.max(min, max) : max,
+        splineRoughness: patch.roughness ?? state.splineRoughness,
+      };
+    }),
   setObjectTool: (objectTool) => set({ objectTool }),
   setIconKind: (iconKind) => set({ iconKind }),
   setTerrainBiome: (terrainBiome) => set({ terrainBiome }),
@@ -308,8 +357,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSpriteSpacing: (kind, spacing) =>
     set((state) => ({ spriteSpacing: { ...state.spriteSpacing, [kind]: spacing } })),
   setLabelSize: (labelSize) => set({ labelSize }),
-  setRiverWidth: (riverWidth) => set({ riverWidth }),
-  setRiverTaper: (riverTaper) => set({ riverTaper }),
   setSelection: (selection) => set({ selection }),
 
   setLayerObjects: (layerId, objects) =>
@@ -386,6 +433,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ...state.scene,
         layers: state.scene.layers.map((layer) =>
           layer.id === TERRAIN ? { ...layer, objects: landmasses } : layer,
+        ),
+      },
+    })),
+
+  setWaters: (waters) =>
+    set((state) => ({
+      scene: {
+        ...state.scene,
+        layers: state.scene.layers.map((layer) =>
+          layer.id === WATER ? { ...layer, objects: waters } : layer,
         ),
       },
     })),
@@ -549,3 +606,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
 export const selectLandmasses = (state: EditorState): Landmass[] =>
   (state.scene.layers.find((layer) => layer.id === TERRAIN)?.objects ?? []) as Landmass[];
+
+/**
+ * The water that is currently cutting the land — **empty when the layer is hidden**.
+ *
+ * That is D9 implemented rather than special-cased: hiding the water layer closes every
+ * channel, because the derivation simply stops being given anything to subtract. Every other
+ * layer's visibility is a Konva flag on a bitmap; water's has to reach the geometry, since
+ * the cut is the layer's only contribution and there is nothing else to hide.
+ */
+export const selectWaters = (state: EditorState): Water[] => {
+  const layer = state.scene.layers.find((l) => l.id === WATER);
+  return layer?.visible ? (layer.objects as Water[]) : NO_WATER;
+};

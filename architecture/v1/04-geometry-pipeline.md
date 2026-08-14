@@ -44,7 +44,7 @@ writing the whole pipeline and debugging a black box.
 
 ```ts
 // request
-{ id: string, op: "terrainCommit" | "generate" | "deriveRings", payload: {...} }
+{ id: string, op: "terrainCommit" | "generate" | "deriveTerrain" | "resolveDrop", payload: {...} }
 // response
 { id: string, ok: true, result: {...} } | { id: string, ok: false, error: string }
 ```
@@ -180,14 +180,26 @@ detail slider visibly changes smoothness; all heavy work is off the main thread.
 
 ## Pipeline C — coastal rings (WP-4)
 
-On terrain commit (debounced), post `deriveRings { landmasses, canvasRect, ringCount,
-ringGap }`:
+On terrain **or water** commit (debounced), post
+`deriveTerrain { landmasses, waters, canvasRect, ringCount, ringGap, rings }`:
 
 ```
-S10 landUnion → S11 waterRegion → S13 ringBands → S14 clipRings
-→ render bands into the cached rings layer (stroke + opacity falloff per index),
-  between sea and land
+S10 landUnion  ─┬─→ cutUnion(land, water) ──→ S13 ringBands → S14 clipRings ──→ bands
+                │                                                 ↑
+       waterUnion(waters) ──→ cutLand(landmasses, water) → land   │
+                │                                                 │
+                └─────────→ S11 waterRegion(canvas, land) ────────┘
+→ render bands into the cached rings layer, and the cut land into the terrain layer
 ```
+
+**Renamed from `deriveRings` by WP-40** (ADR-47), which added the first half of that diagram.
+Bands now grow from the **cut** boundary — `union(land) − union(water)`, so they follow a
+river's banks — while S11's water region is still built from the **pre-cut** land, which is the
+only thing keeping a band out of the channel the river opened (`16` D5). The two halves are
+one op because both need `union(water)` and the cut, and ops here are coarse by design.
+
+**`land` comes back null when there is no water**, and the renderer then draws the stored
+landmasses directly. That fast path is why a map with no rivers pays nothing for this.
 - Skip entirely when `settings.coastalRings` is off (toggle is instant, no recompute).
 - **Edge cases (each a fixture):** no land (empty result); land touching the canvas edge
   (clip bands to bounds); lake smaller than `ringGap` (rings fill/stop cleanly).

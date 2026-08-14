@@ -9,7 +9,8 @@ import {
   type LandmassInput,
 } from "../terrain/__fixtures__/harness";
 import { landmassToPolygon } from "../terrain/assemble";
-import { clipRings, deriveRings, landUnion, offsetGrow, ringBands, waterRegion } from "./rings";
+import { clipRings, landUnion, offsetGrow, ringBands, waterRegion } from "./rings";
+import { deriveTerrain } from "../water/derive";
 import s11Fixture from "./__fixtures__/s11-water.fixture.json";
 import straitFixture from "./__fixtures__/strait.fixture.json";
 
@@ -143,11 +144,13 @@ describe("S13 ringBands", () => {
 describe("S14 clipRings — the strait fixture", () => {
   it(straitFixture.description.slice(0, 60) + "…", () => {
     const land = straitFixture.input.land.map((l) => materializeLandmass(l as LandmassInput));
-    const bands = deriveRings({
+    const { bands } = deriveTerrain({
       landmasses: land,
+      waters: [],
       canvas: canvasRect(straitFixture.input.canvas),
       ringCount: straitFixture.params.ringCount,
       ringGap: straitFixture.params.ringGap,
+      rings: true,
     });
 
     expect(bands).toHaveLength(straitFixture.params.ringCount);
@@ -161,11 +164,13 @@ describe("S14 clipRings — the strait fixture", () => {
 
   it("puts rings in both the ocean and a lake, from one pass", () => {
     const land = [materializeLandmass(s11Fixture.input.land[0] as LandmassInput)];
-    const bands = deriveRings({
+    const { bands } = deriveTerrain({
       landmasses: land,
+      waters: [],
       canvas: canvasRect(s11Fixture.input.canvas),
       ringCount: 3,
       ringGap: 10,
+      rings: true,
     });
 
     // The lake is 100x100 at (350,250)-(450,350); its inner ring hugs the shore.
@@ -199,7 +204,14 @@ describe("S14 clipRings — the strait fixture", () => {
       },
     });
     const canvas = { x: 0, y: 0, w: 800, h: 600 };
-    const bands = deriveRings({ landmasses: [edge], canvas, ringCount: 3, ringGap: 15 });
+    const { bands } = deriveTerrain({
+      landmasses: [edge],
+      waters: [],
+      canvas,
+      ringCount: 3,
+      ringGap: 15,
+      rings: true,
+    });
 
     for (const band of bands) {
       for (const polygon of band) {
@@ -215,13 +227,15 @@ describe("S14 clipRings — the strait fixture", () => {
 
   it("derives nothing when there is no land", () => {
     expect(
-      deriveRings({
+      deriveTerrain({
         landmasses: [],
+        waters: [],
         canvas: { x: 0, y: 0, w: 800, h: 600 },
         ringCount: 4,
         ringGap: 14,
+        rings: true,
       }),
-    ).toEqual([]);
+    ).toEqual({ land: null, bands: [] });
     expect(clipRings([], [])).toEqual([]);
   });
 });

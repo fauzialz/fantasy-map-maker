@@ -1,6 +1,6 @@
 import { Shape } from "react-konva";
 import type { DrawContext } from "./draw";
-import type { Landmass, Ring } from "../scene/types";
+import type { Landmass, Ring, Water } from "../scene/types";
 import { PALETTE } from "./palette";
 
 const ACCENT = "#22685B";
@@ -28,7 +28,8 @@ export function TerrainSelectionOverlay({
   landmasses,
   scale,
 }: {
-  landmasses: Landmass[];
+  /** land and water alike since WP-41 — both are an outline plus holes, and this traces both */
+  landmasses: (Landmass | Water)[];
   scale: number;
 }) {
   if (landmasses.length === 0) return null;

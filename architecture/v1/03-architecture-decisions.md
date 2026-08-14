@@ -95,6 +95,11 @@ a fresh id + empty name (with an undo-able toast).
 **eraser IS the sea brush** (one water tool).
 **Why:** One source of truth (land). No precedence conflicts, no undefined gaps, no
 duplicate tool set. Nested features come free from polygons-with-holes.
+**Overtaken twice.** ADR-47 gave water geometry of its own, so "water = absence of land" is now
+only half the story: the sea is still the absence of land, but a river is a *thing*, and the land
+is drawn as `union(land) − union(water)`. And the eraser stopped being the sea brush at ADR-37.
+What survives is the part that mattered — lakes are holes, an island in a lake is a polygon inside
+one, and even-odd fill gets both for free.
 **Rejected (deferred):** first-class paintable water bodies/canals — only needed for
 thin explicit water (rivers/canals), which are handled separately or deferred. Their
 edge cases (two desyncing polygon sets, land/water precedence, undefined gaps, doubled
@@ -143,6 +148,9 @@ nested-selection complexity).
 (sea brush), objects on Mountains/Forests/Icons (object-eraser brush). Also
 click-select → Delete.
 **Why:** One predictable mental model; no separate mode-hunting.
+**Superseded by ADR-37** (the eraser went global and stopped being contextual at all) **and
+finally by ADR-50**: there is no sea brush on the terrain layer to be contextual *to*. The
+terrain brush paints land and nothing else; removing land is `Water › Sea`.
 
 ## ADR-19 — Perf: active layer live, others cached at viewport resolution
 **Decision:** Only the **active layer keeps live nodes**; every other layer is a
@@ -352,6 +360,23 @@ undo paths for one gesture, plus control points that worked only while the river
 active — the layer-scoped selection ADR-28 exists to remove. Picking, reshaping and deleting
 a river are `useSelection`'s now; drawing one is still the tool's, and rivers still never
 touch the boolean engine.
+**Amended by WP-40 (ADR-48), and the amendment removes two of the sentences above.**
+
+- ~~"Scaling a river multiplies its `width` as well as its points."~~ There is no `width`.
+  Water is an outline, so scaling the outline scales the width by construction, and
+  `remapPath` serves both path types through one branch rather than two.
+- ~~"A river's control points outrank the frame's handles."~~ There are no control points, so
+  the gesture ladder **loses** the rung this ADR added rather than keeping it. `resolveGesture`
+  no longer takes `overControlPoint`, and I5 records the ladder as handles → frame interior →
+  object → empty space. The collision was real and returns with node editing, which `16` D3
+  leaves unscheduled deliberately.
+
+**What survives is the load-bearing half**, and it survives intact: path objects get frames,
+transforms bake into their points, the frame is feedback only and never picks, and a path-only
+selection has an inert interior. Those held for a ribbon and hold for an outline. What expired
+is only the *reason rivers were chosen to prove it first* — losslessness that came from `width`
+sitting outside the geometry. See `16-water-as-objects.md` §7.
+
 **Rejected:** picking a river by its bounding box (C4's mistake, on an object whose AABB is
 almost all water); **letting the frame interior claim presses for a path-only selection** —
 drafted first as ordinary vector-editor behaviour with shift as the escape, and rejected on
@@ -774,6 +799,9 @@ between, so no menu item is built and then deleted. WP-23 goes first because ADR
 mounts the same generate form.
 
 ## ADR-37 — Erase and the sea brush are two tools; a landmass the eraser touches dies whole
+_Narrowed by **ADR-43**, then by **ADR-50**, which moved the sea brush onto the water layer and
+deleted its button. **The split this ADR exists for is untouched** — erasing objects and removing
+land are still two tools with two names; only one of them changed address._
 _Narrowed by **ADR-43**: the split stands, but the sea brush is no longer terrain-only — it is a
 global tool that switches to terrain, and it answers to that layer's hidden/locked flags._
 **Decision:** The contextual eraser splits. **Sea brush** keeps today's behaviour exactly —
@@ -804,6 +832,21 @@ coastline would be one tool wearing two hats — the situation this ADR exists t
 brush that shaves a coast when you meant to delete an island is the same surprise ADR-18 was
 trying to avoid, only pointed the other way. The destructive case is already covered by
 granularity: one drag is one undo step, so a wide sweep comes back in one Ctrl+Z.
+
+**Amended by WP-41: water outranks land when the disc touches both.** "Take everything you
+touch" assumed the things being touched were disjoint, which was true of every object that
+existed when this was written. It is not true of the two substances: a water object lives
+*inside* some landmass's stored outline by construction (ADR-47), so a click on a visible
+channel touches the river **and** the continent — and because path objects are erased whole,
+that single click deleted the continent. **Found by WP-41's driver**, which asserted the eraser
+"removes a water object whole" and got a map with no land on it.
+
+The fix is not an exception to this ADR so much as a reading of what "what you touched" means
+when two things are stacked: the same precedence a *click* resolves (`16` §5 — water first,
+landmass as fallback) decides it, because what is drawn at that point is what the user aimed at.
+**The sweep is untouched wherever nothing is stacked**, which is every other case: a forest
+still goes in one drag, and a landmass with no water on it still erases whole. Only a disc
+covering both substances at once now has to choose, and it chooses the one you can see.
 
 **Consequences:** `isUnderBrush` grows a path branch for each type, reusing `landmassAt` for
 inside-the-coast and `distanceToSegment` (exported from `river.ts`) for near-the-coast, with
@@ -1070,7 +1113,7 @@ zoomed-in map be pushed entirely off screen); and keeping the centring branch as
 precisely what the complaint was about).
 
 ## ADR-43 — The rail follows the tool in your hand; the sea brush is a global tool
-_Amends ADR-37 (WP-36, WP-37)._
+_Amends ADR-37 (WP-36, WP-37). **Half retired by ADR-50**, which deleted the sea brush._
 
 **Decision:** the tool options rail shows **only what the tool in hand can act on**. A layer's
 create options appear while one of its create tools is in hand; a global mode shows its own
@@ -1100,6 +1143,15 @@ the one control that resets it. The button is global now; where it puts you is n
 but the honest answer, since the terrain layer is what it writes to. **And both terrain brushes
 answer to the terrain layer's own flags, hidden as well as locked** — `12` D3's rule reaching the
 one tool that had never been told.
+
+> **The sea-brush half of this ADR is retired by ADR-50.** Making the button global was the right
+> answer to "where does this tool live" while the answer had to be *somewhere in the toolbar*.
+> Batch 14 gave it a better home — the water layer's **Sea** tab — and a global button pointing at
+> the same op became the duplication this ADR's own reasoning forbids. **The first half stands
+> untouched and is the load-bearing one**: the rail shows only what the tool in hand can act on.
+> Only the sentence about where the sea brush lives expired.
+
+
 
 **Rejected:** keeping the create chips visible under a global mode as the way back (they are the
 residue the rule exists to remove; the toolbar's layer button is the way back), and a chip group
@@ -1227,7 +1279,7 @@ issues for to the public Certificate Transparency logs — the Origin cert does 
 
 ## ADR-47 — Water is a substance, subtracted from land at draw time
 _WP-40 … WP-43. Design in `16-water-as-objects.md`. **Narrows ADR-14 and ADR-41; does not
-overturn either.** **EXPERIMENTAL** — see `16` §10._
+overturn either.** **Accepted** at `16` §10's evaluation, 2026-08-14._
 
 **Decision:** water becomes a **first-class substance with its own geometry**, and the land is
 drawn as `union(landmass.path) − union(water.path)`, **computed at draw time and never stored**.
@@ -1277,7 +1329,7 @@ it is deferred to the moment someone wants a delta, a braided channel or generat
 which point it stops being an improvement and becomes the only way to get the feature.
 
 ## ADR-48 — One kind of water object; the nodes are outline vertices; everything merges
-_WP-40 … WP-43. Design in `16-water-as-objects.md`. **EXPERIMENTAL** — see `16` §10._
+_WP-40 … WP-43. Design in `16-water-as-objects.md`. **Accepted** at `16` §10's evaluation, 2026-08-14._
 
 **Decision:** there is **one** water object, whatever made it.
 
@@ -1322,7 +1374,7 @@ therefore not offered at all** — with no stored inputs there is nothing to re-
 again.
 
 ## ADR-49 — Land carves water destructively; the asymmetry is required
-_WP-42. Design in `16-water-as-objects.md` §4 (C8) and §5. **EXPERIMENTAL** — see `16` §10._
+_WP-42. Design in `16-water-as-objects.md` §4 (C8) and §5. **Accepted** at `16` §10's evaluation, 2026-08-14._
 
 **Decision:** the **terrain brush subtracts its stroke from every water object it crosses**,
 destructively, then runs connected components — so painting land across a river **severs it into
@@ -1354,3 +1406,32 @@ single drag becomes two.
 three modes of hidden state on one tool — the drift `12-tools-that-say-what-they-do.md` exists to
 prevent; and accepting whole-object deletion only, which needs no code and breaks the symmetry
 this design is entirely about.
+
+## ADR-50 — The sea brush is the water layer's Sea tab, and its button is deleted
+_Batch 14 follow-up. Retires half of ADR-43; narrows ADR-37, ADR-18 and ADR-11._
+
+**Decision:** the toolbar's **Sea brush** button is removed, and `terrainTool` with it. The
+terrain brush paints land and does nothing else. Taking land away is **`Water › Sea`** — the same
+op, the same pipeline, reached from the substance it makes.
+
+**Why:** Batch 14 gave the water layer a Sea tab that runs the identical `terrainCommit` in erase
+mode. That left the editor with **two visibly distinct routes to one tool**, which is precisely
+the defect `12-tools-that-say-what-they-do.md` was written to remove — and the tab is the better
+of the two, because it puts "make sea" beside "make rivers" rather than beside "select" and
+"erase". Water is one substance with three ways to author it; the toolbar row is modes that act
+on what already exists. The sea brush was never a mode in that sense.
+
+**It also simplifies the state it leaves behind.** `terrainTool: "brush" | "sea"` existed only to
+carry the distinction the button set, and with the button gone it had one reachable value — a
+field the code branches on and the user cannot move. `waterTool` now carries the whole of the
+water tool's mode state, which is where `16` D4 put it in the first place.
+
+**What is *not* changed:** the operation. Carving is still Pipeline A's erase branch, still
+destructive, still able to cut a landmass in two, still governed by the terrain layer's own
+visible/locked flags (`12` D3) as well as the water layer's. ADR-37's split stands whole — erasing
+objects and removing land remain two tools with two names. Only the address moved.
+
+**Rejected:** keeping the button as a shortcut that selects the water layer's Sea tab. It would
+have removed the *duplicate implementation* worry, which never existed — there was only ever one
+code path — while keeping the thing that actually misleads: two controls that look like peers and
+are the same tool. A shortcut to a tab is a second name for it.

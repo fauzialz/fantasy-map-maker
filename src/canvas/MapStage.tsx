@@ -1,25 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Layer, Line, Stage } from "react-konva";
+import { Layer, Line, Shape, Stage } from "react-konva";
 import { LAYER_OBJECT, selectLandmasses, useEditorStore } from "../state/editorStore";
 import { useThemeStore } from "../state/themeStore";
 import { LAYER_ORDER, type Label, type LayerId, type Point } from "../scene/types";
 import { LabelEditor } from "../ui/LabelEditor";
 import { statusBar } from "../ui/variants";
-import { landMask } from "../engine/river";
+import { drawSplinePreview, type DrawContext } from "./draw";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { BrushRing, type BrushTone } from "./BrushRing";
 import { RingsLayer } from "./RingsLayer";
-import { RiverOverlay } from "./RiverOverlay";
 import { VignetteLayer } from "./VignetteLayer";
 import { SemanticLayer } from "./SemanticLayer";
-import { useCoastalRings } from "./useCoastalRings";
+import { useDerivedTerrain } from "./useDerivedTerrain";
 import { PALETTE } from "./palette";
 import { SelectionOverlay } from "./SelectionOverlay";
 import { TerrainSelectionOverlay } from "./TerrainSelectionOverlay";
 import { createLabel, useObjectBrush } from "./useObjectBrush";
-import { useRiverTool } from "./useRiverTool";
 import { useSelection } from "./useSelection";
-import { useTerrainBrush } from "./useTerrainBrush";
+import { useSplineTool } from "./useSplineTool";
+import { useSubstanceBrush, type BrushMode } from "./useSubstanceBrush";
 import {
   clampPan,
   centred,
@@ -203,7 +202,6 @@ export function MapStage({ editing }: { editing?: Label }) {
   }, [editing, openLabelDraft]);
 
   const brushSize = useEditorStore((s) => s.brushSize);
-  const terrainTool = useEditorStore((s) => s.terrainTool);
   /**
    * Ring derivation costs 119–488 ms against a 16 ms frame (C2), so it cannot track a
    * drag. Declared before the hooks that need it and filled in by the selection below —
@@ -211,7 +209,7 @@ export function MapStage({ editing }: { editing?: Label }) {
    * worker for its whole length.
    */
   const [movingLand, setMovingLand] = useState(false);
-  const rings = useCoastalRings(map, movingLand);
+  const derived = useDerivedTerrain(map, movingLand);
   /** A locked layer accepts no *creation* tool — that is what the lock means for making. */
   const unlocked = !scene.layers.find((l) => l.id === activeLayerId)?.locked;
   const ready = !spaceHeld && !draft;
@@ -239,9 +237,39 @@ export function MapStage({ editing }: { editing?: Label }) {
    */
   const terrainLayer = scene.layers.find((layer) => layer.id === "terrain");
   const terrainEditable = !!terrainLayer?.visible && !terrainLayer.locked;
-  const brush = useTerrainBrush({
-    enabled: activeLayerId === "terrain" && !selecting && !erasing && ready && terrainEditable,
+  /**
+   * WP-41 — the water brush answers to the **water** layer's flags, and carve additionally
+   * needs terrain to be editable: it removes land, so a locked or hidden terrain layer must
+   * refuse it exactly as it refuses the sea brush (`12` D3 — hiding a layer protects it).
+   */
+  const waterTool = useEditorStore((s) => s.waterTool);
+  const waterLayer = scene.layers.find((layer) => layer.id === "water");
+  const waterEditable = !!waterLayer?.visible && !waterLayer.locked;
+  const onWater = activeLayerId === "water";
+  const brushMode: BrushMode | null = onWater
+    ? waterTool === "carve"
+      ? terrainEditable && waterEditable
+        ? "carve"
+        : null
+      : // `=== "lay"`, not "anything but carve": WP-43 added a third mode that is not a brush
+        // at all, and a fall-through would have armed the disc under the spline tool.
+        waterTool === "lay" && waterEditable
+        ? "lay"
+        : null
+    : // The terrain brush paints land and nothing else. Removing land is the water layer's
+      // **Sea** tab, which is the same op reached from the substance it makes.
+      activeLayerId === "terrain" && terrainEditable
+      ? "paint"
+      : null;
+  const brush = useSubstanceBrush({
+    enabled: brushMode !== null && !selecting && !erasing && ready,
+    mode: brushMode ?? "paint",
     map,
+    toMapPoint,
+  });
+  /** WP-43 — the third way to make water: drag a path, get a river. */
+  const spline = useSplineTool({
+    enabled: onWater && waterTool === "spline" && waterEditable && !selecting && !erasing && ready,
     toMapPoint,
   });
   const objects = useObjectBrush({
@@ -259,14 +287,6 @@ export function MapStage({ editing }: { editing?: Label }) {
   });
   useEffect(() => setMovingLand(selection.movingLand), [selection.movingLand]);
 
-  // Rivers are path-based, so they sit outside the anchor-based selection stack and drive
-  // their own tool (ADR-14) — drawn point by point, reshaped by their control points.
-  const river = useRiverTool({
-    enabled: activeLayerId === "rivers" && live,
-    scale: vp?.scale ?? 1,
-    toMapPoint,
-  });
-
   // Pan: middle-drag, or space + left-drag. Plain left-drag paints.
   const dragRef = useRef<{ x: number; y: number; vp: Viewport } | null>(null);
   const onMouseDown = (e: React.MouseEvent) => {
@@ -280,8 +300,8 @@ export function MapStage({ editing }: { editing?: Label }) {
     if (e.button !== 0) return;
     if (
       brush.begin(e.clientX, e.clientY) ||
+      spline.begin(e.clientX, e.clientY) ||
       objects.begin(e.clientX, e.clientY) ||
-      river.begin(e.clientX, e.clientY) ||
       selection.begin(e.clientX, e.clientY, e.shiftKey)
     )
       e.preventDefault();
@@ -378,8 +398,6 @@ export function MapStage({ editing }: { editing?: Label }) {
 
   const landmasses = useEditorStore(selectLandmasses);
   const landCount = landmasses.length;
-  /** WP-34 — what the rivers layer clips its mouths against. */
-  const landPolygons = useMemo(() => landMask(landmasses), [landmasses]);
   const undoDepth = useEditorStore((s) => s.past.length);
   const objectCount = scene.layers.reduce(
     (total, layer) => total + (layer.id === "terrain" ? 0 : layer.objects.length),
@@ -398,19 +416,27 @@ export function MapStage({ editing }: { editing?: Label }) {
    * it would be a lie. Panning is absent because the press belongs to the pan, not the brush.
    */
   const brushTone: BrushTone | null =
-    !cursor || selecting || panning || spaceHeld || zooming
+    !cursor || selecting || panning || zooming || spaceHeld
       ? null
       : erasing
-        ? "erase" // global since WP-26, so it shows on terrain and rivers too, lock or not
-        : activeLayerId === "terrain"
-          ? // Terrain answers to its own flags, hidden included — a ring over a layer that
-            // will not take the paint is the lie I4 exists to prevent.
-            terrainEditable
-            ? terrainTool === "sea"
-              ? "sea"
+        ? "erase" // global since WP-26, so it shows on terrain and water too, lock or not
+        : brushMode !== null
+          ? // WP-41 — the ring says which of the three the press will do, and that is C6: with
+            // a mode-bearing brush the pointer has to promise *which mode*, not just that a
+            // press paints. `brushMode` is already null wherever the layer will refuse the
+            // stroke, so a ring over a locked or hidden layer cannot be drawn — the lie I4
+            // exists to prevent.
+            brushMode === "carve"
+            ? "sea"
+            : brushMode === "lay"
+              ? "water"
               : "paint"
-            : null
-          : !unlocked
+          : // **The fallback has to check the layer, not just the tool.** `objectTool` is session
+            // state that survives a layer switch (ADR-28), and water is not an object layer — so
+            // arriving from Mountains with `scatter` still armed drew a scatter ring over the
+            // spline tool, which places points and has no radius at all. A ring is a promise
+            // that a press will paint a disc that size (I4); over a click tool it is a lie.
+            !unlocked || !onObjectLayer
             ? null
             : objectTool === "scatter"
               ? "paint"
@@ -434,10 +460,10 @@ export function MapStage({ editing }: { editing?: Label }) {
       : !unlocked && !selecting && !erasing
         ? "not-allowed"
         : (selection.cursor ??
-          river.cursor ??
-          // The eraser is global, so it promises a crosshair on every layer — including
-          // rivers, which creates nothing through the object brush (I4).
-          (erasing || (!selecting && (activeLayerId === "terrain" || LAYER_OBJECT[activeLayerId]))
+          // The eraser is global, so it promises a crosshair on every layer (I4).
+          (erasing ||
+          (!selecting && (brushMode !== null || LAYER_OBJECT[activeLayerId])) ||
+          (onWater && waterTool === "spline" && waterEditable && !selecting)
             ? "crosshair"
             : "default"));
 
@@ -448,13 +474,45 @@ export function MapStage({ editing }: { editing?: Label }) {
    * Selection and river chrome go above everything instead — see the overlay layer below.
    */
   const overlayFor = (id: LayerId) => {
+    /**
+     * **The spline preview is hosted by the terrain layer even when water is the active one**,
+     * for exactly the reason the terrain brush's preview is hosted there: it is pretending to be
+     * a cut through the land, so it has to sit under the forests and mountains standing on that
+     * land. Drawn in the chrome layer it would float above a forest the finished channel runs
+     * beneath — a preview that promises the wrong picture.
+     */
+    if (id === "terrain" && spline.active)
+      return (
+        <Shape
+          listening={false}
+          sceneFunc={(context) =>
+            drawSplinePreview(
+              context as unknown as DrawContext,
+              spline.preview ?? [],
+              derived.land
+                ? derived.land.flatMap((piece) => piece.shape)
+                : landmasses.map((l) => [l.path, ...l.holes]),
+              spline.course.line,
+              spline.course.points,
+              vp?.scale ?? 1,
+            )
+          }
+        />
+      );
     if (id !== activeLayerId) return undefined;
-    if (id === "terrain" && brush.previewPoints)
+    if (id === activeLayerId && brush.previewPoints)
       return (
         <Line
           points={brush.previewPoints}
-          // the sea brush previews as water, so erasing reads as erasing
-          stroke={terrainTool === "sea" ? PALETTE.seaDeep : PALETTE.paper}
+          // Carving previews as deep water, so removal reads as removal; laying previews as
+          // the sea tint it will actually cut, and painting land as bare paper.
+          stroke={
+            brushMode === "carve"
+              ? PALETTE.seaDeep
+              : brushMode === "lay"
+                ? PALETTE.sea
+                : PALETTE.paper
+          }
           strokeWidth={brushSize}
           lineCap="round"
           lineJoin="round"
@@ -482,7 +540,7 @@ export function MapStage({ editing }: { editing?: Label }) {
       onMouseDown={onMouseDown}
       onMouseMove={(e) => {
         selection.hover(e.clientX, e.clientY);
-        river.hover(e.clientX, e.clientY);
+        spline.hover(e.clientX, e.clientY);
         pointerRef.current = { x: e.clientX, y: e.clientY };
         setCursor(toMapPoint(e.clientX, e.clientY));
         setZooming(false);
@@ -492,10 +550,9 @@ export function MapStage({ editing }: { editing?: Label }) {
         setCursor(null);
       }}
       onDoubleClick={(e) => {
-        // Only a river being *drawn* claims the gesture. Keying this on the layer instead
-        // swallowed every double-click on the rivers layer, Select on or not — WP-20 left
-        // that tool drawing-only, so the layer stopped being the right question.
-        if (river.active) return river.finish();
+        // **Only a river being *drawn* claims the gesture.** Keying this on the layer instead
+        // swallowed every double-click on the old rivers layer, Select on or not (`07`, WP-20).
+        if (spline.finish()) return;
         // A double-click's first press has already selected the label under the pointer.
         const selected = useEditorStore.getState().selection;
         const label = scene.layers
@@ -519,8 +576,8 @@ export function MapStage({ editing }: { editing?: Label }) {
         >
           <BackgroundLayer map={map} parchment={scene.settings.parchment} />
           <RingsLayer
-            bands={rings.bands}
-            stale={rings.stale}
+            bands={derived.bands}
+            stale={derived.stale}
             cacheRect={cache.rect}
             cacheScale={cache.scale}
             onCacheBytes={onRingBytes}
@@ -529,12 +586,38 @@ export function MapStage({ editing }: { editing?: Label }) {
             <SemanticLayer
               key={layer.id}
               layer={layer}
-              active={layer.id === activeLayerId || liveLayers.has(layer.id)}
+              /**
+               * **Terrain is live whenever the water layer is active**, a third reason on top of
+               * the two ADR-19 gives — and the one that makes water usable.
+               *
+               * Water draws nothing of its own: its entire visual output is the shape it removes
+               * from *terrain* (`16` §3). So while you are making water, terrain is the layer
+               * being edited, and caching it means every stroke, every carve and every river
+               * re-renders the whole continent into a viewport-sized bitmap **on top of** the
+               * derivation the edit already costs. That is the pause: the sea brush on the
+               * terrain layer never paid it, because terrain was active there, which is why
+               * carving from the water layer felt slower than the identical sea-brush stroke.
+               *
+               * It also fixes the spline preview, which is hosted by this layer so it sits under
+               * the forests: a hosted overlay renders into the layer's bitmap, and the cache key
+               * is the layer's objects and its derived land — neither of which moves while a
+               * course is being clicked out.
+               */
+              active={
+                layer.id === activeLayerId ||
+                liveLayers.has(layer.id) ||
+                (layer.id === "terrain" && onWater)
+              }
               cacheRect={cache.rect}
               cacheScale={cache.scale}
               onCacheBytes={onCacheBytes}
               overlay={overlayFor(layer.id)}
-              mask={layer.id === "rivers" ? landPolygons : undefined}
+              /*
+                Terrain alone takes the derived land (WP-40). Every other layer draws its own
+                objects, and the water layer draws nothing at all — the cut *is* its output.
+              */
+              land={layer.id === "terrain" ? derived.land : undefined}
+              stale={layer.id === "terrain" && derived.landStale}
             />
           ))}
           {scene.settings.parchment && <VignetteLayer map={map} />}
@@ -547,10 +630,10 @@ export function MapStage({ editing }: { editing?: Label }) {
             (WP-18) the frame could be drawn into `terrain` — the bottom of the stack — and
             buried under 890 trees. A frame you cannot see is the same defect as no frame.
 
-            Both can be live at once and should be: a selected river draws the ordinary
-            frame *and* its own control points (WP-20), because the frame moves and turns
-            the whole river while the points reshape it. The points are drawn last so they
-            sit above the handles they outrank.
+            WP-40 removed the second overlay that lived here: a selected river drew its
+            control points on top of the frame. Rivers have no control points now — a water
+            body is an outline like a landmass — and node editing is deliberately unscheduled
+            (`16` D3, §7), so the frame is once again the only chrome a path object draws.
           */}
           <Layer listening={false}>
             {selecting && (
@@ -561,11 +644,7 @@ export function MapStage({ editing }: { editing?: Label }) {
                   marquee={selection.marquee}
                   scale={vp.scale}
                 />
-                <RiverOverlay preview={null} points={selection.riverPoints} scale={vp.scale} />
               </>
-            )}
-            {river.active && (
-              <RiverOverlay preview={river.preview} points={river.points} scale={vp.scale} />
             )}
             {brushTone && cursor && (
               // Radius, not diameter: the terrain preview strokes `brushSize` wide, and both
@@ -599,16 +678,27 @@ export function MapStage({ editing }: { editing?: Label }) {
         <span>
           {landCount} landmass{landCount === 1 ? "" : "es"}
         </span>
-        {rings.bands.length > 0 && <span>{rings.bands.length} rings</span>}
+        {derived.bands.length > 0 && <span>{derived.bands.length} rings</span>}
         {objectCount > 0 && <span>{objectCount} objects</span>}
         {selection.count > 0 && <span>{selection.count} selected</span>}
         {undoDepth > 0 && <span>{undoDepth} undo</span>}
         {!unlocked && <span className="mbf:text-note">{activeLayerId} locked</span>}
+        {spline.active && (
+          <span className="mbf:text-note">
+            {spline.count < 2
+              ? "click to lay the river’s course"
+              : `${spline.count} points · double-click or Enter to finish, Escape to cancel`}
+          </span>
+        )}
         {brush.committing && <span>vectorising…</span>}
-        {rings.stale && <span className="mbf:text-note">rings frozen — they follow on drop</span>}
-        {rings.deriving && <span>deriving rings…</span>}
+        {derived.stale && (
+          <span className="mbf:text-note">terrain frozen — it follows on drop</span>
+        )}
+        {derived.deriving && <span>deriving terrain…</span>}
         {brush.error && <span className="mbf:text-danger">{brush.error}</span>}
-        {rings.error && <span className="mbf:text-danger">rings failed: {rings.error}</span>}
+        {derived.error && (
+          <span className="mbf:text-danger">derivation failed: {derived.error}</span>
+        )}
       </p>
     </div>
   );

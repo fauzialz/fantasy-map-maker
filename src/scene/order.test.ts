@@ -49,14 +49,13 @@ describe("draw order (z, y, scale)", () => {
   it("treats path-based objects as neutral rather than throwing", () => {
     const river: SceneObject = {
       id: "r",
-      type: "river",
-      points: [
+      type: "water",
+      path: [
         [0, 0],
+        [10, 0],
         [10, 10],
       ],
-      width: 10,
-      taper: true,
-      z: 0,
+      holes: [],
     };
     expect(compareDrawOrder(river, tree("t", 0))).toBe(0);
   });

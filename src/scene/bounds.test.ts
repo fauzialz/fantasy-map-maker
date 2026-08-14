@@ -8,7 +8,7 @@ import {
   type Bounds,
   type PlacedObject,
 } from "./bounds";
-import type { Label, Landmark, Landmass, Mountain, Ring, River, SceneObject, Tree } from "./types";
+import type { Label, Landmark, Landmass, Mountain, Ring, SceneObject, Tree, Water } from "./types";
 
 const square = (x: number, y: number, size: number): Ring => [
   [x, y],
@@ -53,16 +53,11 @@ describe("standingOn", () => {
   });
 
   it("never takes a path object — a river crossing land is not standing on it", () => {
-    const river: River = {
+    const river: Water = {
       id: "r",
-      type: "river",
-      points: [
-        [100, 100],
-        [900, 900],
-      ],
-      width: 20,
-      taper: false,
-      z: 0,
+      type: "water",
+      path: square(100, 100, 800),
+      holes: [],
     };
     const objects: SceneObject[] = [river, land("other", square(100, 100, 50)), inland];
     expect(standingOn(continent, objects).map((object) => object.id)).toEqual(["inland"]);

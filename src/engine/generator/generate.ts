@@ -97,7 +97,7 @@ export function generateWorld(request: GenerateRequest): GenerateResult {
     coastDetail,
     mode: "paint",
     existingLand: [],
-  });
+  }).landmasses;
 
   const landmasses = assignBiomes(
     dropSpecks(traced, canvas.w * canvas.h * MIN_ISLAND_FRACTION),

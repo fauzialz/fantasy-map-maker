@@ -5,7 +5,7 @@ import { BIOME_FILL } from "../canvas/palette";
 import type { Biome, Label, Landmass } from "../scene/types";
 import { ICON_KINDS } from "../sprites/registry";
 import { LAYER_OBJECT, LAYER_TOOLS, useEditorStore, type ObjectTool } from "../state/editorStore";
-import { Slider, Toggle } from "./controls";
+import { Slider } from "./controls";
 import {
   button,
   field,
@@ -24,9 +24,9 @@ const TOOL_LABEL: Record<ObjectTool, string> = {
   place: "Place one",
   erase: "Erase",
 };
-// `select: "Edit"` left with WP-25. It was a third name for the global mode, and reshaping a
-// river is Select's job now — dragging a control point outranks the frame's handles (WP-20).
-const RIVER_TOOL_LABEL: Partial<Record<ObjectTool, string>> = { place: "Draw" };
+// `select: "Edit"` left with WP-25 — a third name for the global mode. `RIVER_TOOL_LABEL`
+// ("Draw", for the river tool's one placement mode) left with WP-40, which deleted that tool;
+// the water layer offers nothing to create until WP-41's brush arrives.
 
 /**
  * The contextual left rail — options for whatever tool is in hand, and nothing else. It is
@@ -37,7 +37,14 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const brushSize = useEditorStore((s) => s.brushSize);
   const setBrushSize = useEditorStore((s) => s.setBrushSize);
-  const terrainTool = useEditorStore((s) => s.terrainTool);
+  const waterTool = useEditorStore((s) => s.waterTool);
+  /** Carving makes sea; laying and the spline make rivers. The tab is that distinction. */
+  const waterTab = waterTool === "carve" ? "sea" : "river";
+  const setWaterTool = useEditorStore((s) => s.setWaterTool);
+  const splineMinWidth = useEditorStore((s) => s.splineMinWidth);
+  const splineMaxWidth = useEditorStore((s) => s.splineMaxWidth);
+  const splineRoughness = useEditorStore((s) => s.splineRoughness);
+  const setSpline = useEditorStore((s) => s.setSpline);
   const objectTool = useEditorStore((s) => s.objectTool);
   const scatterRotation = useEditorStore((s) => s.scatterRotation);
   const setScatterRotation = useEditorStore((s) => s.setScatterRotation);
@@ -50,10 +57,6 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const setIconKind = useEditorStore((s) => s.setIconKind);
   const labelSize = useEditorStore((s) => s.labelSize);
   const setLabelSize = useEditorStore((s) => s.setLabelSize);
-  const riverWidth = useEditorStore((s) => s.riverWidth);
-  const setRiverWidth = useEditorStore((s) => s.setRiverWidth);
-  const riverTaper = useEditorStore((s) => s.riverTaper);
-  const setRiverTaper = useEditorStore((s) => s.setRiverTaper);
   const selection = useEditorStore((s) => s.selection);
   const setSettings = useEditorStore((s) => s.setSettings);
   const patchObject = useEditorStore((s) => s.patchObject);
@@ -66,6 +69,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const setOverlapPolicy = useEditorStore((s) => s.setOverlapPolicy);
 
   const onTerrain = activeLayerId === "terrain";
+  const onWater = activeLayerId === "water";
   const tools = LAYER_TOOLS[activeLayerId];
   const isObjectLayer = LAYER_OBJECT[activeLayerId] !== undefined;
   /** Which sprite the active layer makes, so the size knob edits that kind's setting. */
@@ -73,23 +77,25 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const selecting = objectTool === "select";
   /**
    * Erase is a global mode (ADR-37), so the rail must not go on offering the *active layer's*
-   * controls underneath it: a river width slider above an eraser describes a tool that is not
-   * in your hand. The disc is the whole tool, so its size is the whole option.
+   * controls underneath it: a biome palette above an eraser describes a tool that is not in
+   * your hand. The disc is the whole tool, so its size is the whole option.
    */
   const erasing = objectTool === "erase";
   /**
    * Select and Erase act on what is already on the map, so neither inherits the active
    * layer's *create* options — the rail follows the tool in your hand, not the layer you
    * happen to be standing on. Erase got this guard when it went global (ADR-37) and Select
-   * never did, which left a river width slider and a biome palette sitting under a tool that
-   * creates nothing.
+   * never did, which left a biome palette sitting under a tool that creates nothing.
    */
   const globalMode = selecting || erasing;
   /** The land brush, as opposed to the sea brush — they take different options. */
-  const paintingLand = onTerrain && terrainTool !== "sea";
+  /** The terrain brush only paints land now — removing it is the water layer's Sea tab. */
+  const paintingLand = onTerrain;
   /** Both terrain brushes answer to the terrain layer's own flags, hidden as well as locked. */
   const terrainLayer = scene.layers.find((layer) => layer.id === "terrain");
   const terrainEditable = !!terrainLayer?.visible && !terrainLayer.locked;
+  const waterLayer = scene.layers.find((layer) => layer.id === "water");
+  const waterEditable = !!waterLayer?.visible && !waterLayer.locked;
 
   /**
    * A selection can now span layers (ADR-28), so what the rail offers follows the selected
@@ -108,6 +114,13 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   /** Whether anything in the selection answers to the frame's handles (I9's footprint side). */
   const transformable = selected.some(hasFootprint);
   const selectedLand = selected.filter((o): o is Landmass => o.type === "landmass");
+  /**
+   * Both substances, for the overlap policy. A dropped water body lands on other water exactly
+   * as a landmass lands on land, so the control that governs that is not a terrain control —
+   * it is a **path-object** control, and it was only ever gated on land because water could
+   * not be selected before WP-41.
+   */
+  const selectedPaths = selected.filter((o) => o.type === "landmass" || o.type === "water");
 
   /**
    * The palette does double duty (D6): with land selected it recolours it in one undo step,
@@ -132,14 +145,25 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
     onlyType === "label" && selected.length === 1 ? (selected[0] as Label) : undefined;
 
   return (
-    <aside className={panel({ side: "left" })} aria-label="Tool options">
+    <aside
+      className={panel({ side: "left" })}
+      aria-label="Tool options"
+      /**
+       * **What is selected, by type** — the same trick `data-land-count` plays two blocks down,
+       * and for the reason `07` §1 gives: "N selected" cannot tell a channel from the continent
+       * it is cut through, so an assertion about *which* one a click picked could be satisfied
+       * by the wrong answer. WP-41 needs exactly that distinction, since water lies inside the
+       * land's outline and the whole question is which of the two wins the press.
+       */
+      data-selection-types={[...new Set(selected.map((object) => object.type))].sort().join(",")}
+    >
       <p className={panelTitle()}>Tool options · {activeLayerId}</p>
 
       {/*
         A single-tool layer gets no chips: a segmented control with one segment is a label
-        pretending to be a control, and clicking it cannot change anything. Rivers, icons and
-        labels each offer exactly one way to create, and the toolbar already says which layer
-        you are on.
+        pretending to be a control, and clicking it cannot change anything. Icons and labels
+        each offer exactly one way to create, and the toolbar already says which layer you are
+        on.
       */}
       {tools && tools.length > 1 && !globalMode && (
         <div className={segment()}>
@@ -151,25 +175,10 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
               className={toolButton({ active: objectTool === tool })}
               onClick={() => setObjectTool(tool)}
             >
-              {(activeLayerId === "rivers" && RIVER_TOOL_LABEL[tool]) || TOOL_LABEL[tool]}
+              {TOOL_LABEL[tool]}
             </button>
           ))}
         </div>
-      )}
-
-      {/* The eraser is global since WP-26, so its size has to be reachable from any layer —
-          including rivers, which is not an object layer and would otherwise hide the slider
-          for the one tool that now works there. */}
-      {(erasing || (!selecting && (onTerrain || (isObjectLayer && objectTool === "scatter")))) && (
-        <Slider
-          label="Brush size"
-          value={brushSize}
-          min={40}
-          max={800}
-          step={10}
-          display={`${brushSize} px`}
-          onChange={setBrushSize}
-        />
       )}
 
       {/*
@@ -264,9 +273,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           <p className={hint()}>
             {!terrainEditable
               ? `The terrain layer is ${terrainLayer?.visible ? "locked" : "hidden"} — nothing will paint until you ${terrainLayer?.visible ? "unlock" : "show"} it.`
-              : terrainTool === "sea"
-                ? "The sea brush removes land — cut a landmass through and it becomes two."
-                : "Drag to paint land. Overlapping strokes merge into one coastline."}
+              : "Drag to paint land. Overlapping strokes merge into one coastline. To take land away, use Water › Sea."}
           </p>
         </>
       )}
@@ -277,7 +284,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         so it has none either — a control that cannot act on the tool in your hand is exactly
         what I4 exists to prevent.
       */}
-      {((paintingLand && !globalMode) || (selectedLand.length > 0 && !erasing)) && (
+      {((paintingLand && !globalMode) || (selecting && selectedLand.length > 0)) && (
         <>
           <p className={panelTitle()} data-land-count={selectedLand.length}>
             {selectedLand.length > 0
@@ -340,16 +347,23 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
       )}
 
       {/*
-        Only with land selected, because that is the only way to cause it: the policy is read
-        at **drop** time, when a dragged landmass lands on another (ADR-25). A brush stroke
-        cannot trigger it — overlapping strokes union — so it spent this whole time sitting
-        under a tool that could never consult it.
+        With **either substance** selected since WP-41's follow-up: the policy is read at
+        **drop** time, when a dragged path object lands on another (ADR-25), and water drops on
+        water in exactly the way land drops on land. A brush stroke cannot trigger it —
+        overlapping strokes union — so it only ever belongs beside a selection.
+
+        `carve` is offered only for land. A landmass biting a channel through another is a
+        picture; water carving water is not a thing that can happen, since two overlapping
+        water bodies are one body (D10). A control that cannot act is what I9 exists to prevent.
       */}
-      {selectedLand.length > 0 && !erasing && (
+      {selecting && selectedPaths.length > 0 && (
         <>
           <p className={panelTitle()}>On overlap</p>
           <div className={segment()}>
-            {(["apart", "merge", "carve"] as const).map((policy) => (
+            {(selectedLand.length > 0
+              ? (["apart", "merge", "carve"] as const)
+              : (["apart", "merge"] as const)
+            ).map((policy) => (
               <button
                 key={policy}
                 type="button"
@@ -370,9 +384,11 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
           */}
           <p className={hint()}>
             {overlapPolicy === "apart"
-              ? "A drop that lands on other land slides back along the drag to where it last fit."
+              ? selectedLand.length > 0
+                ? "A drop that lands on other land slides back along the drag to where it last fit."
+                : "A drop that lands on other water slides back to where the drag began."
               : overlapPolicy === "merge"
-                ? "A drop that lands on other land fuses with it — the larger piece keeps its name."
+                ? "A drop that lands on its own kind fuses with it — the larger piece keeps its id."
                 : "A drop that lands on other land bites a channel through itself. If that would leave almost nothing, it slides back instead."}
           </p>
         </>
@@ -429,21 +445,182 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         </>
       )}
 
-      {activeLayerId === "rivers" && objectTool === "place" && (
+      {/*
+        WP-41 — one brush, two modes (`16` D4), and the chips are where the mode is chosen.
+
+        They are a real segmented control rather than two toolbar buttons because the two are
+        **mutually exclusive readings of the same gesture**: both drag a disc across the map and
+        both leave water behind. What separates them is what happens to the land — carve removes
+        it, lay does not — and D6 makes that visible in the result, since only carved sea bands.
+        So the rail says which mode, the ring says it again before the press (C6), and the map
+        says it a third time afterwards.
+      */}
+      {onWater && !globalMode && (
         <>
-          <Slider
-            label="River width"
-            value={riverWidth}
-            min={6}
-            max={90}
-            step={2}
-            onChange={setRiverWidth}
-          />
-          <Toggle label="Widen toward the mouth" checked={riverTaper} onChange={setRiverTaper} />
+          {/*
+            **Two tabs, then the modes inside one of them.** Three flat chips said the layer had
+            three peer tools; it has two *substances to make* — sea, by taking land away, and
+            rivers, by putting water in — and rivers happen to be authorable two ways.
+
+            The nesting is the honest shape: Sea has nothing under it because carving is one
+            gesture, and a segmented control with one segment is a label pretending to be a
+            control. River has two, because a brush and a spline are genuinely different ways to
+            draw the same object (C9 — they are indistinguishable once committed).
+          */}
+          <div className={segment()}>
+            {(["sea", "river"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                data-water-tab={tab}
+                className={toolButton({ active: waterTab === tab })}
+                onClick={() => setWaterTool(tab === "sea" ? "carve" : "lay")}
+              >
+                {tab === "sea" ? "Sea" : "River"}
+              </button>
+            ))}
+          </div>
+          {waterTab === "river" && (
+            <div className={segment()}>
+              {(["lay", "spline"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  data-mode={mode}
+                  className={toolButton({ active: waterTool === mode })}
+                  onClick={() => setWaterTool(mode)}
+                >
+                  {mode === "lay" ? "Brush" : "Draw with Spline"}
+                </button>
+              ))}
+            </div>
+          )}
+          {/*
+            **Brush size above the detail slider, and below the modes.** It is the least specific
+            thing about the tool — every brush has one — so it belongs under the choice of tool
+            and over the setting that shapes what the stroke leaves behind.
+          */}
+          {waterTool !== "spline" && (
+            <Slider
+              label="Brush size"
+              value={brushSize}
+              min={40}
+              max={800}
+              step={10}
+              display={`${brushSize} px`}
+              onChange={setBrushSize}
+            />
+          )}
+          {/*
+            WP-43's two tool settings, and they are **tool settings** in the strictest sense
+            (D8): they shape the geometry at creation and are then gone, exactly as brush size
+            is gone. Nothing about them is written to the object, which is what keeps a
+            spline-drawn river indistinguishable from a brushed one afterwards (C9) — and is
+            why there is no Reroll to put beside them (D17). The way back from a river you
+            dislike is undo and draw again.
+          */}
+          {waterTool === "spline" && (
+            <>
+              {/*
+                Two bounds rather than one width, because the width is **randomised**: a single
+                number was a value the river mostly was not, and the range it could actually
+                reach was implicit. These say what they mean, and the preview promises the
+                **maximum** as the envelope the river will fit inside.
+              */}
+              <Slider
+                label="Narrowest"
+                value={splineMinWidth}
+                min={4}
+                max={140}
+                step={2}
+                display={`${splineMinWidth} px`}
+                onChange={(min) => setSpline({ min })}
+              />
+              <Slider
+                label="Widest"
+                value={splineMaxWidth}
+                min={4}
+                max={140}
+                step={2}
+                display={`${splineMaxWidth} px`}
+                hint="The preview draws this width, so the river can only ever come out narrower than what you saw."
+                onChange={(max) => setSpline({ max })}
+              />
+              <Slider
+                label="Bank roughness"
+                value={splineRoughness}
+                min={0}
+                max={1}
+                step={0.05}
+                display={splineRoughness.toFixed(2)}
+                hint="Wobbles each bank on its own, so the two are not mirror images. Never a taper — a river may be widest in the middle."
+                onChange={(roughness) => setSpline({ roughness })}
+              />
+            </>
+          )}
+          {/*
+            The same `settings.coastDetail` the terrain layer calls **Coast detail**, named for
+            what it does *here*: a bank is coastline, so this is the setting that decides whether
+            one comes out smooth or ragged. One value, two honest names — the alternative is a
+            control labelled for a layer you are not on.
+
+            ponytail: the spline's own **Bank roughness** is a different value under the same
+            name — a *tool* setting, session-only, against this *scene* setting which is
+            persisted and undoable. They are never on screen together, so the collision is
+            invisible in use; if the two modes are ever shown side by side, one has to be renamed.
+          */}
+          {waterTool !== "spline" && (
+            <Slider
+              label="Bank roughness"
+              value={scene.settings.coastDetail}
+              min={0}
+              max={1}
+              step={0.05}
+              display={scene.settings.coastDetail.toFixed(2)}
+              hint="Smooth and stylised ↔ rough and natural. A bank is coastline, so this shapes the whole map's."
+              onChange={(coastDetail) =>
+                record("coast detail", () => setSettings({ coastDetail }), true)
+              }
+            />
+          )}
+          {/* Hidden and locked both refuse the brush, so the rail says which — otherwise the
+              stroke simply does nothing and there is nothing on screen explaining why. Carve
+              needs *terrain* editable as well, because it is the land it removes. */}
           <p className={hint()}>
-            Click from source to sea. Double-click or Enter finishes, Escape cancels.
+            {!waterEditable
+              ? `The water layer is ${waterLayer?.visible ? "locked" : "hidden"} — nothing will draw until you ${waterLayer?.visible ? "unlock" : "show"} it.`
+              : waterTool === "carve" && !terrainEditable
+                ? `Carving removes land, and the terrain layer is ${terrainLayer?.visible ? "locked" : "hidden"} — nothing will carve until you ${terrainLayer?.visible ? "unlock" : "show"} it.`
+                : waterTool === "carve"
+                  ? "Carve removes land, and the sea that fills the gap takes coastal bands."
+                  : waterTool === "spline"
+                    ? "Click to lay the river’s course, then double-click or press Enter to finish. The preview is the river you will get; only its banks are decided on commit, so the same course drawn twice gives two different rivers."
+                    : "Drag to lay a river or lake. It cuts a channel through the land, and channels take no bands. Overlapping strokes merge into one."}
           </p>
         </>
+      )}
+
+      {/*
+        **Last in the group, not first.** Brush size is the least specific thing about the tool
+        in hand — every brush has one — so it reads as a footnote to the mode and the biome
+        rather than as the headline, and putting it on top pushed the controls that actually
+        distinguish one brush from another below the fold.
+
+        The eraser is global since WP-26, so its size has to be reachable from any layer. The
+        **water layer renders its own** above its detail slider, because its modes sit in tabs
+        and the size belongs under the mode it applies to; the spline has its own widths, so the
+        disc's size would be a control that cannot act on the tool in hand — what I4 prevents.
+      */}
+      {(erasing || (!selecting && (onTerrain || (isObjectLayer && objectTool === "scatter")))) && (
+        <Slider
+          label="Brush size"
+          value={brushSize}
+          min={40}
+          max={800}
+          step={10}
+          display={`${brushSize} px`}
+          onChange={setBrushSize}
+        />
       )}
 
       {selecting && (
@@ -460,7 +637,6 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
               ? "Click, shift-click or drag a marquee to select — any layer, not just this one."
               : `${selected.length} selected${onlyType ? "" : " across types"}` +
                 " · drag to move · corners scale · the stalk rotates." +
-                (onlyType === "river" ? " Drag a control point to reshape it." : "") +
                 (selectedLand.length > 0
                   ? " Double-click land to take what stands on it too."
                   : "")}

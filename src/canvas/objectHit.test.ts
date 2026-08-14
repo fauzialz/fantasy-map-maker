@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { footprint, hasFootprint } from "../scene/bounds";
-import type { Landmark, Landmass, Mountain, River, SceneObject, Tree } from "../scene/types";
+import type { Landmark, Landmass, Mountain, SceneObject, Tree, Water } from "../scene/types";
 import { crowded, isUnderBrush } from "./objectHit";
 
 const at = (x: number, y: number, scale = 1): Tree => ({
@@ -59,7 +59,8 @@ describe("object eraser hit-test", () => {
    * WP-26 (ADR-37) reverses what this file used to assert. Path objects still have no
    * footprint — that part is unchanged and is why they need their own branch — but "no
    * footprint" no longer means "not erasable". It meant landmasses and rivers could not be
-   * removed by any tool at all, which was the scoped eraser's real defect.
+   * removed by any tool at all, which was the scoped eraser's real defect. Since WP-40 both
+   * substances answer through the same outline test, because they are the same shape.
    */
   const square = (size: number): Landmass => ({
     id: "l",
@@ -103,21 +104,24 @@ describe("object eraser hit-test", () => {
     expect(isUnderBrush(withLake, [150, 150], 60)).toBe(true);
   });
 
-  it("catches a river the brush crosses, and takes it whole", () => {
-    const river: River = {
-      id: "r",
-      type: "river",
-      points: [
+  it("catches a water body the brush crosses, and takes it whole", () => {
+    const channel: Water = {
+      id: "w",
+      type: "water",
+      path: [
         [0, 0],
         [200, 0],
+        [200, 20],
+        [0, 20],
       ],
-      width: 20,
-      taper: false,
-      z: 0,
+      holes: [],
     };
-    expect(isUnderBrush(river, [100, 5], 1)).toBe(true);
-    expect(isUnderBrush(river, [100, 60], 20)).toBe(false);
-    expect(isUnderBrush(river, [100, 60], 60)).toBe(true);
+    // Inside the outline, nowhere near an edge — the point-in-polygon half.
+    expect(isUnderBrush(channel, [100, 10], 1)).toBe(true);
+    // Outside, and further than the disc reaches.
+    expect(isUnderBrush(channel, [100, 80], 20)).toBe(false);
+    // Outside, but the disc overlaps the bank — the ring-walk half.
+    expect(isUnderBrush(channel, [100, 80], 70)).toBe(true);
   });
 });
 

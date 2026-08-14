@@ -112,15 +112,21 @@ doesn't change as you zoom.
 **Integrate into the scene (boolean ops via `polygon-clipping`):**
 - Paint **touching existing land** → **union** (single continuous coastline).
 - Paint a **detached blob** → a **new, separate landmass** object.
-- **Erase / sea brush** → **difference**; can **split** a landmass or **punch a lake**.
+- **`Water › Sea`** → **difference**; can **split** a landmass or **punch a lake**. (Reached from
+  the terrain layer as the "sea brush" until ADR-50 moved it to the substance it makes.)
 - After every op, run **connected-components**: bridged land auto-merges; cut land
   auto-splits into separate objects.
 - **Merge/split identity rule: the larger piece keeps the id/name; the smaller gets
   a fresh id and empty name.** (Undo-able toast so nothing feels lost.)
 
-**Water model:** water = **absence of land**. Lakes are holes; an island-in-a-lake is
-a land polygon sitting inside another landmass's hole (even-odd fill). The **eraser
-IS the sea brush** — one water tool, no mode confusion.
+**Water model:** the **sea** is the absence of land — lakes are holes, and an island-in-a-lake is
+a land polygon sitting inside another landmass's hole (even-odd fill). **Rivers are not**: since
+ADR-47 water is a substance with geometry of its own, and land is drawn as
+`union(land) − union(water)`. See §7 and `16-water-as-objects.md`.
+
+> Until ADR-37 this read *"the eraser IS the sea brush — one water tool, no mode confusion"*, and
+> until ADR-50 the sea brush was a toolbar button of its own. It is the water layer's **Sea** tab
+> now: one substance, three ways to author it.
 
 **Coastal rings — one elegant operation:** buffer the **union of all land** outward
 in `ringCount` steps (`ringGap` px each). Each step simultaneously expands the coast
@@ -131,8 +137,16 @@ Because it's computed from the **union**, rings between two close islands **merg
 one shared band instead of colliding** — this is the fix for the strait/pinch
 artifact. Recomputed on commit only, in the Worker, cached as a bitmap.
 
-**Rivers:** a **separate spline tool** — tapering polyline (wider toward the sea),
-**no rings**, rendered above land. Fully decoupled from the boolean engine.
+**Water (since WP-40, ADR-47):** a **substance**, not a tool's output. Land is drawn as
+`union(landmass) − union(water)` — derived at draw time, never stored — so a river's banks are
+ordinary coastline and its estuary is ordinary shore. Bands come from that same cut boundary
+but are clipped to the **pre-cut** sea, so a channel never fills with rings (`16` D5).
+
+> Until WP-40 this read: *"Rivers: a separate spline tool — tapering polyline (wider toward the
+> sea), no rings, rendered above land. Fully decoupled from the boolean engine."* Every clause
+> of that is now false. Water is **inside** the boolean engine, it is not rendered above land
+> but subtracted from it, and it has no taper — width is an artistic choice (`16` D7), which
+> closes `15` H2 permanently.
 
 ## 8. Scene graph, layers, selection, editing
 
@@ -144,7 +158,7 @@ artifact. Recomputed on commit only, in the Worker, cached as a bitmap.
 4. Terrain / landmass fills
 5. Forests
 6. Mountains
-7. Rivers
+7. Water                       (GEOMETRY, draws nothing — see §7)
 8. Icons / landmarks
 9. Labels                      (always on top)
 ```
@@ -160,10 +174,9 @@ artifact. Recomputed on commit only, in the Worker, cached as a bitmap.
   Scattered objects are **independent** (no formal grouping in v1).
 - **Selection = multi-select** (marquee drag + shift-click), backed by an **rbush**
   spatial index so it stays fast with 1–2k objects.
-- **Contextual eraser:** "erase" removes whatever the active tool creates. On Terrain
-  it edits land geometry (sea brush); on Mountains/Forests/Icons it's an
-  **object-eraser brush** (drag to remove objects under it). Plus click-select →
-  Delete. (Satisfies "direct delete" two ways.)
+- **Global eraser** (ADR-37, was contextual): one disc that removes whole objects from every
+  visible, unlocked layer. Removing *land* is not erasing — it is `Water › Sea`, which subtracts
+  geometry rather than deleting an object. Plus click-select → Delete.
 
 ## 9. Rendering & performance architecture
 

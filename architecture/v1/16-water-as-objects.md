@@ -1,11 +1,11 @@
 # Water as Objects — One Substance, Two Brushes, No Special Cases
 
-_Status: **EXPERIMENTAL · scheduled as WP-40 → WP-43.** Shape agreed in the ideation session of
-**2026-08-12**; every decision in §9 is settled. But this is the first design in the repo that is
-**deliberately not approved in shape** — the owner will build it, use it, and judge the look and
-the performance by hand before it is accepted. See **§10**, which is binding: an evaluation
-session may follow, and its outcome may be a few tweaks or a complete revamp. Nothing downstream
-should be built on the assumption that this survives contact._
+_Status: **ACCEPTED · built as WP-40 → WP-43.** Shape agreed in the ideation session of
+**2026-08-12**; every decision in §9 settled; built, used, and **accepted by the owner on
+2026-08-14** — see §10, which records the outcome and the tweaks that preceded it. This was the
+first design in the repo deliberately **not** approved in shape: argued to a settled shape and
+then *tried*. It survived contact, with three of its own decisions amended by use. **Downstream
+work may now assume the water model exists.**_
 
 _This document **supersedes most of `15-river-engine.md`**, which stays for its analysis. It is
 the **design**; the **work order** is `prompts/phase-0.5-core-editor-improvement.md` (Batch 14).
@@ -195,23 +195,38 @@ small water body deletes it, and says so.
 
 **Design.**
 - Drag or click a path; **the preview shows the water you will get**, at its nominal width, live.
+  **Settled at build time: click.** Shipped as a drag first and rejected by the owner — a river is
+  a route across a map, chosen, and a freehand drag makes it a brush stroke instead. Clicks lay
+  the course, the pointer rubber-bands the ribbon to where the next one would go, and a
+  double-click or Enter finishes it.
   Not a bare line. A tool that shows nothing until it commits is the exact complaint
   `12-tools-that-say-what-they-do.md` opens with and WP-24 was built to answer — the pleasant
   surprise belongs in the *detail*, never in the *object*. The randomisation applies on commit; the
   shape does not.
 - **Width is an artistic random walk** along the path, not a taper (D7). A river may be wide in the
   middle. Nothing accumulates downstream, ever.
-- **Variation is proportional to the base width**, not absolute (D15). A 40-unit river wanders
-  28–52; a 6-unit river wanders 4–8. There is **no floor**, by decision — but proportional
-  variation means a river can never silently wander to nothing, which is the failure a floor was
-  protecting against.
+- ~~**Variation is proportional to the base width**, not absolute (D15).~~ **Replaced at build
+  time by an explicit minimum and maximum.** Proportional variation off a nominal width was doing
+  two jobs and was legible as neither: the number in the rail was a width the river mostly was
+  not, and the range it could reach was implicit. Two bounds say what they mean. D15's *reason*
+  survives — a river can never wander to nothing — but the floor is now a value the user chose
+  rather than an emergent property of the walk, and **the preview draws the maximum**, so the
+  commit can only ever come out narrower than the ground it cleared.
+- **Roughness is noise on each bank, sampled independently** (D13's "roughness noise"). Varying
+  only the width moves both banks in lockstep about the centreline, so the river pinches and
+  swells in perfect symmetry — the defect `engine/terrain/roughen.ts` exists to prevent, one level
+  along: *nothing on a hand-drawn map runs parallel to anything.* No width walk can fix it,
+  because the mirroring is in the construction rather than in the numbers.
 - Width and roughness are **tool settings in the rail**, beside brush size. They are not written to
   the object. **There is no Reroll** (D17): undo and draw again.
 - On commit the polygon enters the water collection and merges like any other (D10). From that
   moment it is indistinguishable from a painted one (C9) — same fields, same selection, same
   editing.
-- The preview must be honest about D16: over open sea the tool produces nothing, so the preview
-  must show nothing there, or the user commits to an invisible object.
+- The preview must be honest about D16: over open sea the tool produces nothing. **Shown as a
+  pale ghost rather than as nothing at all**, corrected at build time — a preview that vanishes
+  while you are still clicking out a course is untrackable, and D16's requirement is that the
+  preview not *lie*. A ghost says "this part does nothing", which is true; blankness said "there
+  is no tool in your hand", which is not. The **commit** still refuses outright.
 
 **Acceptance.** The preview during the drag is the ribbon, not a line, and its width matches the
 setting · the committed object has **no** `width`, `seed` or `points` field — read the scene, not
@@ -383,6 +398,41 @@ Until that decision is recorded here, **treat this design as provisional**:
 
 The evaluation session, if it happens, appends its findings to this section rather than starting a
 new document.
+
+---
+
+### The evaluation, 2026-08-14 — **accepted**
+
+**Outcome 1: accept, with tweaks — and the tweaks were taken before the verdict rather than
+after.** The owner used the editor across two sessions and returned fourteen specific
+corrections; all were applied, and the acceptance followed the corrected build rather than the
+one that first passed its acceptance criteria. That ordering is worth recording, because it is
+what the "built, then tried" experiment was *for*: three of the corrections moved decisions in
+this document, and none of them could have been reached by argument.
+
+**What the three unjudgeable decisions came back as:**
+
+| | Question | Verdict |
+|---|---|---|
+| **C2** | fast enough to work in? | **Yes**, and measured: water costs 0–10% on top of the ring derivation (WP-40). Two further costs *were* felt and fixed — the terrain layer being cached while the water layer was active, and a 150 ms commit debounce. |
+| **D12** | does a heavy outline on a narrow river read as a stream or a mistake? | **Accepted.** Not raised as a complaint in either session. |
+| **D7, D15** | does an artistic random width look like a river or a worm? | **Accepted in principle, amended in mechanism.** D15's proportional variation was replaced by an explicit min/max, and D13's roughness became genuine per-bank noise — the width walk alone left a river that was its own mirror image. |
+
+**Three decisions in §9 are therefore amended rather than as-written**: **D15** (bounds, not
+proportion), **D13** (noise on the banks, which is what its own wording had always implied), and
+**D16** (a pale ghost over open sea rather than nothing — the requirement is that the preview not
+*lie*, and blankness said "there is no tool in your hand"). Each is struck through where it stands.
+**ADR-50** was added in the same pass, deleting the sea brush's button: once the water layer had a
+Sea tab running the identical op, the button was a second visible route to one tool.
+
+**The provisional constraints above are lifted.** Later batches may assume the water model;
+node editing (D3) is unblocked and sits on the 0.5 backlog awaiting an ideation session to settle
+its shape (`17-vertex-editing.md` V2); the debt this design created may be paid down normally. **DEBT V-02 is deleted with this record** —
+both defects it tracked stopped being representable, and its retire-when was this line.
+
+The one thing that does **not** relax: §8's migration deadline was about data, not design, and it
+is spent. The v1 → v2 step deletes rivers, and that was free because the owner held the only
+drafts. It is not free again.
 
 ## 11. Cost
 

@@ -984,7 +984,7 @@ deadline argument wrong.
       undoing it, which is fewer moving parts than a second vhost to test an unflipped release.
       **This half-closes WP-13's deploy**; production and a public domain remain.
 
-**Batch 14 — water as objects — EXPERIMENTAL, not started (WP-40 … WP-43).** Rivers stop being
+**Batch 14 — water as objects — built and ACCEPTED (WP-40 … WP-43).** Rivers stop being
 independent ribbons (ADR-14) and water becomes a substance: land is drawn as
 `union(land) − union(water)`, derived at draw time and never stored. Both defects
 `15-river-engine.md` recorded stop being representable rather than patched, at the cost of the
@@ -992,41 +992,222 @@ topology — no drainage graph, and **`15` H2 closed permanently**. Design, cons
 per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1–D18 all settled**;
 **ADR-47, ADR-48, ADR-49**.
 
-> **This batch ends in an evaluation session, not a tick** (`16` §10). Three of its decisions can
-> only be judged by drawing maps. Until the owner records accept-or-revamp in `16` §10, **nothing
-> may be built on top of it** and node editing (`16` D3) stays unscheduled.
+> **This batch ended in an evaluation session, not a tick** (`16` §10), and the session returned
+> **accept**, on 2026-08-14. Four ticks were never that session: D12, D7/D15 and C2 were not
+> things a fixture could answer. C2 came back measured; the rest came back by eye, after two
+> sessions of use and fourteen corrections — three of which amended the design's own decisions.
+>
+> **The provisional constraints are lifted.** Later work may assume the water model, node editing
+> (`16` D3) is unblocked and on the backlog below, and this design's debt may be paid down
+> normally.
+> **DEBT V-02 is deleted**: both defects it tracked stopped being representable, and its
+> retire-when was exactly this record.
 >
 > **It also has a deadline** (`16` §8): WP-40's `migrate()` **deletes** every existing river
 > rather than converting it, which is free only while the owner is the only person holding
 > drafts. Staging is live — see WP-39 — so that is nearer than "the deploy has not happened."
 
-- [ ] **WP-40 · Water is a substance** — the `water` type, the `schemaVersion` bump and its
-      `migrate()`, **the matching edit to `02-scene-data-model.md`** (§4's `river` entry, §3's
+- [x] **WP-40 · Water is a substance** — the `water` type, the `schemaVersion` bump to **2** and
+      its `migrate()`, **the matching edit to `02-scene-data-model.md`** (§4's `river` entry, §3's
       layer table, §6's contract — it is *law*, and a bump that lands without it leaves the
       contract describing a shape nothing writes), the two-collection derivation, the band rule,
       the layer rename, the visibility toggle. **No tools**: fixtures and rendering only, and it
-      carries every geometric risk in the batch. Bands offset from the cut boundary then intersect `canvas − union(land)` — **no
-      provenance tracking**, which no boolean library can give. Ends in a **measurement against
-      the 119–488 ms baseline**; if that number is bad, the rest does not start.
-      **It also deletes river point-dragging and `width`, so four documents go stale in the same
-      commit and must be corrected in it**: `07` I5's top rung; `09`'s WP-20 section (*"scale
-      multiplies `width`"*, the acceptance built on it, and row E10); **ADR-29**, which carries the
-      same sentence in the decision log; and `01` §7, which still describes a river as a tapering
-      polyline. The gap is **accepted**
-      (`16` §7): precision is lost, WP-41 and WP-42 give back freehand reshaping by brush, and
-      both substances then edit the same way. Node editing stays unscheduled by choice, not by
-      dependency.
-- [ ] **WP-41 · The water brush, and water joins the selection** — one brush, two modes (carve
+      carried every geometric risk in the batch. Bands offset from the cut boundary then intersect
+      `canvas − union(land)` — **no provenance tracking**, which no boolean library can give.
+      **The measurement cleared its gate**: water costs **0–10%** on top of the ring derivation,
+      inside the run-to-run spread on the worst case. Reproduced baseline 231 ms (single, 721
+      coastline points) / 380 ms (multiple, 1 171) / 1 544 ms (archipelago, 2 931) at 4000×3000,
+      ringCount 4, ringGap 14, median of 5 in Node on the dev VPS — *not* the machine the
+      119–488 ms figure was taken on, so **the ratio is the transferable number**. Structural
+      rather than lucky: four Clipper offsets dominate, and one union plus one difference is small
+      beside them, so `ringCount` is still the ceiling. Recorded with its conditions in
+      `engine/water/derive.ts`.
+      **Two decisions taken while building, both inside the design's grain:**
+      **the cut is per landmass, not over the union** — `16` §3 states it as
+      `union(land) − union(water)` and per-landmass is the same picture, since C1 forbids land
+      overlapping land at rest, but it keeps each piece's `biome` to fill with and `id` to be
+      selected by, neither of which survives a union of the terrain layer; and **`land` is null
+      when there is no water**, a fast path that means a water-free map — every map alive when
+      this shipped — pays not one boolean op more than before, instead of waiting on an async
+      derivation to draw a coastline it already knows.
+      **It also deleted river point-dragging and `width`, and the stale documents were corrected
+      in the same commit**: `07` I5's top rung (the ladder is one rung shorter, and I8 lost its
+      second worked example); `09`'s WP-20 section (points 2, 3 and 5 struck through as void, plus
+      rows E9 and E10); **ADR-29**, amended rather than superseded — its load-bearing half holds
+      for an outline, only the reason rivers were the *pilot* expired; and `01` §7, which
+      described a river as a tapering polyline. **`04-geometry-pipeline.md` was corrected too**,
+      which the entry above did not anticipate: the op is `deriveTerrain` now, not `deriveRings`,
+      and Pipeline C is fed the cut boundary. The gap is **accepted** (`16` §7): precision is lost,
+      WP-41 and WP-42 give back freehand reshaping by brush, and both substances then edit the
+      same way. Node editing stays unscheduled by choice, not by dependency.
+- [x] **WP-41 · The water brush, and water joins the selection** — one brush, two modes (carve
       land / lay water), the mode legible in the hover ring **before** the press. Commit path is
       the landmass brush's; strokes merge on overlap. Selection ships here, not later: a tool
       that makes objects the user cannot select or delete is not a shippable package.
-- [ ] **WP-42 · Land carves water** — the terrain brush subtracts from water **destructively**
+      **`useTerrainBrush` became `useSubstanceBrush`**: two substances, three modes, one gesture,
+      with the stamping, preview, undo step and worker round-trip identical and only the op at
+      the end differing. Carve runs literally the terrain pipeline's erase branch, which is how
+      "today's sea brush, unchanged" is kept as a promise rather than a resemblance.
+      **Selection was nearly free, as designed**: `landmassAt` turned generic over the substance
+      rather than growing a `waterAt` twin — a second identically-bodied function is the special
+      case this batch exists to avoid — and `claimComponents` was extracted from
+      `splitByComponents` so ADR-10's larger-piece rule has one implementation for both.
+      **One thing beyond the design, and it is C1 rather than scope creep**: a *drag* that drops
+      water onto water has to merge too, since C1 holds at rest and a drop is as much a commit as
+      a stroke. It runs inline (`mergeWater`) rather than through `resolveDrop`, because D10
+      makes the whole answer a union and a re-split — no overlap policy, no slide-back, no
+      shared-delta problem — and it lands *before* the commit so the merge is inside the drag's
+      own undo step.
+      **The driver found a real defect and it is fixed here (ADR-37 amended).** The global eraser
+      took everything its disc touched, which was safe while everything was disjoint — but water
+      lives *inside* a landmass's stored outline, so one click on a visible channel deleted the
+      continent as well. Water now outranks land when the disc covers both, by the same
+      precedence a click resolves; the sweep is unchanged wherever nothing is stacked.
+      **18 driven checks**, including the ring tone read off the canvas by sweeping (C6), one
+      derivation per stroke counted through `Worker.prototype.postMessage`, and hidden *and*
+      locked water contributing nothing to a click. Mutating the click precedence to land-first
+      fails exactly the one check that names it; the eraser fix was itself observed failing
+      before it was made.
+      A `data-selection-types` attribute on the rail joins `data-land-count` as a surface a
+      driver can be exact against — "1 selected" cannot tell a channel from the continent it is
+      cut through, and that distinction is the whole question here.
+- [x] **WP-42 · Land carves water** — the terrain brush subtracts from water **destructively**
       and severs a river in two. The asymmetry is required (`16` C8), not an oversight. Its own
       package because two destructive edits meet, and both must land in **one** undo step.
-- [ ] **WP-43 · The spline generator** — a path that emits a water polygon with randomised width
+      **One round-trip, not two**, which is what makes that undo step possible at all:
+      `terrainCommit` grew an `existingWater` input and now returns `{ landmasses, waters }`, and
+      the brush writes both collections before a single `commit`. Only `paint` carves — the sea
+      brush removes *land*, so it leaves water where it is, which is C8's asymmetry seen from the
+      other side and is asserted rather than assumed.
+      **`waters` is null when the stroke missed**, so an ordinary land stroke never touches that
+      layer: the reply crosses a `postMessage` and arrives as a copy, so echoing the input back
+      would rewrite the water layer on every stroke, put it in the undo diff, and invalidate a
+      derivation with no reason to re-run.
+      **A fixture caught the first version of that null test.** It asked whether the object count
+      or the vertex count had changed — and shaving one bank of a rectangular river along its
+      whole length leaves a rectangle, so a real carve reported as a miss. It compares **area**
+      now, which is the question with no false negative in it.
+      **The wipe and the sever are announced** (`describeWaterChange`), and the water half wins
+      the toast when both fired: a severed or covered river is the surprising, destructive one,
+      while merged land is merely worth mentioning. 13 driven checks. Writing the water half
+      *after* the commit instead of before — the one-line mutation of this package's whole reason
+      to exist — fails five of them.
+> **Eleven corrections from the first session of actually using the water tools**, folded into
+> the packages above rather than filed as a batch of their own — they are what `16` §10's
+> evaluation is *for*, and none of them changes the model. Three were plain bugs: a scatter ring
+> drawn over the spline tool (`objectTool` survives a layer switch, and water is not an object
+> layer, so the fallback had to check the layer and not just the tool); the whole continent
+> fading to 55% and back on **every** water commit, because `landStale` included `deriving` and
+> a commit is a blink rather than a held gesture; and the terrain layer's biome palette and
+> overlap control still showing after leaving Select for a water tool, since they were gated on
+> *what was selected* rather than on Select being the tool in hand.
+>
+> Two were about cost, and had one cause: **terrain is now live whenever the water layer is
+> active.** Water draws nothing of its own — its entire output is the shape it removes from
+> terrain — so while you are making water, terrain is the layer being edited, and caching it
+> made every stroke re-render the continent into a bitmap *on top of* the derivation. That is
+> also why carving from the water layer felt slower than the identical sea-brush stroke from the
+> terrain layer, where terrain was already live. The commit debounce came down from 150 ms to
+> 40 ms with it: a debounce collapses bursts, and a committed stroke is not a burst.
+>
+> The rest reshaped the spline tool — see WP-43.
+>
+> **A second pass reshaped the rail itself.** The water layer's three flat chips became **two
+> tabs, Sea and River**, with the two river-authoring modes nested under the second: three peers
+> said the layer had three tools, when it has two substances to make and rivers happen to be
+> authorable two ways. Sea carries no sub-chips, because carving is one gesture and a segmented
+> control with one segment is a label pretending to be a control. `Draw a river` became **Draw
+> with Spline**, which names the gesture rather than the outcome — the Brush beside it also draws
+> a river.
+>
+> **Water moved beside Terrain in the toolbar**, ahead of the scatter layers: it edits the same
+> geometry, and the row now reads in the order the map is built rather than in the order the
+> layers stack. The *layer stack* is untouched — that is render order (ADR-15) and answers a
+> different question.
+>
+> **The Sea brush button is deleted (ADR-50).** Once the water layer had a Sea tab running the
+> identical op through the identical pipeline, the toolbar button was a second visible route to
+> one tool — the defect `12-tools-that-say-what-they-do.md` exists to remove, and the tab is the
+> better home, since it puts "make sea" beside "make rivers" rather than beside "select" and
+> "erase". **`terrainTool` went with it**: it existed only to carry the distinction the button
+> set, so with the button gone it had one reachable value. The terrain brush paints land and
+> nothing else. The *operation* is untouched — same erase branch of Pipeline A, still destructive,
+> still able to cut a landmass in two, still answering to the terrain layer's own flags.
+> Documentation followed to nine places, including the ASCII wireframe in `11` and the published
+> mockup in `ux-wireframe.html`, both of which drew a toolbar that no longer exists.
+>
+> And **`coastDetail` is labelled "Bank roughness" on the water layer** while staying "Coast
+> detail" on terrain. One value, two honest names: a bank *is* coastline, so the setting that
+> decides whether one comes out smooth or ragged should be named for the thing you are looking at.
+> Brush size sits between the modes and it, which is where the earlier "not on top" and this
+> pass's "above the detail slider" meet.
+
+- [x] **WP-43 · The spline generator** — a path that emits a water polygon with randomised width
       and roughness. **The preview shows the water, not a line.** Width is an artistic random
       walk, variation proportional to base width, no floor, **no Reroll**. The committed object
-      carries no `width`, `seed` or `points` — assert on the scene, not the render.
+      carries no `width`, `seed` or `points` — asserted against the **saved scene**, not the
+      render, and the field list is exactly `holes,id,path,type`.
+      **Click to lay a course, double-click or Enter to finish, Escape to abandon.** `16` §5
+      allows either gesture — "drag or click a path" — and this shipped as a **drag** first, on
+      the argument that a modal gesture was what made a double-click on the old rivers layer
+      ambiguous (WP-20's bug). **The owner rejected that**: a river is a route across a map,
+      chosen, and a freehand drag makes it a brush stroke instead. The tool is named for the
+      spline, and the spline is a guide you place.
+      The WP-20 trap is avoided rather than reintroduced: its actual cause was keying the
+      double-click handler on the **layer**, so it fired whether or not a river was being drawn.
+      `MapStage` keys it on `spline.finish()` returning true — on a river actually in progress —
+      and the HUD says which state the gesture is in, so the modal mode is never invisible.
+      **The preview is clipped to the land with `ctx.clip()`, not a boolean op**, which is what
+      makes D16's honesty affordable per frame: `polygon-clipping` against a 2 800-point coastline
+      on every mousemove is the cost C2 spends its whole budget avoiding. And **D16 became a
+      refusal rather than a warning** — a river entirely over open sea commits *nothing* and says
+      why, since an object nobody can see is worse than a tool that declines.
+      **Two defects found while building, both by the fixtures.** `ribbonOutline` built its
+      opening cap from `right[0]` *after* spreading `...right.reverse()` — `reverse()` mutates, so
+      the cap was struck from the far end and the outline crossed itself. A single ribbon still
+      unioned to one polygon, which is why it looked right; **two disjoint rivers came back as
+      three objects**, and that is what caught it. And the preview rendered into terrain's
+      *cached* bitmap — it is hosted by the terrain layer so it sits under the forests, but that
+      layer's cache key is its objects and its derived land, neither of which moves during a drag,
+      so the preview was drawn once and never seen again. Terrain now goes live while previewing,
+      a third reason on top of the two ADR-19 already gives.
+      11 driven checks. Removing the width effect fails only the "changes while the pointer is
+      still" check; removing the clip fails only the "previews nothing over sea" check — so
+      neither is passing vacuously.
+      **Reshaped after the first session of use, and three of its decisions moved.** The single
+      *River width* became an explicit **Narrowest/Widest** pair, because the width is randomised
+      and one number was a value the river mostly was not (amending D15; its reason survives, its
+      mechanism does not). **Roughness became noise on each bank, sampled independently** — it
+      had only been the step size of the width walk, which moves both banks in lockstep and
+      leaves a river that is its own mirror image, the defect `roughen.ts` exists to prevent. And
+      the preview grew two marks it was missing: a **silhouette at the maximum width**, so the
+      envelope is promised and the commit can only come out narrower, and the **clicked course**
+      — points and smoothed centreline — so you can see where the next click attaches. The
+      stretch running over open sea is now a **pale ghost rather than nothing**, which is D16
+      told truthfully instead of a tool that disappears mid-gesture. 14 more driven checks.
+
+**Vertex editing — on the 0.5 backlog, awaiting an ideation session.** Seeing an object's outline
+points and dragging them, on water **and** land — the other half of the request that produced
+Batch 14, and unblocked by its acceptance. Design note: `17-vertex-editing.md`.
+
+> **The next step is a session, not a package.** `17` **V1 is answered** — it arrives; the freehand
+> brushes Batch 14 shipped did not turn out to be sufficient, which is the observation `17` §7 was
+> waiting for. **V2 onward are not**, and V2 is not a detail: exact vertex handles and a coast
+> sculpt brush are different features with different package breakdowns, and `17` §5 argues both
+> sides honestly — the brush disposes of six of the eleven problems because they are *handle*
+> problems, and cannot be exact, which is the one thing Batch 14 took away.
+>
+> So it is **not** in `prompts/phase-0.5-core-editor-improvement.md`, which by its own rule carries
+> a work order for a batch *about to be built*. It gets a number and a brief when a session settles
+> V2 — the way Batch 14 got its shape from the ideation session of 2026-08-12.
+
+> **Settled already, whichever shape wins**, and worth carrying into that session rather than
+> rediscovering: **both substances** (`16` D3 — a water object is a landmass's shape, so a
+> rivers-only feature would build the special case the water design exists to avoid); **`07` I5
+> gets back the top rung** WP-40 removed, because a vertex on a coastline will sit on a frame
+> corner exactly as a river endpoint did; and **V3 + V10 must answer self-intersection together**,
+> before the first package rather than after, because an outline crossing itself corrupts the
+> terrain *derivation* and not merely the picture.
 
 ## Later phases (see the phase prompts)
 

@@ -90,7 +90,13 @@ land before, after, or between its packages.
    S2 that draw time is roughly conserved because the budget is on total objects.
 6. **Erase keeps its behaviour and gains an honest label** (D-a). It reads **"Sea brush"** on
    Terrain and **"Erase"** elsewhere, so it announces that it is contextual instead of looking
-   like a fixed peer of a now-global Select. ADR-18 is unchanged: erasing really is two
+   like a fixed peer of a now-global Select.
+
+   > **Both halves of this expired.** ADR-37 split the two apart — the eraser went global and
+   > stopped being contextual at all — and **ADR-50** deleted the sea brush's button, moving it to
+   > the water layer's **Sea** tab. The reasoning below is why the relabel was the right call
+   > *while one button was doing two jobs*; the split removed the premise.
+ ADR-18 is unchanged: erasing really is two
    different operations — subtracting land geometry, and removing objects — and one button
    that renames itself is cheaper than an ADR amendment and clearer than either alternative.
 
@@ -102,6 +108,14 @@ land before, after, or between its packages.
   layers, recorded with its object count. Driven input, not a screenshot.
 
 ### WP-20 · Rivers gain a frame  *(the two-model pilot — build this before WP-19)*
+
+> **WP-40 invalidated the premise this package was chosen for, and the record below is kept as
+> history rather than as a description of the code.** Rivers were the cheap case *because*
+> `width` sat outside the geometry — that is what made all three transforms lossless. Water is
+> an outline (ADR-48), so there is no `width` to preserve and nothing lossless left to prove;
+> the two-model frame it piloted survives untouched, now with two outline types instead of an
+> outline and a ribbon. **Points 2, 3 and 5 below are void**, and each says so where it stands.
+> See `16-water-as-objects.md` §7, and I5 for the ladder as it now stands.
 
 Numbered after WP-19 because it was decided later; **sequenced before it**, because it is
 the same machinery on the object type with none of the hazards. Blocked on nothing — D1 is
@@ -127,13 +141,20 @@ prove the two-model frame before spending it on coastlines.
    cannot be picked. This is D1's rewrite, and it is the bulk of the package.
 2. **`transform.ts` stops refusing.** [Line 9](../../src/scene/transform.ts#L9) is explicit —
    path-based objects come back untouched "so a selection can never silently deform terrain".
-   Translate and rotate become a map over `points`. **Scale maps the points *and* multiplies
-   `width`**: without that, a river scaled with the map around it comes out a thread. `taper`
+   Translate and rotate become a map over `points`. ~~**Scale maps the points *and* multiplies
+   `width`**: without that, a river scaled with the map around it comes out a thread.~~ `taper`
    needs nothing — it is a fraction along the path, which every rigid transform preserves.
-3. **Bounds come from the control points, not the ribbon.** Chaikin keeps the curve inside
+
+   > **Void since WP-40.** There is no `width` and no `taper` to carry: water is an outline, so
+   > scaling its points scales its width by construction, and the two path types now share one
+   > `remapPath` branch rather than having one each.
+3. ~~**Bounds come from the control points, not the ribbon.**~~ Chaikin keeps the curve inside
    the convex hull of its inputs, so `AABB(points)` inflated by half the maximum width is a
-   correct superset and costs nothing. Slightly looser than the drawn ribbon; memoising
-   `riverRibbon` is the upgrade if the slack ever shows.
+   correct superset and costs nothing.
+
+   > **Void since WP-40.** There is no centreline to inflate. `worldCorners` returns a water
+   > body's outline directly, exactly as it does a landmass's, and the slack this bullet
+   > accepted is gone with the superset that needed it.
 4. **The frame is feedback. Nothing about it is a hit target — not even its interior.**
    Keep `distanceToRiver` for picking: a meandering river's AABB covers a great deal of open
    water, and picking by box is wrong in exactly the way C4 says it is wrong for a crescent
@@ -156,10 +177,15 @@ prove the two-model frame before spending it on coastlines.
    this press over any of them". Retire it when someone actually hits it; the general form
    costs a per-object test on every press and changes group-drag for sprites, where pressing
    the gap between two selected mountains should keep working.*
-5. **Control points beat frame handles.** They genuinely collide: a river's endpoint is
+5. ~~**Control points beat frame handles.**~~ They genuinely collide: a river's endpoint is
    often precisely *at* an AABB corner, because it is what defines that corner. The ladder
    gains a rung above everything else — control point → frame handle → frame interior →
    object → empty space — and shift still escapes the shortcuts (I5).
+
+   > **Void since WP-40**, which deleted the rung and the `overControlPoint` input with it.
+   > The collision was real and will return with node editing, which is unscheduled by choice
+   > (`16` D3). I5 carries the ladder as it now stands: handles → frame interior → object →
+   > empty space.
 6. **The cursor mirrors all of it — I4, and the whole reason bug #2 stayed invisible.**
    `cursorForHover` and `resolveGesture` must resolve the *same* precedence, so the move
    cursor appears over the river's body and **not** over the empty interior of its box, the
@@ -305,7 +331,8 @@ ring freeze. Two are worth recording:
 - **"One ring derivation per drop" is a count, not an inference.** Wrapping
   `Worker.prototype.postMessage` from the driver logs the `op` of every geometry request, and
   it catches the worker the app already created because the method lives on the prototype.
-  The drag and drop together send exactly `resolveDrop, deriveRings`. The HUD's "rings
+  The drag and drop together send exactly `resolveDrop, deriveTerrain` (`deriveRings` until
+  WP-40 folded the land cut into the same op). The HUD's "rings
   frozen" banner is asserted on every frame as well, but the op log is what makes it exact.
 
 ## 5. What this does *not* cover
@@ -336,8 +363,8 @@ several were close calls.
 | **E6** | Erase: leave, split, or relabel? | **Relabel** (option 3). Rejected splitting it into a global object eraser plus a terrain-rail mode: it amends ADR-18 and, worse, makes Erase delete objects for someone on Terrain who expected the sea brush. |
 | **E7** | Do landmasses join the same selection, and when? | **Yes, at WP-19, after WP-17.** This settles **D1** in `08` §8 — admitting two interaction models is precisely what a shared frame over land and sprites requires. |
 | **E8** | Does moving land carry its contents automatically? | **No.** Contents ride only when selected. Considered and rejected: it is hidden behaviour, it needs a containment query and a coast-straddling policy, and the marquee plus double-click give the same ergonomics explicitly. |
-| **E9** | Do rivers get a frame too? | **Yes**, WP-20. They are the only path-based type for which all three transforms are lossless, so the two-model frame can be proved there first. |
-| **E10** | Does scaling a river change its `width`? | **Yes.** Points alone would leave a river scaled with the map around it drawn as a thread. `taper` needs nothing — it is a fraction along the path. |
+| **E9** | Do rivers get a frame too? | **Yes**, WP-20. They are the only path-based type for which all three transforms are lossless, so the two-model frame can be proved there first. **The premise expired at WP-40** — losslessness came from `width` being a number rather than geometry — but the frame it proved did not. |
+| **E10** | Does scaling a river change its `width`? | ~~**Yes.** Points alone would leave a river scaled with the map around it drawn as a thread.~~ **Moot since WP-40** (ADR-48): a water body has no `width` and no `taper`, so scaling the outline is the whole answer and the question cannot be asked. |
 | **E11** | Does a framed river get picked by its box? | **No — by path**, as now (`distanceToRiver`). The box is feedback only. A meandering river's AABB is mostly open water; picking by box is C4's mistake. **Frame shape ≠ hit shape**, and WP-19 inherits the rule. |
 | **E14** | Does the frame's *interior* claim a press for a path-only selection? | **No — inert interior. Shipped early, with WP-15, and for landmasses rather than rivers** — the same complaint arrived about land the moment it could be dragged, and `08` C4 already said a crescent continent's box is mostly open sea. `resolveGesture` and `cursorForHover` both take a `frameInterior` flag; WP-20 reuses it for rivers rather than inventing it. **No — inert interior.** First drafted as "yes, standard vector-editor behaviour, shift escapes", and recorded as a knowing regression. That was wrong: it is S8 being violated by the document that states S8, because the interior rung is the box picking. Handles and stalk stay live; the empty space falls through to the marquee. The regression disappears rather than being documented. |
 | **E15** | And the cursor? | **Mirrors it exactly** (S9). The move cursor appears over the river's body and nowhere else inside the box. Raised in review, and it is the half that would have been forgotten — a pointer promising a move where a press marquees is bug #2 with the parts swapped. |

@@ -225,11 +225,21 @@ P0 alone is a complete portfolio piece.
   plus the gesture-performance work — ADR-42, ADR-44) and **Batch 13** (WP-37 the rail follows the
   tool in your hand and WP-38 one click between menus — ADR-43). **Every scheduled 0.5 package is
   built.** None of it needed a host.
-- **Batch 14 is designed and not started** — `16-water-as-objects.md`, WP-40 … WP-43, **experimental
-  by decision** (ADR-47 … ADR-49). It brings **first-class water bodies** forward from the deferred
-  list below, because rivers-as-ribbons is where that deferral was actually costing something. It
-  ends in an evaluation the owner runs by hand, and may be accepted with tweaks or revamped
-  completely — so **nothing may be built on top of it** until `16` §10 says which.
+- **Batch 14 is built and accepted** — `16-water-as-objects.md`, WP-40 … WP-43 (ADR-47 … ADR-50).
+  It brings **first-class water bodies** forward from the deferred list below, because
+  rivers-as-ribbons is where that deferral was actually costing something. It was the repo's first
+  design **deliberately not approved in shape** — argued to a settled shape and then *tried* — and
+  it survived contact: accepted on **2026-08-14** after two sessions of use and fourteen
+  corrections, three of which amended its own decisions (D15, D13, D16). C2 came back measured
+  (water costs 0–10% on top of the ring derivation); D12, D7 and D15 came back by eye. The
+  evaluation is recorded in `16` §10, and **downstream work may now assume the water model
+  exists**.
+- **Vertex editing is on the 0.5 backlog, awaiting an ideation session** — `17-vertex-editing.md`:
+  seeing an object's outline points and dragging them, on water *and* land. Unblocked by Batch 14's
+  acceptance, and the other half of the request that produced it. **V1 is answered, V2 onward are
+  not**, and V2 decides what the packages even are — exact node dragging and a coast sculpt brush
+  are different features. It gets a number and a brief when a session settles that, the way Batch
+  14 got its shape from the ideation session of 2026-08-12.
 - **Deferred to a later version:** second (modern) map style, formal object grouping,
   ~~first-class water bodies/canals~~ — **brought forward as Batch 14** (`16`); a canal is water a
   user painted straight, so it needs nothing further — auto-generated rivers, rich blended biome
