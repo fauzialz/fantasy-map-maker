@@ -153,8 +153,11 @@ interface EditorState {
   splineMaxWidth: number;
   splineRoughness: number;
   /**
-   * **How fully bent the drawn course is**, 0…1 (WP-48) — 1 meaning every corner reaches the
-   * midpoint of both its legs, so there is no straight run left anywhere.
+   * **How fully bent the drawn course is**, 0…1 (WP-48) — straight at 0, flowing at 1.
+   *
+   * Defaults to the halfway hinge, which is the roundest the course can be while still running
+   * through every point that was clicked. Above it the guide relaxes and a click becomes a hint
+   * rather than a waypoint — worth having, but not what a tool should do before you ask it to.
    *
    * A proportion of the *maximum* rather than of the leg, because half the leg is where the
    * geometry actually ends: past it the two corners sharing a leg overlap and the course doubles
@@ -317,7 +320,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   splineMinWidth: 24,
   splineMaxWidth: 56,
   splineRoughness: 0.5,
-  splineBend: 1,
+  splineBend: 0.5,
   selection: [],
   seaLevel: null,
   generatorRotation: 5,

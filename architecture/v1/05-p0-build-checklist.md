@@ -1332,7 +1332,9 @@ same forty lines of `ribbon.ts` and a fix aimed at one of them can move the othe
       control, and dead straight out again. Above it the corners stay fully bent and the *guide*
       relaxes, so the course stops passing through the clicked points and takes its own line past
       them. Straight at 0, flowing at 1, and the two mechanisms hand over exactly where the first
-      runs out. Default **100%**.
+      runs out. **Default 50%, the hinge** — the roundest the course can be while still running
+      through every clicked point. The half above it is there when you want it and is not what
+      the tool should do before being asked.
       **Half a leg is a hard geometric ceiling, which is why the hinge is where it is.** Past the
       midpoint a corner's curve begins before its neighbour's has ended, so the course runs
       forward along the leg, jumps back down it and runs forward again — measured as a full

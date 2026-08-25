@@ -7,9 +7,10 @@ import { touchesLand, waterToPolygon } from "./cut";
 import { centreline, commitRibbon, previewRibbon } from "./ribbon";
 
 /**
- * The bend setting the fixtures below are measured at — the top of the control and the shipped
- * default, where corners are fully bent *and* the guide has relaxed as far as it goes. Pinned
- * here rather than read from the store so these stay assertions about the geometry.
+ * The bend setting the fixtures below are measured at — the top of the control, where corners
+ * are fully bent *and* the guide has relaxed as far as it goes. Above the shipped default, which
+ * sits at the hinge; pinned here rather than read from the store so these stay assertions about
+ * the geometry rather than about a preference.
  */
 const BEND = 1;
 
