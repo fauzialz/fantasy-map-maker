@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layer, Line, Shape, Stage } from "react-konva";
-import { LAYER_OBJECT, selectLandmasses, useEditorStore } from "../state/editorStore";
+import { LAYER_OBJECT, selectLandmasses, selectWaters, useEditorStore } from "../state/editorStore";
 import { useThemeStore } from "../state/themeStore";
 import { LAYER_ORDER, type Label, type LayerId, type Point } from "../scene/types";
 import { LabelEditor } from "../ui/LabelEditor";
@@ -243,6 +243,7 @@ export function MapStage({ editing }: { editing?: Label }) {
    * refuse it exactly as it refuses the sea brush (`12` D3 — hiding a layer protects it).
    */
   const waterTool = useEditorStore((s) => s.waterTool);
+  const splineMaxWidth = useEditorStore((s) => s.splineMaxWidth);
   const waterLayer = scene.layers.find((layer) => layer.id === "water");
   const waterEditable = !!waterLayer?.visible && !waterLayer.locked;
   const onWater = activeLayerId === "water";
@@ -267,11 +268,15 @@ export function MapStage({ editing }: { editing?: Label }) {
     map,
     toMapPoint,
   });
-  /** WP-43 — the third way to make water: drag a path, get a river. */
-  const spline = useSplineTool({
-    enabled: onWater && waterTool === "spline" && waterEditable && !selecting && !erasing && ready,
-    toMapPoint,
-  });
+  /**
+   * WP-43 — the third way to make water: click a path, get a river.
+   *
+   * **Armed, not drawing.** WP-47 needs the same condition for the hover ring and the cursor,
+   * and it was written out three times with three slightly different tails; one name means they
+   * cannot drift apart.
+   */
+  const splineArmed = onWater && waterTool === "spline" && waterEditable && !selecting && !erasing;
+  const spline = useSplineTool({ enabled: splineArmed && ready, toMapPoint });
   const objects = useObjectBrush({
     activeLayerId,
     enabled: erasing ? ready : onObjectLayer && !selecting && live,
@@ -397,6 +402,7 @@ export function MapStage({ editing }: { editing?: Label }) {
   const onRingBytes = useCallback((value: number) => setRingBytes(value), []);
 
   const landmasses = useEditorStore(selectLandmasses);
+  const waters = useEditorStore(selectWaters);
   const landCount = landmasses.length;
   const undoDepth = useEditorStore((s) => s.past.length);
   const objectCount = scene.layers.reduce(
@@ -436,11 +442,19 @@ export function MapStage({ editing }: { editing?: Label }) {
             // arriving from Mountains with `scatter` still armed drew a scatter ring over the
             // spline tool, which places points and has no radius at all. A ring is a promise
             // that a press will paint a disc that size (I4); over a click tool it is a lie.
-            !unlocked || !onObjectLayer
-            ? null
-            : objectTool === "scatter"
-              ? "paint"
-              : null;
+            splineArmed
+            ? // **WP-47 — the click tool gets a ring after all, at its *widest* setting.** The
+              // note above is still right about a *disc*: nothing is painted at a press here.
+              // But at `splineMaxWidth` the ring promises exactly what `previewRibbon` already
+              // promises — the envelope the river fits inside and can only come out narrower
+              // than — so it states a truth rather than a lie, and it states it *before the
+              // second click*, which is the first moment the preview can say anything at all.
+              "water"
+            : !unlocked || !onObjectLayer
+              ? null
+              : objectTool === "scatter"
+                ? "paint"
+                : null;
 
   /**
    * Panning and the space-drag override everything; otherwise whichever tool owns the layer
@@ -462,8 +476,8 @@ export function MapStage({ editing }: { editing?: Label }) {
         : (selection.cursor ??
           // The eraser is global, so it promises a crosshair on every layer (I4).
           (erasing ||
-          (!selecting && (brushMode !== null || LAYER_OBJECT[activeLayerId])) ||
-          (onWater && waterTool === "spline" && waterEditable && !selecting)
+          splineArmed ||
+          (!selecting && (brushMode !== null || LAYER_OBJECT[activeLayerId]))
             ? "crosshair"
             : "default"));
 
@@ -648,8 +662,14 @@ export function MapStage({ editing }: { editing?: Label }) {
             )}
             {brushTone && cursor && (
               // Radius, not diameter: the terrain preview strokes `brushSize` wide, and both
-              // the scatter spread and the eraser's disc are `brushSize / 2`.
-              <BrushRing at={cursor} radius={brushSize / 2} scale={vp.scale} tone={brushTone} />
+              // the scatter spread and the eraser's disc are `brushSize / 2`. The spline reads
+              // its own widest instead of `brushSize`, which is a control it does not own.
+              <BrushRing
+                at={cursor}
+                radius={(splineArmed ? splineMaxWidth : brushSize) / 2}
+                scale={vp.scale}
+                tone={brushTone}
+              />
             )}
           </Layer>
         </Stage>
@@ -678,6 +698,23 @@ export function MapStage({ editing }: { editing?: Label }) {
         <span>
           {landCount} landmass{landCount === 1 ? "" : "es"}
         </span>
+        {/*
+          **Water gets a count too** (WP-44). `07` §1 asks for a surface a driver can assert
+          against, and every water driver so far has had to infer that a river exists from
+          pixels — which is the "an assertion satisfied by the wrong thing" trap that section
+          warns about. Rendered only when there is water, like the rings and objects beside it.
+
+          **Named `water-count` and not `land-count`, because the rail already owns that one**
+          (`ToolOptions.tsx`, WP-14) and it means *selected* land there. A matching attribute was
+          briefly added to this HUD as well, and `document.querySelector("[data-land-count]")`
+          then returned the rail's — reading 0 while the HUD beside it said 1 landmass. Two
+          elements answering to one name is the same defect as a tool that says the wrong thing.
+        */}
+        {waters.length > 0 && (
+          <span data-water-count={waters.length}>
+            {waters.length} water {waters.length === 1 ? "body" : "bodies"}
+          </span>
+        )}
         {derived.bands.length > 0 && <span>{derived.bands.length} rings</span>}
         {objectCount > 0 && <span>{objectCount} objects</span>}
         {selection.count > 0 && <span>{selection.count} selected</span>}
