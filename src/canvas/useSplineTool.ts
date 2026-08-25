@@ -45,13 +45,18 @@ export function useSplineTool({ enabled, toMapPoint }: Options) {
   });
   /** Redraws the preview when a tool setting moves while the pointer is still. */
   const maxWidth = useEditorStore((s) => s.splineMaxWidth);
+  const bend = useEditorStore((s) => s.splineBend);
 
   const redraw = useCallback(() => {
     const path = cursor.current ? [...points.current, cursor.current] : points.current;
-    setCourse({ line: path.length >= 2 ? centreline(path) : path, points: [...points.current] });
-    setPreview(
-      path.length >= 2 ? previewRibbon(path, useEditorStore.getState().splineMaxWidth) : null,
-    );
+    // The drawn course has to be the *same* centreline the ribbon is built from, so it takes
+    // the same spacing (WP-45) — otherwise the dashed line promises a turn the banks do not make.
+    const { splineMaxWidth: width, splineBend } = useEditorStore.getState();
+    setCourse({
+      line: path.length >= 2 ? centreline(path, splineBend) : path,
+      points: [...points.current],
+    });
+    setPreview(path.length >= 2 ? previewRibbon(path, width, splineBend) : null);
   }, []);
 
   /** One click lays one point. The first also arms the gesture. */
@@ -111,6 +116,7 @@ export function useSplineTool({ enabled, toMapPoint }: Options) {
       state.splineMinWidth,
       state.splineMaxWidth,
       state.splineRoughness,
+      state.splineBend,
     );
     reset();
     if (ribbon.length < 3) return false;
@@ -138,7 +144,7 @@ export function useSplineTool({ enabled, toMapPoint }: Options) {
   // still** (`16` §5), so the ribbon is rebuilt from the points rather than only on a move.
   useEffect(() => {
     if (active) redraw();
-  }, [active, redraw, maxWidth]);
+  }, [active, redraw, maxWidth, bend]);
 
   // Enter finishes, Escape abandons — the two keys the shortcuts sheet promises.
   useEffect(() => {

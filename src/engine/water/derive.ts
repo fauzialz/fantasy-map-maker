@@ -35,6 +35,17 @@ import { cutLand, cutUnion, waterUnion, type CutLandmass } from "./cut";
  *
  * Re-measure this if the cut ever stops being a single difference — per-object subtraction,
  * or provenance tracking, would both change the shape of the cost rather than its constant.
+ *
+ * ponytail: **the 0–10% above is about the water *model*, and WP-45 showed it is not a bound on
+ * the water a user can draw.** The cost tracks the point count of the cut boundary, because
+ * `ringBands` offsets it `ringCount` times — so it is river *density*, not river count, that
+ * moves this number, and a spline river's density is set by `splineRoughness`. Measured on a
+ * 900-point coastline at ringCount 4, against 46 ms with no water: one smooth river +4%, one
+ * rough river +13%, three rough +62%, six rough +216%. WP-45 already halved that by
+ * subdividing only near corners; what remains is the roughness being sampled properly rather
+ * than aliased, which is the feature working. The ceiling to watch is a map with many rough
+ * rivers, and the upgrade if it ever bites is a coarser tolerance for water that is far from
+ * any coast — not a cheaper boolean.
  */
 
 export interface DeriveTerrain {

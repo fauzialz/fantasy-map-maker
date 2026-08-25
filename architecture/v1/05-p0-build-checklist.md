@@ -1186,6 +1186,186 @@ per-package acceptance and fixtures in `16-water-as-objects.md`; decisions **D1�
       stretch running over open sea is now a **pale ghost rather than nothing**, which is D16
       told truthfully instead of a tool that disappears mid-gesture. 14 more driven checks.
 
+**Batch 15 — the spline draws what you clicked (WP-44 … WP-47).** Five defects raised together
+after using WP-43 to draw rivers, plus one found while measuring them. Every number below was
+measured against the real modules before a line was changed, because four of the five live in the
+same forty lines of `ribbon.ts` and a fix aimed at one of them can move the others.
+
+> **The single rule the batch is held to: a control says what it produces, and the river goes
+> where you clicked.** That is `12-tools-that-say-what-they-do.md` applied to geometry rather
+> than to chrome — the numbers in the rail were not wrong about the UI, they were wrong about
+> the polygon that came out.
+
+- [x] **WP-44 · A ribbon that closes** — the outline is simple, and it does not depend on what
+      else is on the map.
+      Three faults, one shared cause: `ribbonOutline` trusts its input. `begin()` sets
+      `cursor.current` to the point it just pushed, so `redraw()` builds `[...points, cursor]`
+      with a **duplicated last point**; `centreline()` turns that into **four coincident
+      vertices**; the central difference there is zero-length and the guard `Math.hypot(…) || 1`
+      returns a **zero vector rather than a unit one**, so both banks collapse onto the
+      centreline and `cap()` draws a full half-circle around a pinched end. That is the rupture
+      you see after a click, until the pointer moves.
+      Separately, `layRibbon` calls `unionLand([[ribbon]], [])`, and `unionLand` short-circuits
+      on an empty other side — so the **first river on a map is stored un-normalised**, self
+      intersections and all. Measured: the same gesture gives **34 pts / area 77912** on an empty
+      map and **25 pts / area 77188** when any other water exists. `mergeWater` already documents
+      this exact trap and works around it; `layRibbon` never got the same treatment.
+      The derivation does **not** break on the bad polygon — raw and cleaned give identical land
+      area and identical bands — so this is an inconsistency and a latent trap (`17` P1/V3),
+      not corruption. It is fixed first because WP-45 makes folds *more* common, not less.
+      **Acceptance:** no pinch with the pointer still after a click; one gesture, one stored
+      geometry, whatever else is on the map. **Met — 19 driven checks, and the pinch check took
+      three attempts to become one.**
+      **The pinch is in the preview and never was in the commit**, which is the thing worth
+      carrying forward: `finish()` builds from `points.current` alone, so the duplicated cursor
+      point never reaches stored geometry. The driver first probed the finished river at the last
+      click and passed — then passed *again* against deliberately broken code, because the end cap
+      is struck at full radius around the collapsed point and covers that exact spot. Only
+      measuring the **preview's cross-section a little short of the end** made it decisive: 100%
+      water with the fix, **67% with the defect restored**. Two ways for a driven check to be
+      blind, in one assertion, exactly as `07` §1 warns.
+      **Either fix alone hides the defect**, so the mutation has to revert both: with the dedupe
+      removed the normal guard still carries the last good tangent, and with the guard broken the
+      dedupe still keeps duplicates out.
+
+- [x] **WP-45 · A river turns where you clicked** — sharp corners stop being cut off.
+      `centreline()` is `chaikin(clicks, 2)`, and chaikin cuts a corner in proportion to the
+      **leg length**, not the river width. The bank should pass one half-width from the point
+      you clicked. Measured at half-width 28 with 300-unit legs: **36.7 at 135°, 42.2 at 90°,
+      52.9 at 45°, 66.9 at 20°** — the hairpin bank sits 2.4× too far out, which is the
+      flattening. The naive per-vertex offset adds to it, and self-intersects at turns ≤ 45°.
+      The fix turns on what `chaikin` actually does: it cuts a corner using only the vertex's
+      **two immediate neighbours**. So pinning one point a river-width in from each end of every
+      leg bounds the cut to one river-width, whatever the legs measure. Measured after:
+      **24.4 / 20.9 / 20.4 / 26.7** against an ideal of 28. The ribbon is then kept at
+      `EPSILON_DETAILED` — no coarser, because both the width walk and the bank noise live above
+      it. **Depends on WP-44**: denser corners fold at 90° where they did not before, and only
+      the union fix keeps that out of the scene.
+      **Subdividing the whole leg was tried first and rejected on measurement**, which is the
+      part worth keeping. It gave the same corners, but sampled `bankNoise` about nine times per
+      wavelength where the old centreline sampled twice — so a rough river stored 335 points
+      against 106, and the derivation is where that lands: `ringBands` offsets the cut boundary
+      `ringCount` times, so every bank vertex is paid for four times over. Six rough rivers on a
+      900-point coastline went to **228 ms against 46 ms with no water**, well outside the 0–10%
+      `engine/water/derive.ts` records for water. Corner-local subdivision halves that.
+      **The honest outcome is not "no more points", and the acceptance says so.** A smooth river
+      now stores **45 points against the old 106**, and a hairline one 19; a *rough* river stores
+      **181 against 106**, because the old count was too sparse to carry the roughness the
+      setting asked for — two samples per noise wavelength is aliasing, not wander. The residual
+      derive cost is recorded against C2 in `derive.ts` rather than left to be rediscovered.
+      **Acceptance:** every turn angle puts the bank within ~25% of the half-width of the click;
+      a smooth river costs fewer points than before this package; a rough one stays bounded; the
+      width walk and the independent bank noise both survive the tolerance. **Met.**
+      **The fixture that says it best is a containment test**: the clicked corner has to end up
+      *in* the river. It does at a gentle, right-angle and sharp turn, and the driver confirms it
+      in pixels — the corner reads land before the gesture and water after, with a control point
+      on the same painted strip staying land. Reverting the subdivision turns that check red.
+      **A hairpin is excluded, and the limit is geometric.** At 12° the bend is far tighter than
+      the river is wide: the course rounds the tip at x ≈ 286 and never reaches the click at 300,
+      while the inner bank folds and the union trims it, so the click lands ~10 units dry. No
+      amount of subdivision removes that — a turn radius below the half-width has no ribbon. What
+      this package is accountable for is the distance, and it moved from **72 units to 14**.
+      **Two measurement traps found while proving it**, both recorded because they cost real time:
+      a "distance from the click to the nearest bank" metric is the same number whether the click
+      is inside the river or outside it, and `pointInPolygon` takes `(polygon, point)` — reversed,
+      it silently answers false for everything.
+
+- [x] **WP-46 · Widths and detail that mean what they say** — three controls, none of which
+      currently produce the number they show.
+      **The spline floor drops 4 → 1.** Measured: width 1 commits cleanly and cuts a slit
+      **exactly 1.000 units** wide; the coast stroke is 3 map units, so two banks 1 unit apart
+      put the strokes at [598,601] and [599,602] — a single unbroken ink line at every zoom,
+      since the stroke is in map space. `step` goes to 1 or the floor is unreachable.
+      **The water brush floor drops 40 → 16, and no lower.** Two limits stack. `MASK_RESOLUTION`
+      is 0.5, so one mask cell is **2 map units** and brushes 1, 2 and 3 light **the same 501
+      pixels** — the raster cannot tell them apart. Then Douglas–Peucker runs at 0.5–8 units, and
+      collapses a channel narrower than its own tolerance. Below 16 the slider is not merely
+      lossy but **non-monotonic** — at default detail, brush 4 → 2.4 but brush **6 → 0.2**, and
+      brush 8 → 9.5 but brush **10 → 7.6**. Confirmed by area, not by a single slice. From 16 up
+      every setting is +1.2 to +2.3 at every detail level. Reaching 1 would need
+      `MASK_RESOLUTION` 4× higher — **3 MB → 48 MB** on a buffer rewritten every pointermove,
+      which `mask.ts` already names as the one unaffordable copy. **The two floors differ because
+      the pipelines differ**, and always will: the spline is arithmetic, the brush is a raster.
+      **`EPSILON_DETAILED` rises 0.5 → 2.0.** At `coastDetail` 1.00 a single water stroke stored
+      **1021 points** against 7 at default, because a tolerance below the mask cell preserves the
+      **quantisation staircase rather than coastline**. Measured across tolerances: w=16 goes
+      1021 → 7 points and w=40 goes 637 → 12, with the outline moving **at most 1.9 units** — a
+      twentieth of a percent of the canvas. A blob coastline degrades gracefully instead
+      (815 → 158), which is the difference between real detail and raster noise.
+      **Acceptance:** the committed width tracks the rail within ~2 units at every `coastDetail`
+      from the floor up, and monotonically; no stored object carries staircase points. **Met**,
+      and asserted by the driver against `aria-valuemin` on the live controls: 16 on the brush, 1
+      on both spline bounds.
+      **The floor moved on the *shared* slider too, not just the water one.** Both write one
+      `brushSize`, and the terrain brush runs the identical raster pipeline — measured at 16 → 17.2
+      units at every coast detail, against 8 → 4.5 / 7.0 / 9.5. Two sliders on one value must not
+      disagree about its floor, or switching layers silently moves the number.
+
+- [x] **WP-47 · The spline says how wide** — the hover ring arrives on a click tool.
+      Suppressed deliberately today (`MapStage.tsx`): *"a ring is a promise that a press will
+      paint a disc that size (I4); over a click tool it is a lie."* At the **widest** knob it
+      stops being a lie — it is the same promise `previewRibbon` already makes, the envelope the
+      river fits inside and can only come out narrower than. It also fills a real gap: **before
+      the second click there is no preview at all**, so the tool says nothing about width until a
+      course exists. Shown **whenever the tool is active**, not only before the first click — a
+      ring that vanishes when you press is the "tool disappeared mid-gesture" complaint the sea
+      ghost was added to answer.
+      **Acceptance:** ring visible from tool selection through to commit, diameter tracking
+      `splineMaxWidth`, and it follows the slider while the pointer is still. **Met.**
+      The driver reads the ring off the picture rather than looking for a colour: annulus
+      brightness at every screen radius, minus the same profile under Select, which has no radius.
+      The departure peaks at **6 px against an expected 6.5** — and `brushSize / 2` would have been
+      30 px, so the check distinguishes the two controls rather than merely finding *a* ring.
+      A fixed colour threshold was tried first and read 5 samples out of 36: at that radius the
+      probe is sitting on the ring's **dark core**, not its pale halo, so the ring was there all
+      along and the test was looking for the wrong thing.
+      **`splineArmed` now names the condition once.** It had been written out three times with
+      three slightly different tails — the ring, the cursor, and the tool's own `enabled`.
+
+- [x] **WP-48 · A corner rounds by how far it turns** — raised on using WP-45: every corner was
+      rounding by the same amount whatever its angle, so a 5° kink got as much sweep as a right
+      angle. WP-45 had made the cut independent of the *leg length*, which was the arbitrary
+      input; this makes it depend on the *turn*, which is the meaningful one.
+      **`splineBend` is one continuum, 0–100%, hinged at the halfway mark.** Below it the knob is
+      the share of the legs either side of a corner that the corner bends through: the course runs
+      dead straight to that anchor, through a **quadratic Bézier** with the clicked point as its
+      control, and dead straight out again. Above it the corners stay fully bent and the *guide*
+      relaxes, so the course stops passing through the clicked points and takes its own line past
+      them. Straight at 0, flowing at 1, and the two mechanisms hand over exactly where the first
+      runs out. **Default 50%, the hinge** — the roundest the course can be while still running
+      through every clicked point. The half above it is there when you want it and is not what
+      the tool should do before being asked.
+      **Half a leg is a hard geometric ceiling, which is why the hinge is where it is.** Past the
+      midpoint a corner's curve begins before its neighbour's has ended, so the course runs
+      forward along the leg, jumps back down it and runs forward again — measured as a full
+      **−1.0 reversal** between consecutive segments at every setting above the meeting point,
+      against 0.0 at or below it.
+      **The hinge is exact, and a fixture says so**: at 50% the relaxation is zero and the shape is
+      precisely what the corner construction gives alone, so a user who pushes past the middle and
+      dislikes it gets the old shape back by returning to it rather than something like it.
+      **Corner-cutting was tried first and the knob lied by a factor of five.** `chaikin` was fed
+      the anchors, but chaikin rounds *every* vertex including the anchors, so the curve spilled
+      past them: at full corner share the course left the straight line at **90.6% of the leg**,
+      giving the bend the last ninth rather than the last half.
+
+      | corner share | 10% | 30% | 50% | 70% | 100% |
+      |---|---|---|---|---|---|
+      | where the bend used to start | 99.1% | 97.2% | 95.3% | 93.4% | 90.6% |
+      | where it starts now | 90% | 70% | 50% | 30% | 0% |
+
+      A Bézier is **tangent to both legs at its ends**, which is what makes the number true and the
+      joins smooth. Two things fell out rather than being aimed at: the sweep at a given setting
+      roughly **doubled**, and a 12-click river dropped from 92 centreline points to **42** — a
+      Bézier spends points only where the course turns, while corner-cutting subdivides the
+      straights too.
+
+      **Acceptance:** sweep rises monotonically with the turn and spans more than 5× across the
+      range; a near-straight kink barely moves the course; the sweep scales with how far apart the
+      clicks are — double the gap, double the bend; the angle ratio survives every setting of the
+      knob; the click stays inside its river up to a right angle at the default. **Met** — plus
+      driven evidence that a sharp turn's channel sits 7 px clear of its clicked corner while a
+      right angle's runs through it, and that Bend reaches both ends of its travel.
+
 **Vertex editing — on the 0.5 backlog, awaiting an ideation session.** Seeing an object's outline
 points and dragging them, on water **and** land — the other half of the request that produced
 Batch 14, and unblocked by its acceptance. Design note: `17-vertex-editing.md`.
