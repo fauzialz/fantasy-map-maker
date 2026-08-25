@@ -44,6 +44,7 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
   const splineMinWidth = useEditorStore((s) => s.splineMinWidth);
   const splineMaxWidth = useEditorStore((s) => s.splineMaxWidth);
   const splineRoughness = useEditorStore((s) => s.splineRoughness);
+  const splineBend = useEditorStore((s) => s.splineBend);
   const setSpline = useEditorStore((s) => s.setSpline);
   const objectTool = useEditorStore((s) => s.objectTool);
   const scatterRotation = useEditorStore((s) => s.scatterRotation);
@@ -500,13 +501,27 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
             thing about the tool — every brush has one — so it belongs under the choice of tool
             and over the setting that shapes what the stroke leaves behind.
           */}
+          {/*
+            **The floor is 16, and it is measured rather than chosen** (WP-46). Two limits stack
+            under this slider. `MASK_RESOLUTION` is 0.5, so one mask cell is 2 map units and
+            brushes of 1, 2 and 3 light *the same 501 pixels* — the raster cannot tell them
+            apart. Then Douglas–Peucker runs at 2–8 units and collapses a channel narrower than
+            its own tolerance. Below 16 the control is not merely lossy but **non-monotonic**: at
+            the default coast detail, 4 committed 2.4 units while **6 committed 0.2**, and 8
+            committed 9.5 while **10 committed 7.6**. Bigger brush, thinner river. From 16 up
+            every setting lands within +1.2 to +2.3 at every detail level.
+            Reaching 1 would need `MASK_RESOLUTION` four times finer — 3 MB to 48 MB on a buffer
+            rewritten every pointermove, which `engine/terrain/mask.ts` already names as the one
+            copy this app cannot afford. **The spline has no such floor and goes to 1**, because
+            it emits geometry directly instead of tracing a raster; that asymmetry is permanent.
+          */}
           {waterTool !== "spline" && (
             <Slider
               label="Brush size"
               value={brushSize}
-              min={40}
+              min={16}
               max={800}
-              step={10}
+              step={4}
               display={`${brushSize} px`}
               onChange={setBrushSize}
             />
@@ -527,24 +542,60 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
                 reach was implicit. These say what they mean, and the preview promises the
                 **maximum** as the envelope the river will fit inside.
               */}
+              {/*
+                **Down to 1, and 1 is a real river** (WP-46). At width 1 the commit cuts a slit
+                exactly 1.000 units wide; the coast stroke is 3 map units, so the two banks put
+                their strokes at [598,601] and [599,602] — overlapping, with no gap between them
+                at any zoom, since the stroke lives in map space. What you get is a single
+                unbroken ink line, which is what a stream on a drawn map looks like. `step` is 1
+                or the floor cannot be reached.
+              */}
               <Slider
                 label="Narrowest"
                 value={splineMinWidth}
-                min={4}
+                min={1}
                 max={140}
-                step={2}
+                step={1}
                 display={`${splineMinWidth} px`}
                 onChange={(min) => setSpline({ min })}
               />
               <Slider
                 label="Widest"
                 value={splineMaxWidth}
-                min={4}
+                min={1}
                 max={140}
-                step={2}
+                step={1}
                 display={`${splineMaxWidth} px`}
                 hint="The preview draws this width, so the river can only ever come out narrower than what you saw."
                 onChange={(max) => setSpline({ max })}
+              />
+              {/*
+                **One continuum, hinged at the halfway mark** (WP-48). Below it the knob is the
+                share of the legs either side of a corner that the corner bends through, so the
+                curve follows how far apart the clicks are — put two points twice as far apart and
+                the bend through that corner is twice as long. Half a leg is where that runs out:
+                past the midpoint a corner's curve would start before its neighbour's had ended
+                and the course would double back on itself.
+                Above the halfway mark the corners stay fully bent and the *guide* relaxes
+                instead, so the course stops running through the clicked points and takes its own
+                line past them. That is the only place left to go once a corner already reaches
+                both midpoints, and it saturates near the top rather than running away.
+                **The hinge is exact.** At 50% the relaxation is zero and the shape is precisely
+                what the corner construction gives on its own — so pushing past the middle is
+                reversible by returning to it, not approximately so.
+                The turn angle drives the sweep throughout: across 5° to 168° it varies 17–19× at
+                *every* setting, so the knob scales the whole curve without flattening the
+                relationship inside it.
+              */}
+              <Slider
+                label="Bend"
+                value={splineBend}
+                min={0}
+                max={1}
+                step={0.02}
+                display={`${Math.round(splineBend * 100)}%`}
+                hint="Straight at 0, flowing at 100. Up to halfway a corner bends through that share of the lines either side; above halfway the course stops passing through your clicks and takes its own line past them."
+                onChange={(bend) => setSpline({ bend })}
               />
               <Slider
                 label="Bank roughness"
@@ -610,14 +661,21 @@ export function ToolOptions({ onEditLabel }: { onEditLabel: (label: Label) => vo
         **water layer renders its own** above its detail slider, because its modes sit in tabs
         and the size belongs under the mode it applies to; the spline has its own widths, so the
         disc's size would be a control that cannot act on the tool in hand — what I4 prevents.
+
+        **Same floor as the water brush, and for the same reason** (WP-46): both write this one
+        `brushSize`, and both run the identical raster pipeline, so the limit belongs to the
+        pipeline rather than to either layer. Measured on terrain: 16 commits 17.2 units at every
+        coast detail, while 8 commits 4.5 / 7.0 / 9.5 and 12 commits 6.4 / 13.2 / 13.2 depending
+        on the slider next to it. Two sliders on one value must not disagree about its floor, or
+        switching layers silently moves the number.
       */}
       {(erasing || (!selecting && (onTerrain || (isObjectLayer && objectTool === "scatter")))) && (
         <Slider
           label="Brush size"
           value={brushSize}
-          min={40}
+          min={16}
           max={800}
-          step={10}
+          step={4}
           display={`${brushSize} px`}
           onChange={setBrushSize}
         />
