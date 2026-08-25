@@ -102,10 +102,26 @@ export function splitWaterComponents(polys: MultiPolygon, sources: Water[] = [])
  */
 export function layRibbon(existingWater: Water[], ribbon: Ring): Water[] {
   if (ribbon.length < 3) return existingWater;
-  return splitWaterComponents(
-    unionLand([[ribbon]], existingWater.map(waterToPolygon)),
-    existingWater,
-  );
+  /**
+   * **Self-unioned first, and that is the same trap `mergeWater` documents below** (WP-44).
+   * `unionLand` short-circuits when the other side is empty and hands its input straight back,
+   * so on a map with no other water the ribbon was *stored exactly as `ribbonOutline` emitted
+   * it* — self-intersections included, since the offset's inner bank folds at any turn sharper
+   * than about 45°. The same gesture then produced different geometry depending on whether the
+   * map already held a river: measured at 34 points / area 77912 alone against 25 / 77188
+   * beside another body.
+   *
+   * Nothing downstream broke on it — the derivation returned identical land area either way —
+   * but every boolean op in the pipeline is written for simple polygons, and `17` V3 names an
+   * outline crossing itself as the thing that has to be settled before outline editing arrives.
+   * One gesture, one geometry.
+   */
+  /**
+   * The ribbon arrives from `commitRibbon` already normalised in density (WP-45); what is left
+   * here is making it a *simple* polygon and merging it with whatever it touches.
+   */
+  const laid = waterUnion([{ id: "", type: "water", path: ribbon, holes: [] }]);
+  return splitWaterComponents(unionLand(laid, existingWater.map(waterToPolygon)), existingWater);
 }
 
 /**

@@ -152,6 +152,19 @@ interface EditorState {
   splineMinWidth: number;
   splineMaxWidth: number;
   splineRoughness: number;
+  /**
+   * **How fully bent the drawn course is**, 0…1 (WP-48) — 1 meaning every corner reaches the
+   * midpoint of both its legs, so there is no straight run left anywhere.
+   *
+   * A proportion of the *maximum* rather than of the leg, because half the leg is where the
+   * geometry actually ends: past it the two corners sharing a leg overlap and the course doubles
+   * back. `centreline` in `engine/water/ribbon.ts` owns that halving and explains it.
+   *
+   * The bend is measured against the legs rather than the river's width, so it follows how far
+   * apart the clicks are — put two points twice as far apart and the sweep doubles. The turn
+   * angle still decides how far the course actually moves at any one setting.
+   */
+  splineBend: number;
   /** ids of the current multi-selection, within the active layer */
   selection: string[];
   /**
@@ -185,7 +198,7 @@ interface EditorState {
   setActiveLayer: (id: LayerId) => void;
   setBrushSize: (size: number) => void;
   setWaterTool: (tool: "carve" | "lay" | "spline") => void;
-  setSpline: (patch: { min?: number; max?: number; roughness?: number }) => void;
+  setSpline: (patch: { min?: number; max?: number; roughness?: number; bend?: number }) => void;
   setObjectTool: (tool: ObjectTool) => void;
   setIconKind: (kind: string) => void;
   setTerrainBiome: (biome: Biome) => void;
@@ -304,6 +317,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   splineMinWidth: 24,
   splineMaxWidth: 56,
   splineRoughness: 0.5,
+  splineBend: 1,
   selection: [],
   seaLevel: null,
   generatorRotation: 5,
@@ -345,6 +359,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         splineMinWidth: patch.max !== undefined ? Math.min(min, max) : min,
         splineMaxWidth: patch.min !== undefined ? Math.max(min, max) : max,
         splineRoughness: patch.roughness ?? state.splineRoughness,
+        splineBend: patch.bend ?? state.splineBend,
       };
     }),
   setObjectTool: (objectTool) => set({ objectTool }),

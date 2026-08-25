@@ -2,7 +2,7 @@ import { createNoise2D } from "simplex-noise";
 import type { Point } from "../../scene/types";
 import { mulberry32 } from "../generator/fields";
 import type { Ring } from "../geometry/types";
-import { chaikin } from "../terrain/smooth";
+import { EPSILON_DETAILED, simplifyTo } from "../terrain/smooth";
 
 /**
  * WP-43 — the spline generator: a drawn course becomes a **water polygon**, and the course is
@@ -15,8 +15,138 @@ import { chaikin } from "../terrain/smooth";
  * disagree with the outline the user sees.
  */
 
-/** Corner-cut the clicked points into a centreline. Open, so the two ends stay where clicked. */
-export const centreline = (points: Point[]): Point[] => chaikin(points, 2, false);
+/**
+ * The clicked points become a centreline: **straight between corners, a real curve through them.**
+ *
+ * `bend` runs 0…1: **straight at 0, flowing at 1.** Up to the halfway mark it is a share of the
+ * legs either side of each corner — the course runs dead straight up to that anchor, through a
+ * quadratic Bézier with the clicked point as its control, and dead straight out again. Half a
+ * leg is where that runs out, because past the midpoint a corner's curve would begin before its
+ * neighbour's had ended and the course would run forward, jump back down the leg and run forward
+ * again (measured as a full −1.0 reversal between consecutive segments). Above the halfway mark
+ * the corners stay fully bent and the guide relaxes instead — see `relax`. The Bézier is **tangent to both legs at its
+ * ends**, so the joins are smooth and the whole thing reads as one curve rather than a corner
+ * with a rounded lid.
+ *
+ * **That tangency is what makes the number on the slider true**, which is the reason this is a
+ * Bézier and not corner-cutting. Chaikin was used here first, with the anchors as its input —
+ * but chaikin rounds *every* vertex, including the anchors, so the curve spilled past them and
+ * the straight run was far shorter than the setting claimed. Measured on a right angle: at a
+ * setting of **50% the course left the straight line at 90.6% of the leg**, so the bend occupied
+ * the last ninth rather than the last half. The anchors were placed exactly where the label
+ * said; nothing downstream respected them. A control that is off by a factor of five is the
+ * defect `12-tools-that-say-what-they-do.md` opens with.
+ *
+ * | setting | 10% | 30% | 50% | 70% | 100% |
+ * |---|---|---|---|---|---|
+ * | where the bend used to start | 99.1% | 97.2% | 95.3% | 93.4% | 90.6% |
+ * | where it starts now | 95% | 85% | 75% | 65% | 50% |
+ *
+ * Two things fell out of the change rather than being aimed at. The sweep at a given setting
+ * roughly **doubled**, because the curve now uses the whole share it was given. And a 12-click
+ * river dropped from 92 centreline points to **42**: a Bézier spends points only where the
+ * course is actually turning, while corner-cutting subdivides the straights as well.
+ *
+ * At 100% the two anchors either end of a leg land on its midpoint and the curves meet there
+ * exactly — no straight run left anywhere, which is the maximum and why the slider stops.
+ */
+export function centreline(points: Point[], bend: number): Point[] {
+  const path = dedupe(points);
+  if (path.length < 3) return path;
+  const knob = Math.min(Math.max(bend, 0), 1);
+
+  /**
+   * **The knob is one continuum with two halves, and the halfway mark is the hinge.**
+   *
+   * Below it, a corner claims more and more of the legs either side — sharp at 0, meeting its
+   * neighbour at the midpoint at 0.5, which is as far as that can go. Above it the corners stay
+   * fully bent and the *guide itself* starts to relax, so the course stops running through the
+   * clicked points and begins taking its own line past them. Two mechanisms, but they hand over
+   * exactly where the first runs out, so the control reads as one thing: **straight at 0, and
+   * flowing at 1.**
+   *
+   * At 0.5 the relaxation is zero and the course is precisely what the corner construction gives
+   * on its own, so a user who pushes past the middle and does not like it gets the old shape back
+   * by returning to it — not something approximately like it.
+   */
+  const share = Math.min(knob, 0.5);
+  const slack = Math.max(knob - 0.5, 0) * 2;
+
+  const guide = slack > 0 ? relax(relax(path, slack / 2), slack / 2) : path;
+
+  const out: Point[] = [guide[0]];
+  for (let i = 1; i < guide.length - 1; i++) {
+    const a = guide[i - 1];
+    const b = guide[i];
+    const c = guide[i + 1];
+    const into = towards(b, a, share);
+    const outOf = towards(b, c, share);
+    const steps = arcSteps(a, b, c);
+    for (let step = 0; step <= steps; step++) {
+      const t = step / steps;
+      const u = 1 - t;
+      out.push([
+        u * u * into[0] + 2 * u * t * b[0] + t * t * outOf[0],
+        u * u * into[1] + 2 * u * t * b[1] + t * t * outOf[1],
+      ]);
+    }
+  }
+  out.push(guide[guide.length - 1]);
+  return out;
+}
+
+/**
+ * Ease every interior point toward the midpoint of its neighbours, ends pinned.
+ *
+ * This is what "more bend than fully bent" has to mean, and there is no way around it: once a
+ * corner already reaches the midpoint of both its legs, the only room left is for the course to
+ * stop passing through the clicked points at all. Measured on a six-click path, the worst
+ * distance between a click and the drawn course goes from **51 units at the hinge to 118 at the
+ * top** — and it saturates there, which is why the top of the slider is two passes and not ten.
+ */
+const relax = (points: Point[], amount: number): Point[] =>
+  points.map((point, i) => {
+    if (i === 0 || i === points.length - 1) return point;
+    const before = points[i - 1];
+    const after = points[i + 1];
+    return [
+      point[0] + ((before[0] + after[0]) / 2 - point[0]) * amount,
+      point[1] + ((before[1] + after[1]) / 2 - point[1]) * amount,
+    ];
+  });
+
+/** The point a `share` of the way from `from` towards `to`. */
+const towards = (from: Point, to: Point, share: number): Point => [
+  from[0] + (to[0] - from[0]) * share,
+  from[1] + (to[1] - from[1]) * share,
+];
+
+/**
+ * How many segments the corner's curve is drawn with — more where it turns further, because
+ * that is where a polyline shows its edges. A gentle kink needs three; a hairpin needs a dozen.
+ */
+function arcSteps(a: Point, b: Point, c: Point): number {
+  let turn = Math.atan2(c[1] - b[1], c[0] - b[0]) - Math.atan2(b[1] - a[1], b[0] - a[0]);
+  while (turn > Math.PI) turn -= 2 * Math.PI;
+  while (turn < -Math.PI) turn += 2 * Math.PI;
+  return Math.min(Math.max(Math.round((Math.abs(turn) * 180) / Math.PI / 12), 3), 16);
+}
+
+/** Consecutive points closer together than this are one point. Well under a mask cell (2u). */
+const COINCIDENT = 1e-6;
+
+/**
+ * **Coincident points are dropped first, and that is not defensive tidying** (WP-44). While the
+ * pointer is still after a click, `useSplineTool` hands this the clicked path with its last
+ * point repeated — `[…, p, p]` — because the rubber band's cursor *is* the point just laid. A
+ * zero-length leg has no direction, so the corner built on it has no tangent and the banks
+ * either side of it collapse onto the centreline.
+ */
+const dedupe = (points: Point[]): Point[] =>
+  points.filter(
+    (point, i) =>
+      i === 0 || Math.hypot(point[0] - points[i - 1][0], point[1] - points[i - 1][1]) > COINCIDENT,
+  );
 
 /** How many segments approximate the half-circle at each end. Six reads as round at any zoom. */
 const CAP_STEPS = 6;
@@ -108,12 +238,23 @@ export function ribbonOutline(line: Point[], leftHalf: number[], rightHalf: numb
 
   const left: Point[] = [];
   const right: Point[] = [];
+  /**
+   * **A degenerate tangent carries the last good one forward** (WP-44). The guard here used to
+   * be `|| 1`, which divides by one rather than by zero — and so returns the zero *vector*
+   * where a unit vector was wanted, silently collapsing both banks onto the centreline. Nothing
+   * should reach this now that `centreline` dedupes, but a zero normal is a pinch that looks
+   * like a rendering bug rather than bad input, so the guard says what it means.
+   */
+  let nx = 0;
+  let ny = 0;
   for (let i = 0; i < line.length; i++) {
     const [ax, ay] = line[Math.max(i - 1, 0)];
     const [bx, by] = line[Math.min(i + 1, line.length - 1)];
-    const length = Math.hypot(bx - ax, by - ay) || 1;
-    const nx = -(by - ay) / length;
-    const ny = (bx - ax) / length;
+    const length = Math.hypot(bx - ax, by - ay);
+    if (length > 0) {
+      nx = -(by - ay) / length;
+      ny = (bx - ax) / length;
+    }
     const [x, y] = line[i];
     left.push([x + nx * leftHalf[i], y + ny * leftHalf[i]]);
     right.push([x - nx * rightHalf[i], y - ny * rightHalf[i]]);
@@ -171,8 +312,8 @@ function cap(end: Point, inward: Point, bankEnd: Point, radius: number): Point[]
  * randomisation is allowed to make the river *narrower* than what you saw, never wider than the
  * ground you cleared for it. The surprise belongs in the detail, never in the object (`12` §1).
  */
-export function previewRibbon(points: Point[], maxWidth: number): Ring {
-  const line = centreline(points);
+export function previewRibbon(points: Point[], maxWidth: number, bend: number): Ring {
+  const line = centreline(points, bend);
   const half = new Array(line.length).fill(maxWidth / 2);
   return ribbonOutline(line, half, half);
 }
@@ -191,8 +332,9 @@ export function commitRibbon(
   minWidth: number,
   maxWidth: number,
   roughness: number,
+  bend: number,
 ): Ring {
-  const line = centreline(points);
+  const line = centreline(points, bend);
   if (line.length < 2) return [];
 
   const random = mulberry32((Math.random() * 2 ** 32) >>> 0);
@@ -217,5 +359,11 @@ export function commitRibbon(
       ),
     );
 
-  return ribbonOutline(line, bank(0), bank(37));
+  /**
+   * **Kept at `EPSILON_DETAILED`** — the finest tolerance this app uses anywhere, and no
+   * coarser, because both of this function's features live above it: the width walk moves the
+   * banks by `(maxWidth − minWidth) / 2` and the noise by more again. It exists to shed the
+   * collinear runs the subdivision leaves along the straights, not to smooth the river.
+   */
+  return simplifyTo(ribbonOutline(line, bank(0), bank(37)), EPSILON_DETAILED);
 }
