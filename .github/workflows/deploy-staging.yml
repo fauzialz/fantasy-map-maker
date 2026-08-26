@@ -82,7 +82,7 @@ jobs:
     timeout-minutes: 5
     environment: staging-verify # read-only credentials ONLY; cannot reference the SSH key
     steps:
-      - name: Seven checks against the real host
+      - name: Nine checks against the real host
         env:
           BASE: ${{ secrets.STAGING_BASE_URL }}
           AUTH: ${{ secrets.STAGING_BASIC_AUTH }}
@@ -93,6 +93,12 @@ jobs:
           say()  { [ "$1" = 0 ] && printf 'ok    %s\n' "$2" || { fail=1; printf 'FAIL  %s\n' "$2"; }; }
           body() { curl -sS -u "$AUTH" -o /tmp/b -w '%{http_code}' --max-time 20 "$BASE$1"; }
           hdr()  { curl -sSI -u "$AUTH" --max-time 20 "$BASE$1"; }   # NOT `head` — that name is taken
+          code() { curl -sS -u "$AUTH" -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$1"; }
+          # The ONE request in this job that deliberately carries no credentials. Checks 1-7
+          # and 9 all authenticate, and that is precisely how the 2026-08-26 outage hid for a
+          # day: a job that only ever asks *with* the password cannot notice that the password
+          # has stopped mattering. See check 8.
+          anon() { curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$1"; }
 
           # 1 — this release, not the last one. Every check below is meaningless without it.
           c=$(body /version.json)
@@ -111,16 +117,47 @@ jobs:
           # 5 — a real 404 STATUS, not a 200 carrying a not-found page, and not the SPA
           c=$(body /no-such-path); { [ "$c" = 404 ] && ! grep -q 'assets/app' /tmp/b; }; say $? "unknown path is a 404"
 
-          # 6 — the fonts are content-hashed and self-hosted; there is no CDN fallback.
+          # 6 — hashed assets must be cached for a year, and cached PRIVATELY.
+          #
+          # Asserting the *absence* of a word is unusual, so: this vhost is behind basic auth,
+          # and a shared cache keys on the URL rather than on who asked. `public` therefore
+          # hands the CDN one response to give everybody — which on 2026-08-26 it did, in both
+          # directions at once. `private` keeps the year-long browser cache that content-hashed
+          # filenames exist for, and keeps shared caches out. The two differ by one token and a
+          # day of downtime.
+          #
           # Re-fetch app.html first: /tmp/b currently holds the 404 body from check 5.
           body /maps > /dev/null
           a=$(grep -o '/assets/[A-Za-z0-9._-]*\.js' /tmp/b | head -1)
-          { [ -n "$a" ] && hdr "$a" | grep -qi 'cache-control:.*immutable'; }; say $? "hashed assets immutable"
+          cc=$(hdr "$a" | grep -i '^cache-control:')
+          { [ -n "$a" ] \
+            && printf '%s' "$cc" | grep -qi 'immutable' \
+            && printf '%s' "$cc" | grep -qi 'private'  \
+            && ! printf '%s' "$cc" | grep -qi 'public'; }
+          say $? "hashed assets are immutable AND private"
 
           # 7 — the geometry worker needs worker-src blob:, and that failure is silent
           # until someone paints.
           csp=$(hdr / | grep -i '^content-security-policy:' || true)
           { [ -z "$csp" ] || printf '%s' "$csp" | grep -q 'blob:'; }; say $? "no CSP blocks blob: workers"
+
+          # 8 — the bundle must REFUSE a caller with no password. Sounds redundant next to
+          # auth_basic, and is not: on 2026-08-26 an anonymous curl pulled 811 KB of app-*.js,
+          # byte-identical to the file on disk, because a shared cache had stored a 200 that
+          # this very job fetched *with* credentials and then served it to everyone. The
+          # staging lock was open and every check above still passed.
+          { [ -n "$a" ] && [ "$(anon "$a")" = 401 ]; }
+          say $? "assets refuse an unauthenticated request"
+
+          # 9 — and the mirror image, which is the failure a human actually sees. A cached 401
+          # at the edge makes the bundle unreachable with ANY credentials: /maps renders blank
+          # and the browser re-prompts for a password it will never accept.
+          #
+          # If this check is the one that failed, the rollback job below will not help you.
+          # The bad response is in a cache, not in the release — every release is broken until
+          # the edge is purged. Purge first, then re-run.
+          { [ -n "$a" ] && [ "$(code "$a")" = 200 ]; }
+          say $? "assets are served to an authenticated request"
 
           exit $fail
 
