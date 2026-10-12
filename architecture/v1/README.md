@@ -119,6 +119,15 @@ prompts** used to drive an AI coding agent through the build.
   a **coast sculpt brush**, which **disposes of six of the ten** — they turn out to be handle
   problems rather than editing problems — but cannot be exact. Eleven decisions **V1–V11**, none
   answerable before Batch 14 has been used.
+- `18-capability-without-affordance.md` — **a survey, not a work order; nothing in it is decided
+  and no package exists for any of it.** Five UX topics that survived a re-audit against the built
+  editor, sharing one shape: *the editor is already capable of the thing and there is no way to ask
+  for it* — `centred()` has no caller so a lost map cannot be re-framed, the shortcuts sheet is
+  wired to the live handlers and the handlers are six keys, the blank canvas never names the
+  first move, the stage has one input device while `/` is a public page, and ADR-10's undo-able
+  merge toast is now un-honoured in two places rather than one. **§3 records what died and which
+  package killed it** — the landing page, the rail grouping, the zoom floor and the duplicated
+  Select among them — so closed topics stay closed. Eleven decisions **W1–W11**, all the owner's.
 - `HOW-TO-CHANGE-SPRITE-ART.md` — **procedure for replacing or adding the map's artwork.**
   What format the sprites are (SVG path `d` strings, not `.svg` files, and why the theme and
   P1's offline embed both require that), the 100×100 grid with feet on the baseline, and the
