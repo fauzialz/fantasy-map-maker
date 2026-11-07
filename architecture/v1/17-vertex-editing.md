@@ -1,11 +1,10 @@
 # Editing an outline point by point — design note
 
-**Status: on the 0.5 backlog, awaiting an ideation session. Still a note, not a work order.**
-Batch 14 was accepted on **2026-08-14** (`16-water-as-objects.md` §10), which unblocks this and
-answers **V1**: *yes, it arrives.* It does **not** answer **V2** — exact node dragging, a coast
-sculpt brush, or both — and that is not a detail to settle while building: the two shapes are
-different features with different package breakdowns. **The next step is a session that settles
-§6, not a package.** Until then this document stays what it is.
+**Status: settled 2026-11-08 — Batch 16 (WP-49 … WP-53), unbuilt.** The ideation session
+answered every question in §6; **§8 is the decision record and overrides §4–§7 where they
+differ.** The headline: **shape A only** — exact point handles in a Points mode. Shape B, the
+sculpt brush, was chosen and then **dropped** once it was clear the paint brushes already cover
+rough reshaping (ADR-51). §1–§7 are kept as the reasoning that led there.
 
 It exists because the request that produced Batch 14 asked for it in the same breath, Batch 14
 removed the only place it existed, and the owner wanted it written down before it was forgotten.
@@ -205,6 +204,9 @@ B already, and if it turns out to be enough, B is the whole feature.
 
 ## 6. What has to be settled first
 
+> **All answered 2026-11-08 — see §8.** The list is kept as asked, so the answers can be read
+> against the questions.
+
 - **V1** — does this arrive at all, or did brush editing turn out to be sufficient?
   **ANSWERED 2026-08-14: it arrives.** Batch 14 was accepted and the owner asked for vertex
   editing in the same breath, so the freehand brushes did *not* turn out to be sufficient — which
@@ -248,3 +250,40 @@ on the answer, not on the code.**
 
 The right moment for this document to become a batch is the evaluation session in `16` §10, where
 V1 gets an answer from use rather than from argument.
+
+## 8. Decisions — ideation session, 2026-11-08
+
+Settled with the owner, one question at a time. **This section overrides §4–§7 where they differ.**
+Recorded as ADR-51; scheduled as **Batch 16** in `05-p0-build-checklist.md`.
+
+| # | Question | Answer |
+|---|---|---|
+| **V2** | Shape A, B, or both? | **A only.** B was first chosen alongside A, then **dropped**: the paint brushes (terrain, WP-41's water brush) already add and remove area at a coast, and B's gain over them — bending an edge while keeping its detail — did not earn a second tool. Not planned; returns only through a new note. |
+| **V3 + V10** | Invalid result? | **Reject on drop.** On release, test simple-polygon (no self-intersection), every hole inside its outer ring and clear of it, and no hole outside the shell. Fail → every moved point snaps back and **nothing** reaches the undo stack. No repair pass. **While dragging, the outline draws red** whenever the current position would be rejected, so the snap-back is never a surprise. |
+| **V4** | C1 under vertex editing? | **C1 holds; same rejection.** A drop whose outline overlaps another object of the same substance (land with land, water with water) is rejected exactly like an invalid one. One rejection path answers V3, V4 and V10. Slide-back is not used. |
+| **V5** | Sticky points? | **One optional field on the object: `handEdited?: true`** — optional, so no `schemaVersion` bump (`02` §4's additive rule). A flagged object is **never re-simplified** after a transform; a scale-up may still **resample** (add points) but never removes one. Any brush stroke that rewrites the object's outline (terrain, water, carve) **clears** the flag, because its output is resampled anyway. |
+| **V6** | Which objects? | **Landmasses and water.** Labels and sprites keep anchors and boxes; I9 is unchanged. |
+| **V7** | Falloff metric? | **Path distance by default** — the shore you grabbed moves, the facing bank stays, so a river gets wider or narrower. **Alt held during the drag** switches that drag to **spatial** distance, so both banks move and a river changes course. On a narrow isthmus spatial grabs both coasts; that is what Alt asks for. |
+| **V8** | Insert and delete? | **Yes.** **Double-click on an edge** inserts a point there (a single click on an edge does nothing, so a stray click cannot add one). **Delete / Backspace** removes the selected points, refused if a ring would be left with fewer than 3. |
+| **V9** | Rigid multi-select as well as falloff? | **Both.** A marquee in Points mode selects points; Shift adds to the selection (as in Select mode). A drag moves the selected set **rigidly**; falloff, if the radius is above 0, applies around the set. |
+| **V11** | Mode or sub-state? | **A third peer mode, "Points"**, beside Select and Erase in ADR-28's mode group. WP-19's double-click is untouched. |
+
+**Settled alongside, not numbered in §6:**
+
+- **Falloff control:** a **radius slider** in Points mode's tool options, **default 0 = exact**.
+  **Alt+scroll** changes the radius live; plain scroll still zooms. Alt is the one Points-mode
+  modifier (Alt-drag = spatial, Alt+scroll = radius). Ctrl+scroll is ruled out — browsers send it
+  for trackpad pinch.
+- **One object at a time.** Points mode shows the points of one object; clicking another object
+  switches to it. Marquee, insert and delete act on that object only. This also disposes of
+  **P10** — two objects' coincident points are never both grabbable.
+- **Crowded points (P4): show them all.** Handles are screen-constant size (I8) and are all drawn,
+  overlapping or not; **no culling**. A press grabs the point **nearest the pointer**. Zooming in is
+  the user's remedy, and the owner chose that over hiding points.
+- **Undo.** One drop is one step (I6), with no coalescing across drops. **Arrow keys nudge** the
+  selected points 1 map unit, **Shift+arrow 10**; presses less than **500 ms** apart coalesce into
+  one step.
+- **Derivation on drag.** Not per frame: WP-15's suspend-and-fade, re-deriving once on drop.
+
+**Problems this leaves open, by design:** none blocking. P6's isthmus case is the user's choice via
+Alt, not a defect. P2's slide-back is replaced by rejection, not reformulated.
