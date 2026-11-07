@@ -15,10 +15,10 @@ stays one `git mv`.
 
 `architecture/DEBT.md` is the single home for technical and code debt.
 
-**Whenever the user raises tech debt, code debt, shortcuts, "TODO", "for now", "we'll fix it
-later", or asks what is outstanding or unfinished: read `architecture/DEBT.md` first, then
-update it in the same turn.** Its "For the AI agent" section holds the protocol. Follow it
-rather than inventing a format, and answer from the file and the code rather than from memory.
+**Whenever the user raises tech debt, code debt, shortcuts, "TODO", "for now", or "we'll fix it
+later": read `architecture/DEBT.md` first, then update it in the same turn.** Its "For the AI
+agent" section holds the protocol. Follow it rather than inventing a format, and answer from the
+file and the code rather than from memory.
 
 The ledger is the **last** of three destinations, and deliberately small. Debt belonging to a
 line in the code goes in a `ponytail:` comment there (`grep -rn "ponytail:" src/` is the
@@ -26,6 +26,18 @@ index); debt with a work package that will pay it goes into that package's entry
 `architecture/v1/05-p0-build-checklist.md`, so it becomes an acceptance criterion instead of a
 note; only debt with neither a line nor an owner gets a row. A shortcut you cannot write a
 "Retire when" for is a decision, not debt — write an ADR instead.
+
+## Outstanding work
+
+`architecture/v1/05-p0-build-checklist.md` is the backlog **and** the history in one file — read
+its **tail** (the last batch, then "Later phases") rather than the whole thing cold. Work that is
+still only a design note, not yet a scheduled package, says so in that note's own status line
+(e.g. `17-vertex-editing.md`'s first line) rather than in the checklist. `DEBT.md`'s "Unbuilt work
+packages" row is a one-line summary kept in sync with both.
+
+**Whenever the user asks what is outstanding, unfinished, next, or "on the backlog": check that
+DEBT.md row and the checklist's tail first**, rather than re-reading the full 1000+ line file or
+answering from memory — the tail changes with every merged batch.
 
 ## Working habits this repo expects
 
