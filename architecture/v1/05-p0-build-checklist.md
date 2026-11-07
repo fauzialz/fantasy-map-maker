@@ -1366,28 +1366,56 @@ same forty lines of `ribbon.ts` and a fix aimed at one of them can move the othe
       driven evidence that a sharp turn's channel sits 7 px clear of its clicked corner while a
       right angle's runs through it, and that Bend reaches both ends of its travel.
 
-**Vertex editing — on the 0.5 backlog, awaiting an ideation session.** Seeing an object's outline
-points and dragging them, on water **and** land — the other half of the request that produced
-Batch 14, and unblocked by its acceptance. Design note: `17-vertex-editing.md`.
+**Batch 16 — editing an outline point by point (WP-49 … WP-53).** Seeing a landmass's or a water
+object's outline points and moving them exactly — the other half of the request that produced
+Batch 14. Settled in the ideation session of **2026-11-08**: `17-vertex-editing.md` **§8** is the
+decision record, **ADR-51** the decision. Brief: `prompts/phase-0.5-core-editor-improvement.md`.
 
-> **The next step is a session, not a package.** `17` **V1 is answered** — it arrives; the freehand
-> brushes Batch 14 shipped did not turn out to be sufficient, which is the observation `17` §7 was
-> waiting for. **V2 onward are not**, and V2 is not a detail: exact vertex handles and a coast
-> sculpt brush are different features with different package breakdowns, and `17` §5 argues both
-> sides honestly — the brush disposes of six of the eleven problems because they are *handle*
-> problems, and cannot be exact, which is the one thing Batch 14 took away.
->
-> So it is **not** in `prompts/phase-0.5-core-editor-improvement.md`, which by its own rule carries
-> a work order for a batch *about to be built*. It gets a number and a brief when a session settles
-> V2 — the way Batch 14 got its shape from the ideation session of 2026-08-12.
+> **The rule the batch is held to: a point goes where you put it, or back where it was.** There is
+> no third outcome — no repaired shape, no overlap, no point quietly simplified away later.
 
-> **Settled already, whichever shape wins**, and worth carrying into that session rather than
-> rediscovering: **both substances** (`16` D3 — a water object is a landmass's shape, so a
-> rivers-only feature would build the special case the water design exists to avoid); **`07` I5
-> gets back the top rung** WP-40 removed, because a vertex on a coastline will sit on a frame
-> corner exactly as a river endpoint did; and **V3 + V10 must answer self-intersection together**,
-> before the first package rather than after, because an outline crossing itself corrupts the
-> terrain *derivation* and not merely the picture.
+- [ ] **WP-49 · Is this outline allowed?** *(fixtures only, no UI)* — one pure function,
+      `outlineVerdict(object, neighbours)`, returning ok or the reason: self-intersection, a hole
+      outside or crossing its shell, or an overlap with another object of the same substance
+      (`17` V3, V4, V10). Fixtures first: a bow-tie, a vertex dragged across a bay, a hole pushed
+      out through the coast, a coast pushed into a lake, a point dragged into a neighbour, and the
+      valid near-misses of each. It must be fast enough to run **per pointer move** (the red
+      outline in WP-50) on a 140-point continent — measure it.
+      **Acceptance:** every fixture gives its expected verdict; the timing is recorded here.
+
+- [ ] **WP-50 · Points mode, one point at a time** — the third mode button (ADR-28's group); a
+      click picks one land or water object and draws its points as screen-constant handles (I8),
+      **all of them, no culling**; a press takes the nearest. Dragging moves that point exactly;
+      the outline **draws red** while `outlineVerdict` would reject; release either commits one
+      undo step or snaps back with none. Derivation is suspended during the drag and runs once
+      on drop (WP-15). Commit sets `handEdited: true`; transforms skip re-simplification for a
+      flagged object; any brush stroke on it clears the flag. `07` §I5 gets its top rung back.
+      **Acceptance (driven):** a drag moves exactly one point and the scene shows exactly that
+      change · a drag across a bay reddens, then snaps back, and undo has nothing new · a drag
+      into a neighbour does the same · a moved point survives a move-and-scale of the object ·
+      one drop, one derivation · clicking another object switches the points shown.
+
+- [ ] **WP-51 · Many points at once** — a marquee selects points (Shift adds), a drag moves the
+      set rigidly, arrow keys nudge 1 map unit (Shift: 10) with presses under 500 ms coalesced
+      into one undo step. Rejection is all-or-nothing: an invalid drop returns the whole set.
+      **Acceptance (driven):** a marquee'd stretch moves rigidly and its end points keep their
+      corners · ten quick arrow presses are one undo step, two presses a second apart are two ·
+      a set dragged into a neighbour returns whole.
+
+- [ ] **WP-52 · Adding and removing points** — **double-click** on an edge inserts a point there;
+      a single click on an edge does nothing. Delete / Backspace removes the selected points,
+      refused when a ring would drop below 3. Both go through `outlineVerdict` and both set
+      `handEdited`. **Acceptance (driven):** a double-clicked point lands on the edge and is still
+      there after a scale-up · a single click adds nothing · deleting down to 3 works, past it is
+      refused and says so · a delete that would self-intersect is refused.
+
+- [ ] **WP-53 · Falloff** — a radius slider in Points mode's options, **default 0 = exact**;
+      Alt+scroll changes it live (plain scroll still zooms; never Ctrl+scroll — that is pinch).
+      Neighbours follow by **path distance** along the ring; **Alt held during the drag** makes it
+      **spatial**. The radius is drawn while dragging. **Acceptance (driven):** radius 0 moves one
+      point; a positive radius moves a stretch that tapers to nothing at its edge · on a river,
+      a plain drag widens it and the facing bank's points do not move; an Alt-drag moves both
+      banks · Alt+scroll changes the radius and does not zoom.
 
 ## Later phases (see the phase prompts)
 

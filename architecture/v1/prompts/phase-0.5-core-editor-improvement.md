@@ -893,6 +893,30 @@ there is no Reroll** (D17) — undo and draw again.
 
 ---
 
+## Batch 16 — Editing an outline point by point (WP-49 … WP-53)
+
+**Design:** `../17-vertex-editing.md` — read **§8 first**; it is the decision record and overrides
+§4–§7 where they differ. **Decision:** ADR-51. **Prerequisite:** Batch 14 accepted (it is).
+**Settle first:** nothing — V2–V11 were settled in the ideation session of 2026-11-08.
+
+**What this batch is about.** Batch 14 removed the only exact editing the app had. This gives it
+back, on both substances, as a **Points** mode: one object's outline points, dragged exactly or
+with falloff, inserted and deleted. **Shape B, the sculpt brush, is not in it** — do not add it.
+
+**The one rule:** a point goes where you put it, or back where it was. Every edit goes through
+WP-49's `outlineVerdict`; a rejected drop snaps back and leaves the undo stack untouched. Do not
+add a repair pass — ADR-51 rejected it, because an invalid water polygon corrupts the land
+derivation (ADR-47).
+
+**Read `07-interaction-invariants.md` before WP-50.** Points mode adds a rung to I5 and a mode to
+ADR-28's group; `07` records seven bugs from getting that stack wrong.
+
+**Build order is numeric.** WP-49 is fixtures only and carries the geometric risk; its timing
+decides whether the red outline can run per pointer move. Per-package acceptance is in
+`05-p0-build-checklist.md`, and it is **driven input** throughout.
+
+---
+
 ## Adding a future batch
 
 > **Batches 9 and later are tracked in `05-p0-build-checklist.md` only.** This file carries a

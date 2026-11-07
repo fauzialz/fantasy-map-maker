@@ -1435,3 +1435,30 @@ objects and removing land remain two tools with two names. Only the address move
 have removed the *duplicate implementation* worry, which never existed — there was only ever one
 code path — while keeping the thing that actually misleads: two controls that look like peers and
 are the same tool. A shortcut to a tab is a second name for it.
+
+## ADR-51 — Vertex editing is exact handles in a Points mode; invalid drops are rejected
+_Batch 16. Settles `17-vertex-editing.md` V2–V11 (its §8). Restores the I5 rung WP-40 removed._
+
+**Decision:** landmasses and water get **exact point editing** in a third peer mode, **Points**,
+beside Select and Erase. One object's outline points at a time; drag one or a marquee'd set
+rigidly, with an optional path-distance falloff (Alt-drag for spatial); double-click an edge to
+insert, Delete to remove. **Any drop that leaves the outline self-intersecting, a hole outside its
+shell, or an overlap with another object of the same substance is rejected** — the points snap
+back and nothing reaches the undo stack. A hand-edited object carries an optional
+`handEdited?: true` and is never re-simplified afterwards.
+
+**Why:** Batch 14 removed the only exact editing the app had (river control points), and its
+acceptance showed the paint brushes did not replace it (`17` V1). The request was literally "see
+the nodes and adjust them". Rejection over repair because an invalid **water** polygon corrupts
+the land derivation (ADR-47), and a repair pass would produce shapes nobody drew; one rejection
+path also keeps C1 without reformulating slide-back for a single point. An optional flag rather
+than per-point pins because indices go stale under every brush, carve and merge, and an optional
+field needs no `schemaVersion` bump.
+
+**Rejected:**
+- **A coast sculpt brush (`17` shape B)**, alone or beside A. Chosen with A at first, then dropped
+  in the same session: the terrain and water brushes already add and remove area at a coast, and
+  B's only gain — bending an edge while keeping its detail — did not earn a second tool.
+- **Points as a sub-state of Select** entered by double-click: that gesture is WP-19's.
+- **Repairing invalid results**, and **allowing them** and letting the renderer cope.
+- **Culling crowded handles at fit zoom**: all handles are drawn; a press takes the nearest one.
